@@ -1,4 +1,4 @@
-# Bubbles
+Bubbles
 
 <!--LOGO HERE-->
 
@@ -26,15 +26,19 @@ Lena is quite popular and has a few different friend groups that she is a part o
 Lena also wishes to join a public Grove City College bubble for IM sports that her friend told her about. Since this is a public bubble, she logs in and decides to join. This is easy enough as she is not prompted to enter a code to join the bubble and does not have to be approved considering her account is verified through her location. This is unlike her theatre club where she was sent a code to join via SMS and was allowed entry by the club president. 
 
 
-4. Task 4: 
+4. Task 4: Place alerts
+Jennifer wants to know when Tim will get to Grove City. Rather than tracking constantly, she sets a location notification when he enters Grove City township limits. When Tim drives home and gets through the border, Jennifer gets a notification so that she knows Tim made it safely without having to text her while he's driving.
 
 
-5. Task 5:
+5. Task 5: Bubble highlights 
+Sam, Sydney, Ina, and Tim have a Bubble where they've shared plans and stories all semester, After their fall breaks, Sam pins the trip photos and plan as a highlight. Sydney, Ina, and Tim all see the highlight on their home pages, andd see all the fun photos and food that Sam posted. 
 
 
-6. Task 6:
+6. Task 6: Friends map 
+It's Friday night and Tim wants to grab food. He opens the map and sees that Sam, Ina, and Sydney are at Waffle House in Pittsburgh, so he messages them and drives down. 
 
 
-7. Task 7: 
+7. Task 7: SOS alert
+Ina is driving back to campus late at night from Waffle House when her car breaks down on a back road outside Grove City. She triggers SOS, and Sam and Tim instantly get an alert with her exact location. Sam drives straight to her. 
 
 
