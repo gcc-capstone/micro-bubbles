@@ -25,31 +25,35 @@ Lena is quite popular and has a few different friend groups that she is a part o
 
 Lena also wishes to join a public Grove City College bubble for IM sports that her friend told her about. Since this is a public bubble, she logs in and decides to join. This is easy enough as she is not prompted to enter a code to join the bubble and does not have to be approved considering her account is verified through her location. This is unlike her theatre club where she was sent a code to join via SMS and was allowed entry by the club president. 
 
-4. Task 3a: Iviting Others to a Bubble
+4. Task 4: Iviting Others to a Bubble
 
 Sam gets invited to the ACM Bubble by it's Bubble owner. He realizes that he might not know everyone in this public Bubble and is wary of sharing his location with these random comp sci nerds. He is concerned that this may be a privacy issue, so he denies the invitation. 
 
-5. Task 3b: Leaving a Bubble
+5. Task 5: Leaving a Bubble
 
 Sam accidentally accepts an invitation to the Urban Gaming Club on campus. He enjoys seeing where they will be on campus, so he doesn't get caught in the corssfire. Eventually, he gets targetted because they think he is a part of their game. He considers stopping his location sharing on this Bubble, but he thinks better of it and chooses to leave it altogether. 
 
-6. Task 4: Place Notifications
+6. Task 6: Place Notifications
 
 Jennifer wants to know when Tim will get to Grove City. Rather than tracking constantly, she sets a location notification for when he enters Grove City township limits. When Tim drives home and enters that radius, Jennifer gets a notification so she is relieved to know Tim made it safely without having to text while he's driving.
 
-7. Task 6: Visual Map Filtering
+7. Task 7: Visual Map Filtering
 
 It's Friday night and Tim wants to grab food. He opens the app, changes the filter to check all of his friends' bubbles because he wants to check the map. He looks to see if any of his friends are nearby and finds that Sam, Ina, and Sydney are at Waffle House. He is glad he checked, messages them, and drives speedily down as he is craving some waffles. 
 
-8. Task 7: SOS Alert
+8. Task 8: SOS Alert
 
 Ina is driving back to campus late at night from Waffle House when her car breaks down on a back road outside Grove City. She triggers SOS, and Sam and Tim instantly get an alert with her exact location. Sam drives straight to her, saving the day. 
 
-9. Task 10: Privacy 
+9. Task 9: Creating a Profile
+
+Ashlea just downloaded the Bubbles app and hopes to create an accurate profile for her purpose for using the app. She chooses a public profile and adds her profile name, profile picture, bio, and chooses to include a link to her instagram account. She also adds a few other hobbies to her profile such as hiking, running, and golf, hoping that others in her area that like these activities will be sugggested to her. That way she can join bubbles of local hikers, runners, and golfers as she is new to town and would love to know the local favorites for hiking trails, running routes, and golf courses. She adds some hiking pictures from her hometown in Colorado and puts the finishing touches on her profile, satisfied with how it looks.
+
+10. Task 10: Privacy 
 
 Ani wants to disable view permission of family pins and photos for others. She has been using SafePath with her family (in the Family bubble) ever since she first got her phone. She and her family have marked many places they've been to with many pictures per place. At college, Ani joined the Disc Golf club and got added to the Disc Golf bubble on SafePath. Ani disables view permissions for photos and pins from outside the bubble for the Disc Golf bubble, since she only knows a couple of people from that huge club full of random guys (and girls). Ani feels safe now that none of the random new people can see her family pictures and pins.
 
-10. Task 5: Bubble Highlights 
+11. Task 11: Bubble Highlights 
 
 Sam, Sydney, Ina, and Tim have a Bubble where they've shared plans and stories all semester, After their fall breaks, Sam pins the trip photos and plan as a highlight. Whenever Sydney, Ina, and Tim wish to reminisce on their core memories, they check the highlight on their home page, and view all the fun photos and food that Sam posted.  
 
