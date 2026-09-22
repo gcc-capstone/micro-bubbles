@@ -73,5 +73,15 @@ Sydney recently joined the “Rochester Nature Lovers” bubble that her friends
 
 Nia wants to share her events calendar with her fellow hikers. She is the organizer for her hiking club. She invited all the club members to her Hiking bubble on SafePath so everybody can see each other's locations when hiking, and if people are late they know where the crew is. This weekend, Nia is organizing a beginners hike to new people. As group messages are often flooded with hiking memes, Nia decided to put the event on the Calendars page (which will automatically notify people as the event approaches) in addition to sending out a reminder in the bubble's group chat. Nia is happy that people have an easy way to view details of the event, and that she doesn't have to worry about sending out more reminders. 
 
+## Related Work
 
+1. Life360
+
+2. Find My 
+
+3. Instagram
+
+4. Jumper
+
+5. Google Calendar
 

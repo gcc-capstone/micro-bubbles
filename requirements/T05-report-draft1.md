@@ -2,18 +2,18 @@
 
 Before submitting Draft 1, verify that your report includes all of the following:
 
-* [ ] Cover page with application name, logo, team members' names, and date
-* [ ] Introduction that clearly explains:
+* [] Cover page with application name, logo, team members' names, and date
+* [x] Introduction that clearly explains:
 
-  * [ ] the purpose of the system
-  * [ ] the target user group or groups
-  * [ ] the main features of the system
-* [ ] Representative Tasks section with:
+  * [x] the purpose of the system
+  * [x] the target user group or groups
+  * [x] the main features of the system
+* [x] Representative Tasks section with:
 
-  * [ ] introductory text explaining the purpose of the tasks
-  * [ ] complete descriptions of the representative tasks
-  * [ ] realistic user goals rather than instructions for using a particular interface
-  * [ ] enough context and realistic input for a reader to understand each task
+  * [x] introductory text explaining the purpose of the tasks
+  * [x] complete descriptions of the representative tasks
+  * [x] realistic user goals rather than instructions for using a particular interface
+  * [x] enough context and realistic input for a reader to understand each task
 * [ ] Related Work section discussing at least four distinct existing software products that are similar in functionality or purpose to the proposed system, or have a similar element
 * [ ] For each related product:
 
