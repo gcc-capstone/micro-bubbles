@@ -25,7 +25,7 @@ Lena is quite popular and has a few different friend groups that she is a part o
 
 Lena also wishes to join a public Grove City College bubble for IM sports that her friend told her about. Since this is a public bubble, she logs in and decides to join. This is easy enough as she is not prompted to enter a code to join the bubble and does not have to be approved considering her account is verified through her location. This is unlike her theatre club where she was sent a code to join via SMS and was allowed entry by the club president. 
 
-4. Task 4: Iviting Others to a Bubble
+4. Task 4: Inviting Others to a Bubble
 
 Sam gets invited to the ACM Bubble by it's Bubble owner. He realizes that he might not know everyone in this public Bubble and is wary of sharing his location with these random comp sci nerds. He is concerned that this may be a privacy issue, so he denies the invitation. 
 
@@ -77,11 +77,35 @@ Nia wants to share her events calendar with her fellow hikers. She is the organi
 
 1. Life360
 
+Similarities:
+
+Life360 is a location-sharing and safety application designed primarily for groups of people. Appfigures categorizes Life360 as a social networking/lifestyle application and describes it as a location tracker for family and friends. Appfigures also describes Life360 as a "family tracker and private chat app," making it particularly relevant to Bubbles because both apps combine location sharing with comminicaiton between groups. [1][2]
+
+Life360 organizes users into groups called Circles, where members can share their locations and interact with one another. It also supports a visual map on the homescreen where members in a selected circle appear as a circle with their profile picture on the map. People can switch location-based Places and notifications, allowing users to receive alerts when Circle members enter or leave defined areas. These features are similar to our Creating Multiple Bubbles, Joining a Bubble, Visual Map Filtering, and Place Notifications tasks. [3][4]
+
+Life360 also has communcation features that relate directly to our Feedback Notifications and Quick Alerts/Responses tasks. Its Quick Notes feature allows users to send short messages or emojis to Circle members from the map screen. This is similar to our proposed quick-response functionality, including an "On The Way!" button that allows a user to communicate their status without opening a full messaging interface. [5]
+
+Differences:
+
+While Life360 and Bubbles both focus on location sharing between groups, Bubbles is intended to support a wider variety of social and activity-based groups. Our representative tasks include family groups as well as examples like hiking clubs, college organizations, friends, and other communities. Bubbles also includes features such as custom pins, location rankings, Bubble highlights, and calendar sharing, which extend the application beyond basic location tracking and communication, making it more closely resemble a social media app. 
+
+Life360 also provides features that are outside the current focus of our proposed system. For example, its current platform includes driving safety services, roadside assistance, emergency dispatch, and location history. Some of these features may inform our design, but our MVP is primarily focused on implementing the core Bubbles experience and demonstrating the SafePath Location SDK.
+
+Design Insight:
+
+Life360 demonstrates that location sharing is more useful when it is combined with notifications and safety features rather than requiring users to constantly check a map. This supports our decision to include Place Notifications, SafePath's SOS Alerts, and visual map filtering in Bubbles. At the same time, Life360's privacy controls show the importance of giving users control over when and with whom their location is shared. Life360 allows location sharing to be turned off for individual Circles and also offers temporary location-sharing options. This supports our Privacy task and suggests that Bubbles should make location-sharing and memory sharing permissions clear and easy to control.
+
+Overall, Life360 provides a useful comparison for Bubbles because it demonstrates an established approach to combining group location sharing, geofencing/place alerts, communication, and safety features. Bubbles can build on these concepts while emphasizing social groups, shared locations, and community-oriented features such as pins, rankings, highlights, and calendars.
+
+
 2. Find My 
+
 
 3. Instagram
 
+
 4. Jumper
+
 
 5. Google Calendar
 

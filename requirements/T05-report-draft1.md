@@ -14,7 +14,7 @@ Before submitting Draft 1, verify that your report includes all of the following
   * [x] complete descriptions of the representative tasks
   * [x] realistic user goals rather than instructions for using a particular interface
   * [x] enough context and realistic input for a reader to understand each task
-* [ ] Related Work section discussing at least four distinct existing software products that are similar in functionality or purpose to the proposed system, or have a similar element
+* [x] Related Work section discussing at least four distinct existing software products that are similar in functionality or purpose to the proposed system, or have a similar element
 * [ ] For each related product:
 
   * [ ] the team examined an appropriate source directly
