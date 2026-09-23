@@ -77,30 +77,16 @@ Nia wants to share her events calendar with her fellow hikers. She is the organi
 
 1. Life360
 
-Similarities:
+Life360 is similar to Bubbles because both applications allow groups of people to share their locations and communicate with one another [1][2]. Life360 organizes users into Circles and provides a map showing Circle members, along with Places that can notify users when members enter or leave defined areas [3][4]. These features are similar to our Creating Multiple Bubbles, Visual Map Filtering, and Place Notifications tasks. Life360 also provides Quick Notes that allow users to send short messages or emojis from the map, which is similar to our quick-response feature such as an “On The Way!” message [5].
 
-Life360 is a location-sharing and safety application designed primarily for groups of people. Appfigures categorizes Life360 as a social networking/lifestyle application and describes it as a location tracker for family and friends. Appfigures also describes Life360 as a "family tracker and private chat app," making it particularly relevant to Bubbles because both apps combine location sharing with comminicaiton between groups. [1][2]
+Life360 also includes features that are outside the current focus of Bubbles, such as driving-related services, roadside assistance, and emergency services. Our application instead focuses more on social and activity-based groups, such as families, friends, hiking clubs, and college organizations. Bubbles also includes features such as custom location pins, location rankings, Bubble highlights, and calendar sharing that are not part of the core Life360 experience.
 
-Life360 organizes users into groups called Circles, where members can share their locations and interact with one another. It also supports a visual map on the homescreen where members in a selected circle appear as a circle with their profile picture on the map. People can switch location-based Places and notifications, allowing users to receive alerts when Circle members enter or leave defined areas. These features are similar to our Creating Multiple Bubbles, Joining a Bubble, Visual Map Filtering, and Place Notifications tasks. [3][4]
-
-Life360 also has communcation features that relate directly to our Feedback Notifications and Quick Alerts/Responses tasks. Its Quick Notes feature allows users to send short messages or emojis to Circle members from the map screen. This is similar to our proposed quick-response functionality, including an "On The Way!" button that allows a user to communicate their status without opening a full messaging interface. [5]
-
-Differences:
-
-While Life360 and Bubbles both focus on location sharing between groups, Bubbles is intended to support a wider variety of social and activity-based groups. Our representative tasks include family groups as well as examples like hiking clubs, college organizations, friends, and other communities. Bubbles also includes features such as custom pins, location rankings, Bubble highlights, and calendar sharing, which extend the application beyond basic location tracking and communication, making it more closely resemble a social media app. 
-
-Life360 also provides features that are outside the current focus of our proposed system. For example, its current platform includes driving safety services, roadside assistance, emergency dispatch, and location history. Some of these features may inform our design, but our MVP is primarily focused on implementing the core Bubbles experience and demonstrating the SafePath Location SDK.
-
-Design Insight:
-
-Life360 demonstrates that location sharing is more useful when it is combined with notifications and safety features rather than requiring users to constantly check a map. This supports our decision to include Place Notifications, SafePath's SOS Alerts, and visual map filtering in Bubbles. At the same time, Life360's privacy controls show the importance of giving users control over when and with whom their location is shared. Life360 allows location sharing to be turned off for individual Circles and also offers temporary location-sharing options. This supports our Privacy task and suggests that Bubbles should make location-sharing and memory sharing permissions clear and easy to control.
-
-Overall, Life360 provides a useful comparison for Bubbles because it demonstrates an established approach to combining group location sharing, geofencing/place alerts, communication, and safety features. Bubbles can build on these concepts while emphasizing social groups, shared locations, and community-oriented features such as pins, rankings, highlights, and calendars.
+Life360 demonstrates that location sharing can be combined with notifications and quick communication instead of requiring users to constantly monitor a map. Based on these features, Bubbles will combine location tracking and geofencing with quick responses and notifications while extending the experience with more social media and community-oriented features.
 
 
 2. Find My 
 
-Apple Find My [2] is similar to Bubbles in that both applications allow you to share locations with others. They also allow you to manage location permissions for specific people, view the location of other people as a pin on a map interface, and notifying people. In addition, Find My also supports viewing the respective locations of the user's devices and items through AirTag. However, these features are not as relevant to Bubbles, whose goal is to connect and protect people through location-sharing. Thus, Bubbles will incorporate features such as groups, bubble highlights, and geofencing or SOS alerts instead. 
+Apple Find My [6] is similar to Bubbles in that both applications allow you to share locations with others. They also allow you to manage location permissions for specific people, view the location of other people as a pin on a map interface, and notifying people. In addition, Find My also supports viewing the respective locations of the user's devices and items through AirTag. However, these features are not as relevant to Bubbles, whose goal is to connect and protect people through location-sharing. Thus, Bubbles will incorporate features such as groups, bubble highlights, and geofencing or SOS alerts instead. 
 
 3. Instagram
 
@@ -112,5 +98,15 @@ Apple Find My [2] is similar to Bubbles in that both applications allow you to s
 
 ## Bibliography
 
-[2] Apple. n.d. iCloud – Find My. Apple. Accessed September 22, 2026.
+[1] Appfigures. 2022. This Location Tracking App is Earning Millions of Dollars! Appfigures. Retrieved September 24, 2026 from https://appfigures.com/resources/insights/20220902
+
+[2] Appfigures. 2023. Life360's Revenue Grew 35% in May. Appfigures. Retrieved September 24, 2026 from https://appfigures.com/resources/insights/20230616/5-life360s-revenue-grew-35-percent
+
+[3] Life360. 2026. Create a Circle. Life360 Support. Retrieved September 24, 2026 from https://support.life360.com/hc/en-us/articles/23053382837143-Create-a-Circle
+
+[4] Life360. 2026. Places in the Life360 App. Life360 Support. Retrieved September 24, 2026 from https://support.life360.com/hc/en-us/articles/35609060078743-Places-in-the-Life360-app
+
+[5] Life360. 2026. Emoji Quick Notes & In-App Messaging. Life360 Support. Retrieved September 24, 2026 from https://support.life360.com/hc/en-us/articles/23053398261399-Emoji-Quick-Notes-In-App-Messaging
+
+[6] Apple. n.d. iCloud – Find My. Apple. Accessed September 22, 2026.
     https://www.apple.com/icloud/find-my/
