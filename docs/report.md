@@ -13,45 +13,45 @@ The main idea of the Bubbles project is to create a social location-sharing app 
 Some main features include the ability to create different “Bubbles” for groups such as family, friends, or social clubs and see members’ locations on a map. With geofencing, users can create names loctions using a defined radius. They can turn on notifications for when bubble members enter or leave these circles. Members of a bubble can share messages, photos, and interesting places with pins, either directly or within the group. Users can also utilize features such as location tracking, geofencing, and SOS.
 
 ## Representative Tasks
-1. Task 1: Bubbles - Approximate Location Detection
+1. MVP Task 1: Approximate Location Detection
 
 Michaela's dad wants to watch her daughter’s soccer game at Davis Park but is unsure of which field they are playing on currently. She got a ride from a friend, so he also wonders if she made it safely to the field. He opens SafePath to view the visual map on the main page. Since he has arrived at Davis Park and all the soccer moms and their kids are in the “Home Soccer” Bubble, he immediately sees the circle icons of some of the kids and their parents. Once he zooms in, he knows they are on Field 7 and notices that his wife has also just entered the Bubble, so he closes out of the app.
 
-2. Task 2: Creating Multiple Bubbles
+2. MVP Task 2: Creating Multiple Bubbles
 
 Lena is quite popular and has a few different friend groups that she is a part of. She wants to join the bubble for both her theatre group and her Krav Maga club. She opens the app and checks her inbox to see the invite from Venture, her theatre friend. She accepts the invite to join their bubble. She also accepts the invite in her inbox to join her Krav Maga club’s bubble. When she comes back to the main screen she seamlessly switches from view of everyone she knows to a view of just her theatre’s bubble. She sees that everyone is heading to the dining hall and decides to join them. 
 
-3. Task 3: Joining a Bubble via Code
+3. MVP Task 3: Joining a Bubble via Code
 
 Lena also wishes to join a public Grove City College bubble for IM sports that her friend told her about. Since this is a public bubble, she logs in and decides to join. This is easy enough as she is not prompted to enter a code to join the bubble and does not have to be approved considering her account is verified through her location. This is unlike her theatre club where she was sent a code to join via SMS and was allowed entry by the club president. 
 
-4. Task 4: Inviting Others to a Bubble
+4. MVP Task 4: Inviting Others to a Bubble
 
 Sam gets invited to the ACM Bubble by it's Bubble owner. He realizes that he might not know everyone in this public Bubble and is wary of sharing his location with these random comp sci nerds. He is concerned that this may be a privacy issue, so he denies the invitation. 
 
-5. Task 5: Leaving a Bubble
+5. MVP Task 5: Leaving a Bubble
 
 Sam accidentally accepts an invitation to the Urban Gaming Club on campus. He enjoys seeing where they will be on campus, so he doesn't get caught in the corssfire. Eventually, he gets targetted because they think he is a part of their game. He considers stopping his location sharing on this Bubble, but he thinks better of it and chooses to leave it altogether. 
 
-6. Task 6: Place Notifications
+6. MVP Task 6: Place Notifications
 
 Jennifer wants to know when Tim will get to Grove City. Rather than tracking constantly, she sets a location notification for when he enters Grove City township limits. When Tim drives home and enters that radius, Jennifer gets a notification so she is relieved to know Tim made it safely without having to text while he's driving.
 
-7. Task 7: Visual Map Filtering
+7. MVP Task 7: Visual Map Filtering
 
 It's Friday night and Tim wants to grab food. He opens the app, changes the filter to check all of his friends' bubbles because he wants to check the map. He looks to see if any of his friends are nearby and finds that Sam, Ina, and Sydney are at Waffle House. He is glad he checked, messages them, and drives speedily down as he is craving some waffles. 
 
-8. Task 8: SOS Alert
+8. MVP Task 8: Privacy 
 
-Ina is driving back to campus late at night from Waffle House when her car breaks down on a back road outside Grove City. She triggers SOS, and Sam and Tim instantly get an alert with her exact location. Sam drives straight to her, saving the day. 
+Ani wants to disable view permission of family pins and photos for others. She has been using SafePath with her family (in the Family bubble) ever since she first got her phone. She and her family have marked many places they've been to with many pictures per place. At college, Ani joined the Disc Golf club and got added to the Disc Golf bubble on SafePath. Ani disables view permissions for photos and pins from outside the bubble for the Disc Golf bubble, since she only knows a couple of people from that huge club full of random guys (and girls). Ani feels safe now that none of the random new people can see her family pictures and pins.
 
-9. Task 9: Creating a Profile
+9. MVP Task 9: Creating a Profile
 
 Ashlea just downloaded the Bubbles app and hopes to create an accurate profile for her purpose for using the app. She chooses a public profile and adds her profile name, profile picture, bio, and chooses to include a link to her instagram account. She also adds a few other hobbies to her profile such as hiking, running, and golf, hoping that others in her area that like these activities will be sugggested to her. That way she can join bubbles of local hikers, runners, and golfers as she is new to town and would love to know the local favorites for hiking trails, running routes, and golf courses. She adds some hiking pictures from her hometown in Colorado and puts the finishing touches on her profile, satisfied with how it looks.
 
-10. Task 10: Privacy 
+10. Task 10: SOS Alert
 
-Ani wants to disable view permission of family pins and photos for others. She has been using SafePath with her family (in the Family bubble) ever since she first got her phone. She and her family have marked many places they've been to with many pictures per place. At college, Ani joined the Disc Golf club and got added to the Disc Golf bubble on SafePath. Ani disables view permissions for photos and pins from outside the bubble for the Disc Golf bubble, since she only knows a couple of people from that huge club full of random guys (and girls). Ani feels safe now that none of the random new people can see her family pictures and pins.
+Ina is driving back to campus late at night from Waffle House when her car breaks down on a back road outside Grove City. She triggers SOS, and Sam and Tim instantly get an alert with her exact location. Sam drives straight to her, saving the day. 
 
 11. Task 11: Bubble Highlights 
 
@@ -75,26 +75,23 @@ Nia wants to share her events calendar with her fellow hikers. She is the organi
 
 ## Related Work
 
-1. Life360
+### 1. Life360
 
 Life360 is similar to Bubbles because both applications allow groups of people to share their locations and communicate with one another [1][2]. Life360 organizes users into Circles and provides a map showing Circle members, along with Places that can notify users when members enter or leave defined areas [3][4]. These features are similar to our Creating Multiple Bubbles, Visual Map Filtering, and Place Notifications tasks. Life360 also provides Quick Notes that allow users to send short messages or emojis from the map, which is similar to our quick-response feature such as an “On The Way!” message [5].
 
-Life360 also includes features that are outside the current focus of Bubbles, such as driving-related services, roadside assistance, and emergency services. Our application instead focuses more on social and activity-based groups, such as families, friends, hiking clubs, and college organizations. Bubbles also includes features such as custom location pins, location rankings, Bubble highlights, and calendar sharing that are not part of the core Life360 experience.
+Life360 also includes features that are outside the current focus of Bubbles, such as driving services and roadside assistance. Our application instead focuses more on social and activity-based groups, such as families, friends, clubs, and organizations. Bubbles also includes features such as custom location pins, location rankings, Bubble highlights, and calendar sharing that are not part of the core Life360 experience. Based on these features, Bubbles will combine location tracking and geofencing with quick responses and notifications while extending the experience with more social media and community-oriented features.
 
-Life360 demonstrates that location sharing can be combined with notifications and quick communication instead of requiring users to constantly monitor a map. Based on these features, Bubbles will combine location tracking and geofencing with quick responses and notifications while extending the experience with more social media and community-oriented features.
-
-
-2. Find My 
+### 2. Find My 
 
 Apple Find My [6] is similar to Bubbles in that both applications allow you to share locations with others. They also allow you to manage location permissions for specific people, view the location of other people as a pin on a map interface, and notifying people. In addition, Find My also supports viewing the respective locations of the user's devices and items through AirTag. However, these features are not as relevant to Bubbles, whose goal is to connect and protect people through location-sharing. Thus, Bubbles will incorporate features such as groups, bubble highlights, and geofencing or SOS alerts instead. 
 
-3. Instagram
+### 3. Instagram
 
 
-4. Jumper
+### 4. Jumper
 
 
-5. Google Calendar
+### 5. Google Calendar
 
 ## Bibliography
 
