@@ -100,6 +100,7 @@ Overall, Life360 provides a useful comparison for Bubbles because it demonstrate
 
 2. Find My 
 
+Apple Find My [2] is similar to Bubbles in that both applications allow you to share locations with others. They also allow you to manage location permissions for specific people, view the location of other people as a pin on a map interface, and notifying people. In addition, Find My also supports viewing the respective locations of the user's devices and items through AirTag. However, these features are not as relevant to Bubbles, whose goal is to connect and protect people through location-sharing. Thus, Bubbles will incorporate features such as groups, bubble highlights, and geofencing or SOS alerts instead. 
 
 3. Instagram
 
@@ -109,3 +110,7 @@ Overall, Life360 provides a useful comparison for Bubbles because it demonstrate
 
 5. Google Calendar
 
+## Bibliography
+
+[2] Apple. n.d. iCloud – Find My. Apple. Accessed September 22, 2026.
+    https://www.apple.com/icloud/find-my/
