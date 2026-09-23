@@ -13,6 +13,9 @@ The main idea of the Bubbles project is to create a social location-sharing app 
 Some main features include the ability to create different “Bubbles” for groups such as family, friends, or social clubs and see members’ locations on a map. With geofencing, users can create names loctions using a defined radius. They can turn on notifications for when bubble members enter or leave these circles. Members of a bubble can share messages, photos, and interesting places with pins, either directly or within the group. Users can also utilize features such as location tracking, geofencing, and SOS.
 
 ## Representative Tasks
+
+The following representative tasks describe common situations that Bubbles is designed to support. They show how users would interact with the application in realistic scenarios involving location sharing, Bubble management, communication, privacy, and social features. These tasks are important because they help define the core functionality of the application and provide concrete examples of how the proposed features address the needs of friends, families, clubs, and other social groups.
+
 1. MVP Task 1: Approximate Location Detection
 
 Michaela's dad wants to watch her daughter’s soccer game at Davis Park but is unsure of which field they are playing on currently. She got a ride from a friend, so he also wonders if she made it safely to the field. He opens SafePath to view the visual map on the main page. Since he has arrived at Davis Park and all the soccer moms and their kids are in the “Home Soccer” Bubble, he immediately sees the circle icons of some of the kids and their parents. Once he zooms in, he knows they are on Field 7 and notices that his wife has also just entered the Bubble, so he closes out of the app.
