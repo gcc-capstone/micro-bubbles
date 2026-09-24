@@ -93,8 +93,15 @@ Apple Find My [6] is similar to Bubbles in that both applications allow you to s
 
 ### 4. Jumper
 
+Jumper - Cliff Jumping [7] utilizes the user's location well, and the simplicity of the app's design make it easy to find locations, save them, or even create them. The standard and satelitte views of the earth were both very clean, and the handoff from the app to Apple Maps was smooth. Our own app could also utilize a handoff feature like Jumper's, such as handing off a message to the user's native messenger, or directions to another Bubble user's location from the native Maps app. Bubbles will also have a feature to select locations to add a geofence to, and so an interface like Jumper's will need to be implemented that can assist the user in selecting locatons.
+
+Some of the features present in Jumper, such as rating locations or commenting on them [7], likely will not be available in our app; locations can be shared within Bubbles and with friends, but the social aspect doesn't affect specific locations like it does in Jumper. 
 
 ### 5. Google Calendar
+
+Google Calendar [8] is an excellent example of a well-made calendar program. If Bubbles were to include a calendar feature, it would definitely borrow the multi-calendar feature from Google Calendar, but adapt it to work with individual Bubbles instead (e.g. one calendar per Bubble). Individual calendars are very easy to turn on and off in Google Calendar; we would also add this feature since seeing all of a user's Bubbles's events at once would be too much. Many other features from Google Calendar, such as colored events to differentiate them, recurring event options, and location picker, are all features we would want to add into our own calendar.
+
+There are some features that we would not need from Google Calendar, though. While the shared calendar feature is nice [8], it isn't necessary for our app. Any links for Zoom or Teams meetings would be redundant, since the app is designed for real life location meetups and sharing. Google Calendar also has the option to schedule a Birthday, Event, or Task, instead of just Events. For our purposes, we would just need the Event option, so we would replace that UI element when creating the task with an option to switch which calendar the event is made under. Our team would also likely not implement a notification reminder system like what Google Calendar has [9], simply due to complexity and limited development time. 
 
 ## Bibliography
 
@@ -108,5 +115,10 @@ Apple Find My [6] is similar to Bubbles in that both applications allow you to s
 
 [5] Life360. 2026. Emoji Quick Notes & In-App Messaging. Life360 Support. Retrieved September 24, 2026 from https://support.life360.com/hc/en-us/articles/23053398261399-Emoji-Quick-Notes-In-App-Messaging
 
-[6] Apple. n.d. iCloud – Find My. Apple. Accessed September 22, 2026.
-    https://www.apple.com/icloud/find-my/
+[6] Apple. n.d. iCloud – Find My. Apple. Retrieved September 22, 2026 from https://www.apple.com/icloud/find-my/
+
+[7] App Store for iPhone. n.d. Jumper - Cliff Jumping. Discover Cliff Jumping Spots. Retrieved September 24, 2026 from https://apps.apple.com/us/app/jumper-cliff-jumping/id1539090013
+
+[8] App Store for iPhone. n.d. Google Calendar: Get Organized. Easily plan and schedule. Retrieved September 24, 2026 from https://apps.apple.com/us/app/google-calendar-get-organized/id909319292
+
+[9] TechRadar. Updated 2025. I tested Google Calendar, and found it excels at helping manage day-to-day schedules. TechRadar Pro. Retrieved September 24, 2026 from https://www.techradar.com/reviews/google-calendar
