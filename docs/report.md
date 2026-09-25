@@ -1,4 +1,4 @@
-# Bubbles
+# Smith Micro | Bubbles
 
 Sydney Goettel, Sam Mayfield, Tim Shin, Yina Tang
 
@@ -81,6 +81,8 @@ Sydney recently joined the “Rochester Nature Lovers” bubble that her friends
 Nia wants to share her events calendar with her fellow hikers. She is the organizer for her hiking club. She invited all the club members to her Hiking bubble on SafePath so everybody can see each other's locations when hiking, and if people are late they know where the crew is. This weekend, Nia is organizing a beginners hike to new people. As group messages are often flooded with hiking memes, Nia decided to put the event on the Calendars page (which will automatically notify people as the event approaches) in addition to sending out a reminder in the bubble's group chat. Nia is happy that people have an easy way to view details of the event, and that she doesn't have to worry about sending out more reminders. 
 
 ## Related Work
+
+We examined several existing applications that share important features with Bubbles, including location sharing, social communication, map-based interactions, location-based services, and calendar management. These applications provide useful examples of how similar features are designed while also showing differences in functionality and target users. Comparing them helps identify which ideas are relevant to Bubbles and which features should be adapted or excluded based on our representative tasks and project goals.
 
 ### 1. Life360
 

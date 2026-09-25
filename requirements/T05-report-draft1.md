@@ -15,24 +15,24 @@ Before submitting Draft 1, verify that your report includes all of the following
   * [x] realistic user goals rather than instructions for using a particular interface
   * [x] enough context and realistic input for a reader to understand each task
 * [x] Related Work section discussing at least four distinct existing software products that are similar in functionality or purpose to the proposed system, or have a similar element
-* [ ] For each related product:
+* [x] For each related product:
 
-  * [ ] the team examined an appropriate source directly
-  * [ ] the report explains specific similarities to the proposed system
-  * [ ] the report explains specific differences from the proposed system
-  * [ ] the comparison connects to the target users or representative tasks
-  * [ ] the discussion identifies a meaningful design insight, implication, or rationale
-* [ ] Bibliography containing complete citations for every source discussed in Related Work
-* [ ] One citation style is used consistently throughout the bibliography
-* [ ] The report is self-contained and understandable to someone who has not seen the assignment or attended class
-* [ ] Major sections include appropriate introductory or transition text
+  * [x] the team examined an appropriate source directly
+  * [x] the report explains specific similarities to the proposed system
+  * [x] the report explains specific differences from the proposed system
+  * [x] the comparison connects to the target users or representative tasks
+  * [x] the discussion identifies a meaningful design insight, implication, or rationale
+* [x] Bibliography containing complete citations for every source discussed in Related Work
+* [x] One citation style is used consistently throughout the bibliography
+* [x] The report is self-contained and understandable to someone who has not seen the assignment or attended class
+* [x] Major sections include appropriate introductory or transition text
 * [ ] Figures and tables, if used, are numbered, captioned, and referenced in the text
-* [ ] The Markdown renders cleanly on GitHub
-* [ ] All team members have contributed to the report
-* [ ] Substantial AI-assisted revisions have a committed student-written version (with pre-ai commit message) before the AI-assisted revision (with a post-ai commit message)
-* [ ] AI-assisted changes were reviewed for accuracy, clarity, and consistency before being merged
-* [ ] Claims about products, publications, or other sources were verified from appropriate sources rather than relying on AI-generated descriptions
-* [ ] The Draft 1 report has been reviewed through a pull request and merged into main as docs/report.md.
+* [x] The Markdown renders cleanly on GitHub
+* [x] All team members have contributed to the report
+* [x] Substantial AI-assisted revisions have a committed student-written version (with pre-ai commit message) before the AI-assisted revision (with a post-ai commit message)
+* [x] AI-assisted changes were reviewed for accuracy, clarity, and consistency before being merged
+* [x] Claims about products, publications, or other sources were verified from appropriate sources rather than relying on AI-generated descriptions
+* [x] The Draft 1 report has been reviewed through a pull request and merged into main as docs/report.md.
 
 
 
