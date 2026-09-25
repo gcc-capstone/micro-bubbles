@@ -1,10 +1,14 @@
 # Bubbles
 
-<!--LOGO HERE-->
-
 Sydney Goettel, Sam Mayfield, Tim Shin, Yina Tang
 
 24 September 2026
+
+<div style="text-align: center; margin: 2.0rem;">
+  <img src="images/BubblesAppLogo.png" alt="Bubbles Logo" width="60%" style="border: 0.125rem solid #ccc; border-radius: 0.5rem; padding: 0.25rem;">
+  <br>
+  <em>Bubbles App Logo</em>
+</div>
 
 ## Introduction
 
