@@ -2,7 +2,7 @@
 
 Before submitting Draft 1, verify that your report includes all of the following:
 
-* [] Cover page with application name, logo, team members' names, and date
+* [X] Cover page with application name, logo, team members' names, and date
 * [x] Introduction that clearly explains:
 
   * [x] the purpose of the system
@@ -26,7 +26,7 @@ Before submitting Draft 1, verify that your report includes all of the following
 * [x] One citation style is used consistently throughout the bibliography
 * [x] The report is self-contained and understandable to someone who has not seen the assignment or attended class
 * [x] Major sections include appropriate introductory or transition text
-* [ ] Figures and tables, if used, are numbered, captioned, and referenced in the text
+* [X] Figures and tables, if used, are numbered, captioned, and referenced in the text
 * [x] The Markdown renders cleanly on GitHub
 * [x] All team members have contributed to the report
 * [x] Substantial AI-assisted revisions have a committed student-written version (with pre-ai commit message) before the AI-assisted revision (with a post-ai commit message)
