@@ -1,5 +1,6 @@
 // Visual source of truth for prototype screens.
-// Colors and fonts taken from smithmicro.com / SafePath product pages.
+// Colors and fonts taken from smithmicro.com / SafePath product pages,
+// plus accents from the Bubbles logo (assets/logo.jpg).
 
 export const colors = {
   primary: '#005BAA', // Smith Micro blue: buttons, header, links
@@ -13,7 +14,12 @@ export const colors = {
   background: '#F9F9F9',
   surface: '#FFFFFF', // cards, inputs
   danger: '#D64545', // SOS / errors
+  iris: '#5B3FD9', // logo icon violet: map pins, highlights
+  pin: '#C8234F', // logo map-pin crimson: dropped pins
 };
+
+// Iridescent soap-film colors from the logo, used for bubble rims.
+export const shimmer = ['#7FE3F0', '#A98BFF', '#F39BD8', '#FFF0A6'];
 
 export const fonts = {
   heading: 'Montserrat_700Bold',
@@ -38,7 +44,7 @@ export const radius = { sm: 10, md: 20, pill: 999 };
 // ponytail: reuses the brand palette; widen when there are more Bubbles than colors.
 export const bubbleColors = [colors.primary, colors.accent, colors.secure, colors.primaryDark];
 
-// Soft drop shadow for cards, floating bubbles and map pins.
+// Soft drop shadow for cards and map pins.
 export const shadow = {
   shadowColor: '#000',
   shadowOpacity: 0.08,
