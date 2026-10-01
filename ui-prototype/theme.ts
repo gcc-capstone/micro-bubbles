@@ -33,3 +33,16 @@ export const type = {
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 
 export const radius = { sm: 10, md: 20, pill: 999 };
+
+// Each Bubble (group) gets one of these for its bubble, map circle and chips.
+// ponytail: reuses the brand palette; widen when there are more Bubbles than colors.
+export const bubbleColors = [colors.primary, colors.accent, colors.secure, colors.primaryDark];
+
+// Soft drop shadow for cards, floating bubbles and map pins.
+export const shadow = {
+  shadowColor: '#000',
+  shadowOpacity: 0.08,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 3,
+};
