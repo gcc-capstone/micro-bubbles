@@ -1,6 +1,5 @@
-// Visual source of truth for prototype screens.
-// Colors and fonts taken from smithmicro.com / SafePath product pages,
-// plus accents from the Bubbles logo (assets/logo.jpg).
+// Design tokens for the Bubbles app. Shared components live in components.tsx.
+// Colors and fonts taken from smithmicro.com / SafePath product pages.
 
 export const colors = {
   primary: '#005BAA', // Smith Micro blue: buttons, header, links
@@ -14,12 +13,7 @@ export const colors = {
   background: '#F9F9F9',
   surface: '#FFFFFF', // cards, inputs
   danger: '#D64545', // SOS / errors
-  iris: '#5B3FD9', // logo icon violet: map pins, highlights
-  pin: '#C8234F', // logo map-pin crimson: dropped pins
 };
-
-// Iridescent soap-film colors from the logo, used for bubble rims.
-export const shimmer = ['#7FE3F0', '#A98BFF', '#F39BD8', '#FFF0A6'];
 
 export const fonts = {
   heading: 'Montserrat_700Bold',
@@ -40,7 +34,7 @@ export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 
 export const radius = { sm: 10, md: 20, pill: 999 };
 
-// Each Bubble (group) gets one of these for its bubble, map circle and chips.
+// Each Bubble (group) gets one of these for its bubble, map circle, pins and chips.
 // ponytail: reuses the brand palette; widen when there are more Bubbles than colors.
 export const bubbleColors = [colors.primary, colors.accent, colors.secure, colors.primaryDark];
 
