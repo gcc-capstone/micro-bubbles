@@ -261,8 +261,8 @@ export function EventDetail({ event, onClose }: { event: BubbleEvent | null; onC
 
 /* ---------- Bubble profile (view + edit) ---------- */
 
-export function BubbleProfile({ group, onClose, onLeave, onChanged }: {
-  group: Group | null; onClose: () => void; onLeave: () => void; onChanged: () => void;
+export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged }: {
+  group: Group | null; startEditing?: boolean; onClose: () => void; onLeave: () => void; onChanged: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
@@ -271,7 +271,7 @@ export function BubbleProfile({ group, onClose, onLeave, onChanged }: {
   const [privacy, setPrivacy] = useState('Private');
   useEffect(() => {
     if (!group) return;
-    setEditing(false);
+    setEditing(!!startEditing);
     setName(group.name);
     setAbout(group.about ?? `${group.name} on Bubbles.`);
     setColor(groupColor(group.id));

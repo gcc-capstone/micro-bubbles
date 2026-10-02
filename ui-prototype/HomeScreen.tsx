@@ -3,12 +3,12 @@
 // Re-tapping the Bubbles tab (resetKey) or "More bubbles..." shows all Bubbles as floating
 // bubbles (few) or an Apple Watch-style honeycomb (many).
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Easing, PanResponder, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Badge, Bubble, FloatingBubble, MapButton, MenuButton, Segmented, Separator } from './components';
+import { Avatar, Badge, Bubble, FloatingBubble, IconName, MapButton, MenuButton, Segmented, Separator } from './components';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
-import { ALL, avgRating, distanceFromMe, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, ME, Member, memberColor, Pin } from './data';
+import { ALL, avgRating, distanceFromMe, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Member, memberColor, Pin } from './data';
 import { BubbleProfile, DropPin, PersonView, PinView } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
 
@@ -71,7 +71,17 @@ const hexLayout = (n: number) => {
 };
 const HEX = hexLayout(ALL.length);
 
-const minutesAgo = (s: string) => (s === 'Now' ? 0 : parseInt(s, 10) * (s.includes('h') ? 60 : s.includes('d') ? 1440 : 1));
+const MENU_ICONS: Record<string, IconName> = {
+  'Bubble Info': 'information-circle-outline',
+  'Edit Bubble': 'create-outline',
+  'Add Members': 'person-add-outline',
+  'Mute Notifications': 'notifications-off-outline',
+  'Unmute Notifications': 'notifications-outline',
+  'Leave Bubble': 'exit-outline',
+};
+
+const minutesAgo = (s: string) =>
+  s === 'Now' ? 0 : parseInt(s, 10) * (s.includes('h') ? 60 : s.includes('d') ? 1440 : s.includes('w') ? 10080 : 1);
 
 export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: { resetKey: number; reduceMotion: boolean; everyoneRadius: number }) {
   const insets = useSafeAreaInsets();
@@ -84,7 +94,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
   const [sort, setSort] = useState<Record<string, string>>({ Activity: 'Newest', Pins: 'Top rated', Members: 'Nearest' });
   const [filters, setFilters] = useState<Record<string, string[]>>({ Activity: [], Pins: [], Members: [] });
   const [sub, setSub] = useState<{ person?: Member; pin?: Pin } | null>(null); // sheet sub-view
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState<false | 'view' | 'edit'>(false);
+  const [muted, setMuted] = useState<Record<string, boolean>>({});
   const [dropOpen, setDropOpen] = useState(false);
   const [, setTick] = useState(0); // re-render after in-memory edits (drop pin, edit/leave Bubble)
   const refresh = () => setTick((t) => t + 1);
@@ -134,7 +145,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
       return {
         x: (w - CANVAS.w * k) / 2 + c.x * k,
         y: fieldTop + (h - fieldTop - 8 - CANVAS.h * k) / 2 + c.y * k,
-        s: bubbleSize(g.members.length) * k,
+        s: bubbleSize(g.id === 'everyone' ? nearbyCount : g.members.length) * k,
         scale: 1,
       };
     }
@@ -222,6 +233,12 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
 
   const base: Group | null = selected === null ? null : ALL[selected];
   const near = (x: { lat: number; lng: number }) => distanceFromMe(x.lat, x.lng) <= everyoneRadius;
+  // An update is nearby if the person it's about is; otherwise if the Bubble has a place nearby.
+  const activityNear = (g: Group, text: string) => {
+    const who = g.members.find((m) => text.startsWith(m.name));
+    return who ? near(who) : g.places.some(near);
+  };
+  const nearbyCount = ALL[0].members.filter(near).length;
   const group: Group | null =
     base?.id === 'everyone'
       ? { ...base, members: base.members.filter(near), pins: base.pins.filter(near), places: base.places.filter(near) }
@@ -262,6 +279,37 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
     setFocus(null);
   };
 
+  // Bubble "..." menu: info, edit, invite, mute, leave. Everyone only has info.
+  const isMuted = !!(base && muted[base.id]);
+  const bubbleMenu =
+    base?.id === 'everyone'
+      ? ['Bubble Info']
+      : ['Bubble Info', 'Edit Bubble', 'Add Members', isMuted ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble'];
+  const leaveGroup = () => {
+    // ponytail: removes from the in-memory lists only
+    const g = base!;
+    GROUPS.splice(GROUPS.indexOf(g), 1);
+    ALL.splice(ALL.indexOf(g), 1);
+    setProfileOpen(false);
+    setSelected(0);
+    showToast(`You left ${g.name}`);
+  };
+  const onBubbleMenu = (o: string) => {
+    const g = base!;
+    if (o === 'Bubble Info') setProfileOpen('view');
+    if (o === 'Edit Bubble') setProfileOpen('edit');
+    if (o === 'Add Members') Share.share({ message: `Join ${g.name} on Bubbles with code ${joinCode(g.id)}` });
+    if (o.endsWith('Notifications')) {
+      setMuted({ ...muted, [g.id]: !isMuted });
+      showToast(isMuted ? `Notifications on for ${g.name}` : `Muted ${g.name}`);
+    }
+    if (o === 'Leave Bubble')
+      Alert.alert(`Leave ${g.name}?`, 'Members will stop seeing your location, pins and photos.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Leave', style: 'destructive', onPress: leaveGroup },
+      ]);
+  };
+
   const openPerson = (m: Member) => {
     setFocus(m);
     slideIn(subX, subO, 1);
@@ -289,7 +337,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
   // Sheet rows for the current tab, after sort/filter and search.
   const activity = !group
     ? []
-    : (group.id === 'everyone' ? GROUPS.map((g) => ({ ...g.activity[0], key: `${g.id}:0`, unread: g.unread > 0 })) : group.activity.map((a, i) => ({ ...a, key: `${group.id}:${i}`, unread: i < group.unread })))
+    : (group.id === 'everyone'
+        ? GROUPS.flatMap((g) => g.activity.map((a, i) => ({ ...a, key: `${g.id}:${i}`, unread: i < g.unread, g }))).filter((a) => activityNear(a.g, a.text))
+        : group.activity.map((a, i) => ({ ...a, key: `${group.id}:${i}`, unread: i < group.unread })))
         .map((a) => ({ ...a, unread: a.unread && !read[a.key] }))
         .filter((a) => match(a.text))
         .filter((a) => !has('Unread') || a.unread)
@@ -297,6 +347,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
           const kinds = filters.Activity.filter((f) => ACTIVITY_KIND[f]);
           return !kinds.length || kinds.some((f) => ACTIVITY_KIND[f].includes(a.icon));
         });
+  activity.sort((a, b) => minutesAgo(a.time) - minutesAgo(b.time)); // newest first, across Bubbles
   if (sort.Activity === 'Oldest') activity.reverse();
   const pins = !group
     ? []
@@ -393,9 +444,14 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
                     : `${group.members.length} members · ${group.places.map((pl) => pl.name).join(', ')}`}
                 </Text>
               </View>
-              <Pressable onPress={() => setProfileOpen(true)} hitSlop={12}>
-                <Ionicons name="create-outline" size={22} color={colors.textMuted} />
-              </Pressable>
+              <MenuButton
+                plain
+                icon="ellipsis-horizontal-circle-outline"
+                options={bubbleMenu}
+                icons={MENU_ICONS}
+                destructive={['Leave Bubble']}
+                onSelect={onBubbleMenu}
+              />
             </View>
           </Pressable>
           </View>
@@ -549,7 +605,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
                   size={f.s}
                   tint={groupColor(g.id)}
                   label={g.name}
-                  sublabel={`${g.members.length} ${g.id === 'everyone' ? 'people' : 'members'}`}
+                  sublabel={g.id === 'everyone' ? `${nearbyCount} within ${everyoneRadius} mi` : `${g.members.length} members`}
                   count={g.unread}
                   delay={i * 500}
                   still={reduceMotion || watch}
@@ -612,20 +668,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
       )}
 
       {profileOpen && (
-        <BubbleProfile
-          group={group}
-          onClose={() => setProfileOpen(false)}
-          onChanged={refresh}
-          onLeave={() => {
-            // ponytail: removes from the in-memory lists only
-            const g = group!;
-            GROUPS.splice(GROUPS.indexOf(g), 1);
-            ALL.splice(ALL.indexOf(g), 1);
-            setProfileOpen(false);
-            setSelected(0);
-            showToast(`You left ${g.name}`);
-          }}
-        />
+        <BubbleProfile group={group} startEditing={profileOpen === 'edit'} onClose={() => setProfileOpen(false)} onChanged={refresh} onLeave={leaveGroup} />
       )}
       <DropPin
         visible={dropOpen}

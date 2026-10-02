@@ -54,9 +54,9 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
           key={p.name}
           center={{ latitude: p.lat, longitude: p.lng }}
           radius={p.radius}
-          strokeColor={color}
-          strokeWidth={2}
-          fillColor={color + '1F'}
+          strokeColor="transparent" // iOS draws a default black outline otherwise
+          strokeWidth={0}
+          fillColor={color + '38'} // shaded area only, no outline
         />
       ))}
       {places.map((p) => (

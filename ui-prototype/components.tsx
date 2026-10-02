@@ -130,12 +130,12 @@ export function MapPin({ color, icon, rank, label, style }: { color: string; ico
   );
 }
 
-// Geofenced place; dashed = belongs to a Bubble that isn't selected.
+// Geofenced place: a shaded area, no outline. faint (dashed) = belongs to a Bubble that isn't selected.
 export function LocationCircle({ size, color, icon, label, dashed, style }: {
   size: number; color: string; icon: IconName; label: string; dashed?: boolean; style?: Style;
 }) {
   return (
-    <View style={[s.geofence, { width: size, height: size, borderColor: color, backgroundColor: color + '1F' }, dashed && { borderStyle: 'dashed' }, style]}>
+    <View style={[s.geofence, { width: size, height: size, backgroundColor: color + (dashed ? '1F' : '38') }, style]}>
       <View style={[s.placeTag, { backgroundColor: color }]}>
         <Ionicons name={icon} size={11} color={colors.surface} />
         <Text style={s.placeTagText}>{label}</Text>
@@ -205,23 +205,27 @@ export function Separator({ inset = spacing.md }: { inset?: number }) {
   return <View style={[s.separator, { marginLeft: inset }]} />;
 }
 
-// Button that opens a small popover menu (iOS-style). multi keeps it open for toggling filters.
-export function MenuButton({ icon, label, options, selected, onSelect, multi, active }: {
-  icon: IconName; label?: string; options: string[]; selected: string[]; onSelect: (o: string) => void; multi?: boolean; active?: boolean;
+// Button that opens a small popover menu (iOS-style). multi keeps it open for toggling filters;
+// plain is an icon-only trigger; icons show on the right of items; destructive items are red.
+export function MenuButton({ icon, label, options, selected = [], onSelect, multi, active, plain, icons, destructive = [] }: {
+  icon: IconName; label?: string; options: string[]; selected?: string[]; onSelect: (o: string) => void; multi?: boolean; active?: boolean;
+  plain?: boolean; icons?: Record<string, IconName>; destructive?: string[];
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ right: 0, top: 0 });
+  const [pos, setPos] = useState<{ right: number; top?: number; bottom?: number }>({ right: 0, top: 0 });
   const ref = useRef<View>(null);
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const show = () =>
     ref.current?.measureInWindow((x, y, w, h) => {
-      setPos({ right: width - x - w, top: y + h + 6 });
+      // open upward when there isn't room below (e.g. buttons near the bottom of the screen)
+      const fitsBelow = y + h + 6 + options.length * 50 < height - 24;
+      setPos(fitsBelow ? { right: width - x - w, top: y + h + 6 } : { right: width - x - w, bottom: height - y + 6 });
       setOpen(true);
     });
   return (
     <>
-      <Pressable ref={ref} onPress={show} style={[s.menuBtn, active && s.menuBtnOn]}>
-        <Ionicons name={icon} size={15} color={active ? colors.primary : colors.text} />
+      <Pressable ref={ref} onPress={show} hitSlop={plain ? 10 : 0} style={plain ? null : [s.menuBtn, active && s.menuBtnOn]}>
+        <Ionicons name={icon} size={plain ? 24 : 15} color={plain ? colors.textMuted : active ? colors.primary : colors.text} />
         {label && <Text style={[s.menuBtnText, active && { color: colors.primary }]}>{label}</Text>}
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -236,8 +240,9 @@ export function MenuButton({ icon, label, options, selected, onSelect, multi, ac
                   if (!multi) setOpen(false);
                 }}
               >
-                <Text style={[type.body, { flex: 1 }]}>{o}</Text>
+                <Text style={[type.body, { flex: 1 }, destructive.includes(o) && { color: colors.danger }]}>{o}</Text>
                 {selected.includes(o) && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                {icons?.[o] && <Ionicons name={icons[o]} size={18} color={destructive.includes(o) ? colors.danger : colors.text} />}
               </Pressable>
             ))}
           </View>
@@ -444,7 +449,6 @@ const s = StyleSheet.create({
   geofence: {
     position: 'absolute',
     borderRadius: radius.pill,
-    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingBottom: spacing.sm,
