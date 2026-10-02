@@ -2,6 +2,7 @@
 import { ComponentProps, ReactNode, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -33,14 +34,20 @@ export function Bubble({ size, tint = colors.primary, children }: { size: number
 }
 
 // Bubble that floats and sways; springs bigger when selected.
-export function FloatingBubble({ size, tint, label, sublabel, count = 0, delay = 0, selected, onPress, style }: {
-  size: number; tint: string; label: string; sublabel?: string; count?: number; delay?: number; selected?: boolean; onPress?: () => void; style?: Style;
+// still: no floating (reduced motion).
+export function FloatingBubble({ size, tint, label, sublabel, count = 0, delay = 0, selected, still, onPress, style }: {
+  size: number; tint: string; label: string; sublabel?: string; count?: number; delay?: number; selected?: boolean; still?: boolean;
+  onPress?: () => void; style?: Style;
 }) {
   const t = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    Animated.loop(Animated.timing(t, { toValue: 1, duration: 4200 + delay, easing: Easing.linear, useNativeDriver: false })).start();
-  }, [t, delay]);
+    t.setValue(0);
+    if (still) return;
+    const loop = Animated.loop(Animated.timing(t, { toValue: 1, duration: 4200 + delay, easing: Easing.linear, useNativeDriver: false }));
+    loop.start();
+    return () => loop.stop();
+  }, [t, delay, still]);
   useEffect(() => {
     Animated.spring(scale, { toValue: selected ? 1.15 : 1, friction: 3, tension: 120, useNativeDriver: false }).start();
   }, [scale, selected]);
@@ -175,34 +182,19 @@ export function Chip({ icon, label, color = colors.textMuted, variant = 'soft' }
   );
 }
 
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-
-// Event row: date block, details, which Bubble it belongs to, and who's going.
-export function EventCard({ date, title, time, place, color, groupName, going }: {
-  date: string; title: string; time: string; place: string; color: string; groupName: string; going: { initials: string; color: string }[];
+// Plain list row for an event: time, title, where, which Bubble, how many going.
+export function EventRow({ time, title, place, groupName, going, divider }: {
+  time: string; title: string; place: string; groupName: string; going: number; divider?: boolean;
 }) {
-  const [, m, d] = date.split('-').map(Number);
   return (
-    <Card style={[s.row, { gap: spacing.md }]}>
-      <View style={s.dateBlock}>
-        <Text style={[s.dateMonth, { color }]}>{MONTHS[m - 1]}</Text>
-        <Text style={s.dateDay}>{d}</Text>
-      </View>
+    <View style={[s.eventRow, divider && s.eventDivider]}>
+      <Text style={s.eventTime}>{time}</Text>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={s.eventTitle}>{title}</Text>
-        <Text style={type.caption}>{time} · {place}</Text>
-        <View style={[s.row, { gap: 4 }]}>
-          <Bubble size={12} tint={color} />
-          <Text style={type.caption}>{groupName}</Text>
-        </View>
+        <Text style={type.caption}>{place} · {groupName}</Text>
       </View>
-      <View style={s.row}>
-        {going.slice(0, 3).map((g, n) => (
-          <View key={n} style={{ marginLeft: n ? -10 : 0 }}><Avatar initials={g.initials} color={g.color} size={28} ring={colors.surface} /></View>
-        ))}
-        {going.length > 3 && <Text style={[type.caption, { marginLeft: 4 }]}>+{going.length - 3}</Text>}
-      </View>
-    </Card>
+      <Text style={type.caption}>{going} going</Text>
+    </View>
   );
 }
 
@@ -288,9 +280,11 @@ export function Dropdown({ label, icon, options, value, onChange }: {
 // A tab with `action: true` renders as the raised center button.
 export type Tab = { icon: IconName; label: string; action?: boolean };
 
+// Paints down behind the home indicator; content stays above it.
 export function TabBar({ tabs, active, onPress }: { tabs: Tab[]; active: number; onPress?: (i: number) => void }) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={s.tabBar}>
+    <View style={[s.tabBar, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
       {tabs.map((tab, i) => (
         <Pressable key={i} style={s.tab} onPress={() => onPress?.(i)}>
           {tab.action ? (
@@ -407,10 +401,10 @@ const s = StyleSheet.create({
   chipSoftText: { ...type.caption, fontSize: 12 },
   chipOutline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.sm + 2, paddingVertical: 4 },
 
-  dateBlock: { width: 52, paddingVertical: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.primarySoft, alignItems: 'center' },
-  dateMonth: { fontFamily: fonts.bodyBold, fontSize: 12 },
-  dateDay: { fontFamily: fonts.heading, fontSize: 20, color: colors.text },
   eventTitle: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.text },
+  eventRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm + 4 },
+  eventDivider: { borderTopWidth: 1, borderTopColor: colors.border },
+  eventTime: { width: 64, fontFamily: fonts.bodyBold, fontSize: 13, color: colors.primary },
   segmented: { flexDirection: 'row', gap: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   segment: { paddingVertical: spacing.sm, borderBottomWidth: 2, borderBottomColor: 'transparent', marginBottom: -1 },
   segmentOn: { borderBottomColor: colors.primary },

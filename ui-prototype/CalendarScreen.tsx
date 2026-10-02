@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Bubble, EventCard } from './components';
+import { EventRow } from './components';
 import { colors, fonts, radius, spacing, type } from './theme';
-import { ALL, EVENTS, groupColor, initials, memberColor, TODAY } from './data';
+import { ALL, EVENTS, TODAY } from './data';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -36,7 +36,6 @@ export default function CalendarScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
         {ALL.map((g) => (
           <Pressable key={g.id} onPress={() => setFilter(g.id)} style={[styles.filter, filter === g.id && styles.filterOn]}>
-            <Bubble size={14} tint={groupColor(g.id)} />
             <Text style={[styles.filterText, filter === g.id && { color: colors.primary }]}>{g.name}</Text>
           </Pressable>
         ))}
@@ -68,8 +67,8 @@ export default function CalendarScreen() {
                   <Text style={[styles.dayText, isSel && { color: colors.surface }]}>{d}</Text>
                 </View>
                 <View style={styles.dots}>
-                  {dots.map((e, n) => (
-                    <View key={n} style={[styles.dot, { backgroundColor: groupColor(e.groupId) }]} />
+                  {dots.map((_, n) => (
+                    <View key={n} style={styles.dot} />
                   ))}
                 </View>
               </Pressable>
@@ -86,18 +85,19 @@ export default function CalendarScreen() {
       {dayEvents.length === 0 ? (
         <Text style={type.caption}>Nothing planned in this Bubble. Pick a day with a dot.</Text>
       ) : (
-        dayEvents.map((e, i) => (
-          <EventCard
-            key={i}
-            date={e.date}
-            title={e.title}
-            time={e.time}
-            place={e.place}
-            color={groupColor(e.groupId)}
-            groupName={ALL.find((g) => g.id === e.groupId)!.name}
-            going={e.going.map((n) => ({ initials: initials(n), color: memberColor(n) }))}
-          />
-        ))
+        <View style={styles.list}>
+          {dayEvents.map((e, i) => (
+            <EventRow
+              key={i}
+              time={e.time}
+              title={e.title}
+              place={e.place}
+              groupName={ALL.find((g) => g.id === e.groupId)!.name}
+              going={e.going.length}
+              divider={i > 0}
+            />
+          ))}
+        </View>
       )}
     </ScrollView>
   );
@@ -128,5 +128,6 @@ const styles = StyleSheet.create({
   daySel: { backgroundColor: colors.primary, borderColor: colors.primary },
   dayText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.text },
   dots: { flexDirection: 'row', gap: 2, height: 6, marginTop: 2 },
-  dot: { width: 5, height: 5, borderRadius: 3 },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary },
+  list: { backgroundColor: colors.surface, borderRadius: radius.md, paddingHorizontal: spacing.md },
 });

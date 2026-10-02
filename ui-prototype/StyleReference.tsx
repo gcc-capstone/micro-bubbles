@@ -41,7 +41,7 @@ export default function StyleReference({ onClose }: { onClose: () => void }) {
   const sel = bubbleColors[bubble];
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <StatusBar style="dark" />
 
       <ScrollView contentContainerStyle={styles.content}>
