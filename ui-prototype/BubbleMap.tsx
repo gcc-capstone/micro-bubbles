@@ -7,17 +7,20 @@ import { MapPin, MemberPin, YouDot } from './components';
 import { colors, fonts, radius, spacing } from './theme';
 import { initials, Member, memberColor, ME, Pin, Place } from './data';
 
+export type Focus = { name: string; lat: number; lng: number };
+
 export type BubbleMapProps = {
   members: Member[];
   places: Place[];
   pins: Pin[];
   color: string;
-  focus: Member | null;
+  focus: Focus | null; // a member or "You" to zoom to; null fits everyone
+  topInset: number; // status bar + overlay buttons, kept clear when fitting
   bottomInset: number; // space covered by the sheet/row, kept clear when fitting
   onMemberPress: (m: Member) => void;
 };
 
-export default function BubbleMap({ members, places, pins, color, focus, bottomInset, onMemberPress }: BubbleMapProps) {
+export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress }: BubbleMapProps) {
   const map = useRef<MapView>(null);
   const ready = useRef(false);
 
@@ -28,14 +31,20 @@ export default function BubbleMap({ members, places, pins, color, focus, bottomI
     } else {
       map.current?.fitToCoordinates(
         members.map((m) => ({ latitude: m.lat, longitude: m.lng })),
-        { edgePadding: { top: 90, right: 60, bottom: bottomInset + 40, left: 60 }, animated: true },
+        { edgePadding: { top: 40, right: 60, bottom: 40, left: 60 }, animated: true },
       );
     }
   };
-  useEffect(fit, [members, focus, bottomInset]);
+  useEffect(fit, [members, focus, topInset, bottomInset]);
 
   return (
-    <MapView ref={map} style={StyleSheet.absoluteFill} onMapReady={() => {
+    // Native compass appears only while rotated (platform convention); mapPadding keeps it and the
+    // legal label clear of the status bar and sheet.
+    <MapView
+      ref={map}
+      style={StyleSheet.absoluteFill}
+      mapPadding={{ top: topInset, right: 0, bottom: bottomInset, left: 0 }}
+      onMapReady={() => {
         ready.current = true;
         fit();
       }}>

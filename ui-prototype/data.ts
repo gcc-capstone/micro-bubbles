@@ -18,6 +18,8 @@ export type Pin = { name: string; note: string; by: string; rating: number; icon
 
 export type BubbleEvent = { groupId: string; title: string; date: string; time: string; place: string; going: string[] }; // date: YYYY-MM-DD
 
+export type Activity = { icon: IconName; text: string; time: string };
+
 export type Group = {
   id: string;
   name: string;
@@ -25,7 +27,7 @@ export type Group = {
   places: Place[];
   pins: Pin[];
   unread: number;
-  activity?: string; // latest place notification
+  activity: Activity[]; // newest first
 };
 
 // Where "You" are: Grove City College campus. Prototype "today" is Oct 2, 2026.
@@ -46,7 +48,12 @@ export const GROUPS: Group[] = [
     name: 'Home Soccer',
     unread: 2,
     places: [DAVIS_PARK],
-    activity: 'Karen Ross arrived at Davis Park',
+    activity: [
+      { icon: 'enter-outline', text: 'Karen Ross arrived at Davis Park', time: '1m' },
+      { icon: 'location-outline', text: 'Michaela Ross is at Field 7', time: '8m' },
+      { icon: 'calendar-outline', text: 'Game vs. Mercer tomorrow at 10:00 AM', time: '1h' },
+      { icon: 'pin-outline', text: 'Coach Miller pinned Field 7', time: '2d' },
+    ],
     members: [
       { name: 'Michaela Ross', place: 'Field 7 · Davis Park', updated: 'Now', battery: 64, lat: 41.1686, lng: -80.0958 },
       { name: 'Karen Ross', place: 'Just arrived · Davis Park', updated: '1m ago', battery: 82, lat: 41.1672, lng: -80.0938 },
@@ -67,7 +74,12 @@ export const GROUPS: Group[] = [
     name: 'Senior Project',
     unread: 1,
     places: [TLC],
-    activity: 'Sydney Goettel arrived at TLC',
+    activity: [
+      { icon: 'chatbubble-outline', text: 'Sam Mayfield: "On my way!"', time: 'Now' },
+      { icon: 'chatbubble-outline', text: 'Sydney Goettel sent Sam Mayfield "?"', time: '1m' },
+      { icon: 'enter-outline', text: 'Sydney Goettel arrived at TLC', time: '2m' },
+      { icon: 'calendar-outline', text: 'Team meeting today at 4:00 PM', time: '3h' },
+    ],
     members: [
       { name: 'Sydney Goettel', place: 'TLC · Room 104', updated: 'Now', battery: 88, lat: 41.1549, lng: -80.0774 },
       { name: 'Ina Tang', place: 'Library · 1 min away', updated: 'Now', battery: 52, lat: 41.1562, lng: -80.0798, moving: true },
@@ -84,7 +96,12 @@ export const GROUPS: Group[] = [
     name: 'Fall Break Crew',
     unread: 0,
     places: [WAFFLE_HOUSE, CAMPUS],
-    activity: 'Sam Mayfield arrived at Waffle House',
+    activity: [
+      { icon: 'enter-outline', text: 'Ina Tang arrived at Waffle House', time: '4m' },
+      { icon: 'enter-outline', text: 'Sam Mayfield arrived at Waffle House', time: '5m' },
+      { icon: 'pin-outline', text: 'Sydney Goettel pinned Sunken Garden Trail', time: '1d' },
+      { icon: 'images-outline', text: 'Sam Mayfield added fall break photos to Highlights', time: '3d' },
+    ],
     members: [
       { name: 'Sam Mayfield', place: 'Waffle House', updated: '5m ago', battery: 71, lat: 40.6966, lng: -80.1082 },
       { name: 'Sydney Goettel', place: 'Waffle House', updated: '5m ago', battery: 88, lat: 40.6964, lng: -80.1078 },
@@ -101,7 +118,12 @@ export const GROUPS: Group[] = [
     name: 'Theatre Crew',
     unread: 3,
     places: [FINE_ARTS, DINING],
-    activity: 'Venture Hale left Fine Arts Center',
+    activity: [
+      { icon: 'exit-outline', text: 'Venture Hale left Fine Arts Center', time: 'Now' },
+      { icon: 'exit-outline', text: 'Maya Thompson left Fine Arts Center', time: '1m' },
+      { icon: 'person-add-outline', text: 'Caleb Wright joined Theatre Crew', time: '2h' },
+      { icon: 'calendar-outline', text: 'Rehearsal Monday at 7:00 PM', time: '5h' },
+    ],
     members: [
       { name: 'Venture Hale', place: 'Heading to Dining Hall', updated: 'Now', battery: 76, lat: 41.1571, lng: -80.0795, moving: true },
       { name: 'Lena Ortiz', place: 'Fine Arts Center', updated: '1m ago', battery: 44, lat: 41.1575, lng: -80.0783 },
@@ -119,6 +141,10 @@ export const GROUPS: Group[] = [
     name: 'Krav Maga Club',
     unread: 0,
     places: [STUDIO],
+    activity: [
+      { icon: 'enter-outline', text: 'Marcus Reed arrived at Krav Maga Studio', time: '10m' },
+      { icon: 'pin-outline', text: 'Marcus Reed pinned Krav Maga Studio', time: '1w' },
+    ],
     members: [
       { name: 'Marcus Reed', place: 'Krav Maga Studio', updated: '10m ago', battery: 67, lat: 41.158, lng: -80.0881 },
       { name: 'Dana Kim', place: 'Krav Maga Studio', updated: '12m ago', battery: 80, lat: 41.1581, lng: -80.0879 },
@@ -143,7 +169,7 @@ export const EVENTS: BubbleEvent[] = [
   { groupId: 'theatre', title: 'Opening night', date: '2026-10-23', time: '7:30 PM', place: 'Fine Arts Center', going: ['Lena Ortiz', 'Venture Hale', 'Maya Thompson', 'Owen Brooks', 'Priya Nair', 'Caleb Wright'] },
 ];
 
-// "Everyone" view: every member, place and pin across all groups, once each.
+// "Everyone" view: every member, place and pin across all groups, once each, plus each group's latest activity.
 const unique = <T,>(items: T[], key: (t: T) => string) => [...new Map(items.map((t) => [key(t), t])).values()];
 export const EVERYONE: Group = {
   id: 'everyone',
@@ -152,11 +178,10 @@ export const EVERYONE: Group = {
   members: unique(GROUPS.flatMap((g) => g.members), (m) => m.name),
   places: unique(GROUPS.flatMap((g) => g.places), (p) => p.name),
   pins: unique(GROUPS.flatMap((g) => g.pins), (p) => p.name),
+  activity: GROUPS.flatMap((g) => g.activity.slice(0, 1)),
 };
 
 export const ALL: Group[] = [EVERYONE, ...GROUPS];
-
-export const eventsFor = (g: Group) => (g.id === 'everyone' ? EVENTS : EVENTS.filter((e) => e.groupId === g.id));
 
 // Stable color per group and per person.
 export const groupColor = (id: string) => bubbleColors[Math.max(0, ALL.findIndex((g) => g.id === id)) % bubbleColors.length];

@@ -23,6 +23,7 @@ export const fonts = {
 };
 
 export const type = {
+  largeTitle: { fontFamily: fonts.heading, fontSize: 34, lineHeight: 41, color: colors.text }, // SwiftUI-style screen title
   h1: { fontFamily: fonts.heading, fontSize: 28, lineHeight: 34, color: colors.text },
   h2: { fontFamily: fonts.subheading, fontSize: 20, lineHeight: 26, color: colors.text },
   body: { fontFamily: fonts.body, fontSize: 16, lineHeight: 24, color: colors.text },

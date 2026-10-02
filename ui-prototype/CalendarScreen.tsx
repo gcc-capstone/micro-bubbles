@@ -1,6 +1,7 @@
 // Calendar: month grid of every Bubble's shared events, filterable by Bubble (report Task 15).
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Bubble, EventCard } from './components';
 import { colors, fonts, radius, spacing, type } from './theme';
@@ -14,6 +15,7 @@ export default function CalendarScreen() {
   const [month, setMonth] = useState({ y: 2026, m: 9 }); // October 2026
   const [day, setDay] = useState(TODAY);
   const [filter, setFilter] = useState('everyone');
+  const insets = useSafeAreaInsets();
 
   const events = EVENTS.filter((e) => filter === 'everyone' || e.groupId === filter);
   const first = new Date(month.y, month.m, 1).getDay();
@@ -27,7 +29,9 @@ export default function CalendarScreen() {
   const [, dm, dd] = day.split('-').map(Number);
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.sm }]}>
+      <Text style={type.largeTitle}>Calendar</Text>
+
       {/* Bubble filter */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
         {ALL.map((g) => (

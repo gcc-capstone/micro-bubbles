@@ -7,10 +7,9 @@ import { colors } from './theme';
 import { initials, memberColor, ME } from './data';
 import type { BubbleMapProps } from './BubbleMap';
 
-const TOP = 90;
 const SIDE = 50;
 
-export default function BubbleMap({ members, places, pins, color, focus, bottomInset, onMemberPress }: BubbleMapProps) {
+export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress }: BubbleMapProps) {
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   const pts = focus ? [focus] : members;
@@ -22,10 +21,10 @@ export default function BubbleMap({ members, places, pins, color, focus, bottomI
   const spanY = Math.max(Math.max(...lats) - Math.min(...lats), 0.004);
   const spanX = Math.max((Math.max(...lngs) - Math.min(...lngs)) * cos, 0.004);
   const boxW = size.w - SIDE * 2;
-  const boxH = size.h - TOP - bottomInset - 40;
+  const boxH = size.h - topInset - 40 - bottomInset - 40;
   const scale = Math.min(boxW / spanX, boxH / spanY); // px per degree of latitude
   const x = (lng: number) => size.w / 2 + (lng - cLng) * cos * scale;
-  const y = (lat: number) => TOP + boxH / 2 - (lat - cLat) * scale;
+  const y = (lat: number) => topInset + 40 + boxH / 2 - (lat - cLat) * scale;
 
   return (
     <View style={styles.map} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>

@@ -206,7 +206,7 @@ export function EventCard({ date, title, time, place, color, groupName, going }:
   );
 }
 
-// Segmented tabs, e.g. Members / Pins / Events / Places.
+// Simple text tabs with an underline on the active one.
 export function Segmented({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
   return (
     <View style={s.segmented}>
@@ -284,24 +284,6 @@ export function Dropdown({ label, icon, options, value, onChange }: {
 }
 
 /* ---------- Navigation ---------- */
-
-export function AppHeader({ unread }: { unread?: boolean }) {
-  return (
-    <View style={s.header}>
-      <View style={[s.row, { gap: spacing.sm }]}>
-        <Bubble size={28} />
-        <Text style={s.wordmark}>Bubbles</Text>
-      </View>
-      <View style={[s.row, { gap: spacing.md }]}>
-        <View>
-          <Ionicons name="notifications-outline" size={24} color={colors.text} />
-          {unread && <View style={s.dot} />}
-        </View>
-        <Ionicons name="chatbubble-ellipses-outline" size={24} color={colors.text} />
-      </View>
-    </View>
-  );
-}
 
 // A tab with `action: true` renders as the raised center button.
 export type Tab = { icon: IconName; label: string; action?: boolean };
@@ -429,10 +411,10 @@ const s = StyleSheet.create({
   dateMonth: { fontFamily: fonts.bodyBold, fontSize: 12 },
   dateDay: { fontFamily: fonts.heading, fontSize: 20, color: colors.text },
   eventTitle: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.text },
-  segmented: { flexDirection: 'row', backgroundColor: colors.primarySoft, borderRadius: radius.pill, padding: 3 },
-  segment: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: radius.pill },
-  segmentOn: { backgroundColor: colors.surface, ...shadow },
-  segmentText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.textMuted },
+  segmented: { flexDirection: 'row', gap: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  segment: { paddingVertical: spacing.sm, borderBottomWidth: 2, borderBottomColor: 'transparent', marginBottom: -1 },
+  segmentOn: { borderBottomColor: colors.primary },
+  segmentText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.textMuted },
 
   button: { borderRadius: radius.pill, paddingVertical: spacing.md - 2, alignItems: 'center' },
   buttonPrimary: { backgroundColor: colors.primary },
@@ -463,18 +445,6 @@ const s = StyleSheet.create({
   menu: { backgroundColor: colors.surface, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   menuItem: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 4 },
 
-  header: {
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 4,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  wordmark: { fontFamily: fonts.heading, fontSize: 22, color: colors.primary },
-  dot: { position: 'absolute', top: 0, right: 1, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.danger, borderWidth: 1.5, borderColor: colors.surface },
   tabBar: {
     flexDirection: 'row',
     alignItems: 'center',

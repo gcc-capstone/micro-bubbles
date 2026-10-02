@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { bubbleColors, colors, fonts, radius, shadow, spacing, type } from './theme';
 import {
-  AppHeader, Avatar, Bubble, Button, Card, Checkbox, Chip, Cluster, Dropdown, FloatingBubble,
+  Avatar, Bubble, Button, Card, Checkbox, Chip, Cluster, Dropdown, FloatingBubble,
   LocationCircle, MapButton, MapPin, MemberPin, Tab, TabBar, TextField, YouDot,
 } from './components';
 
@@ -43,7 +43,6 @@ export default function StyleReference({ onClose }: { onClose: () => void }) {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
-      <AppHeader unread />
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.section}>
@@ -51,6 +50,7 @@ export default function StyleReference({ onClose }: { onClose: () => void }) {
         </View>
 
         <Section title="Typography">
+          <Text style={type.largeTitle}>My Screen Title</Text>
           <Text style={type.h1}>My Heading</Text>
           <Text style={type.h2}>My Subheading</Text>
           <Text style={type.body}>My body text. This is what regular paragraph content looks like across the app.</Text>
@@ -65,7 +65,7 @@ export default function StyleReference({ onClose }: { onClose: () => void }) {
                 <Bubble size={28} />
                 <Text style={styles.wordmark}>Bubbles</Text>
               </View>
-              <Text style={type.caption}>Header mark: one Bubble + wordmark.</Text>
+              <Text style={type.caption}>App mark: one Bubble + wordmark.</Text>
             </View>
           </Card>
         </Section>
