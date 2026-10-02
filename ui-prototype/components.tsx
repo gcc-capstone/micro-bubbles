@@ -172,7 +172,7 @@ export function YouDot({ style }: { style?: Style }) {
 export function Cluster({ count, style }: { count: number; style?: Style }) {
   return (
     <View style={[s.abs, s.cluster, style]}>
-      <Text style={s.clusterText}>+{count}</Text>
+      <Text style={s.clusterText}>{count}</Text>
     </View>
   );
 }

@@ -632,7 +632,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
                   sublabel={`${g.members.length} ${g.id === 'everyone' ? 'people' : 'members'}`}
                   count={g.unread}
                   delay={i * 500}
-                  still={reduceMotion || watch}
+                  still={reduceMotion}
                   onPress={() => select(i)}
                   style={{ left: 0, top: 0 }}
                 />
@@ -643,7 +643,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
       )}
       {mode !== 'row' && (
         <Animated.Text style={[type.largeTitle, styles.title, { top: insets.top + spacing.sm, opacity: p.interpolate({ inputRange: [0, 0.4], outputRange: [1, 0] }) }]}>
-          Your Bubbles
+          All Bubbles
         </Animated.Text>
       )}
 
