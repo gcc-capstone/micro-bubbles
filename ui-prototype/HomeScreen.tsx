@@ -393,8 +393,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
                     : `${group.members.length} members · ${group.places.map((pl) => pl.name).join(', ')}`}
                 </Text>
               </View>
-              <Pressable onPress={() => setProfileOpen(true)} hitSlop={10} style={styles.editBtn}>
-                <Ionicons name="pencil" size={16} color={colors.primary} />
+              <Pressable onPress={() => setProfileOpen(true)} hitSlop={12}>
+                <Ionicons name="create-outline" size={22} color={colors.textMuted} />
               </Pressable>
             </View>
           </Pressable>
@@ -677,7 +677,6 @@ const styles = StyleSheet.create({
   sheetTitle: { fontFamily: fonts.subheading, fontSize: 17, color: colors.text },
   back: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
   toolbar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  editBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   sheetBody: { paddingBottom: spacing.md },
   searchWrap: { height: SEARCH_H, justifyContent: 'center', paddingHorizontal: spacing.md },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.background, borderRadius: radius.sm, paddingHorizontal: spacing.sm + 2, height: 36 },

@@ -1,5 +1,5 @@
 // Hardcoded dummy data for the prototype, based on docs/report.md representative tasks.
-import { bubbleColors } from './theme';
+import { bubbleColors, colors } from './theme';
 import type { IconName } from './components';
 
 export type Member = {
@@ -307,6 +307,7 @@ const unique = <T,>(items: T[], key: (t: T) => string) => [...new Map(items.map(
 export const EVERYONE: Group = {
   id: 'everyone',
   name: 'Everyone',
+  color: colors.primary, // the app's own teal
   unread: 0,
   members: unique(GROUPS.flatMap((g) => g.members), (m) => m.name),
   places: unique(GROUPS.flatMap((g) => g.places), (p) => p.name),

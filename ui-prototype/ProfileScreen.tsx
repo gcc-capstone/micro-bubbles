@@ -16,7 +16,7 @@ export default function ProfileScreen({ reduceMotion, onReduceMotion, everyoneRa
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(PROFILE.name);
   const [bio, setBio] = useState(PROFILE.bio);
-  const [color, setColor] = useState(0);
+  const [color, setColor] = useState(1); // teal by default
   const [isPublic, setIsPublic] = useState(true);
   const [sharing, setSharing] = useState(true);
   const [alerts, setAlerts] = useState(true);

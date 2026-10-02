@@ -59,8 +59,8 @@ export function FloatingBubble({ size, tint, label, sublabel, count = 0, delay =
     <Animated.View style={[{ position: 'absolute', transform: [{ translateY: wave(-12, 8) }, { translateX: wave(5, -5) }, { scale }] }, style]}>
       <Pressable onPress={onPress}>
         <Bubble size={size} tint={tint}>
-          <Text numberOfLines={2} style={[s.bubbleLabel, { color: tint, fontSize: size > 130 ? 17 : size > 105 ? 15 : 13, maxWidth: size * 0.78 }]}>{label}</Text>
-          {sublabel && <Text style={[s.bubbleSub, { color: tint }]}>{sublabel}</Text>}
+          <Text numberOfLines={2} style={[s.bubbleLabel, { color: colors.text, fontSize: size > 130 ? 17 : size > 105 ? 15 : 13, maxWidth: size * 0.78 }]}>{label}</Text>
+          {sublabel && <Text style={[s.bubbleSub, { color: colors.textMuted }]}>{sublabel}</Text>}
         </Bubble>
         {count > 0 && <Badge count={count} style={{ position: 'absolute', right: size * 0.08, top: size * 0.04 }} />}
       </Pressable>
