@@ -15,6 +15,8 @@ import BubbleMap, { Focus } from './BubbleMap';
 const RS = 44; // row bubble size
 const ROW_ITEM_MIN = 68; // narrowest slot per bubble; slots stretch so each page shows whole bubbles
 const ROW_H = 8 + RS + 4 + 16 + 8; // padding + bubble + gap + one-line label + padding
+const ROW_GROW = 1.3; // bubbles scale up while the row has focus
+const ROW_H_FOCUS = ROW_H + RS * (ROW_GROW - 1) + 2;
 const SHEET_MIN = 66;
 const SEARCH_H = 52;
 const MAX_ROW = 11; // more than this many Bubbles shows a "More bubbles..." bubble
@@ -93,6 +95,14 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const p = useRef(new Animated.Value(1)).current;
   const sheetP = useRef(new Animated.Value(0)).current;
+  const rowP = useRef(new Animated.Value(0)).current; // 1 = row has focus (taller)
+  const rowH = rowP.interpolate({ inputRange: [0, 1], outputRange: [ROW_H, ROW_H_FOCUS] });
+  const tabX = useRef(new Animated.Value(0)).current; // slide for tab switches
+  const tabO = useRef(new Animated.Value(1)).current;
+  const subX = useRef(new Animated.Value(0)).current; // slide for person/pin push and back
+  const subO = useRef(new Animated.Value(1)).current;
+  const rowFocused = useRef(false);
+  const rowTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const list = useRef<ScrollView>(null);
   const [listH, setListH] = useState(0);
 
@@ -143,6 +153,11 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
 
   // Row shows up to MAX_ROW - 1 Bubbles (selected one always visible) plus "More bubbles...".
   const perPage = Math.max(4, Math.floor(w / ROW_ITEM_MIN));
+  const grow = {
+    scale: rowP.interpolate({ inputRange: [0, 1], outputRange: [1, ROW_GROW] }),
+    lift: rowP.interpolate({ inputRange: [0, 1], outputRange: [0, (RS * (ROW_GROW - 1)) / 2] }), // keep the top edge in place
+    gap: rowP.interpolate({ inputRange: [0, 1], outputRange: [4, 4 + RS * (ROW_GROW - 1)] }),
+  };
   const itemW = w / perPage;
   const overflow = ALL.length > MAX_ROW;
   let rowIdx = ALL.map((_, i) => i).slice(0, overflow ? MAX_ROW - 1 : ALL.length);
@@ -218,13 +233,44 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
   const has = (f: string) => filters[tab].includes(f);
   const toggleFilter = (f: string) =>
     setFilters({ ...filters, [tab]: has(f) ? filters[tab].filter((x) => x !== f) : [...filters[tab], f] });
+  // Row grows while touched/scrolled; shrinks on touches elsewhere or after a pause.
+  const focusRow = (on: boolean) => {
+    clearTimeout(rowTimer.current);
+    if (on) rowTimer.current = setTimeout(() => focusRow(false), 4000);
+    if (on === rowFocused.current) return;
+    rowFocused.current = on;
+    animate(rowP, on ? 1 : 0, 220);
+  };
+
+  // Page switches slide in from the side they come from (crossfade only with reduced motion).
+  const slideIn = (x: Animated.Value, o: Animated.Value, dir: number) => {
+    x.setValue(reduceMotion ? 0 : dir * 60);
+    o.setValue(0);
+    Animated.parallel([
+      Animated.timing(x, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(o, { toValue: 1, duration: 220, useNativeDriver: false }),
+    ]).start();
+  };
+  const switchTab = (t: string) => {
+    if (t === tab) return;
+    slideIn(tabX, tabO, TABS.indexOf(t) > TABS.indexOf(tab) ? 1 : -1);
+    setTab(t);
+  };
+  const closeSub = () => {
+    slideIn(subX, subO, -1);
+    setSub(null);
+    setFocus(null);
+  };
+
   const openPerson = (m: Member) => {
     setFocus(m);
+    slideIn(subX, subO, 1);
     setSub({ person: m });
     toggleSheet(true);
   };
   const openPin = (pn: Pin) => {
     setFocus(pn);
+    slideIn(subX, subO, 1);
     setSub({ pin: pn });
     toggleSheet(true);
   };
@@ -273,7 +319,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
     <View style={styles.fill} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
       {/* Full-bleed map, revealed as the bubble panel collapses */}
       {group && (
-        <Animated.View style={[styles.mapArea, { opacity: p }]}>
+        <Animated.View style={[styles.mapArea, { opacity: p, bottom: rowH }]} onTouchStart={() => focusRow(false)}>
           <BubbleMap
             members={group.members}
             places={group.places}
@@ -300,21 +346,27 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
       {/* Sheet, resting on top of the row */}
       {group && w > 0 && (
         <Animated.View
-          style={[styles.sheet, { opacity: p, height: sheetP.interpolate({ inputRange: [0, 1], outputRange: [SHEET_MIN, sheetMax] }) }]}
+          style={[
+            styles.sheet,
+            { opacity: p, bottom: rowH, height: sheetP.interpolate({ inputRange: [0, 1], outputRange: [SHEET_MIN, sheetMax] }) },
+            sub && { backgroundColor: colors.background }, // grabber area matches the sub-view
+          ]}
+          onTouchStart={() => focusRow(false)}
         >
+          <Animated.View style={{ flex: 1, opacity: subO, transform: [{ translateX: subX }] }}>
           {sub ? (
             <>
               {/* Sub-view: a person or pin, with its own back button */}
               <View {...headerPan.panHandlers}>
                 <Pressable onPress={() => toggleSheet(!sheetOpen)} style={styles.sheetHeader}>
                   <View style={styles.handle} />
-                  <Pressable onPress={() => { setSub(null); setFocus(null); }} hitSlop={10} style={[styles.row, { gap: 2 }]}>
+                  <Pressable onPress={closeSub} hitSlop={10} style={[styles.row, { gap: 2 }]}>
                     <Ionicons name="chevron-back" size={22} color={colors.primary} />
                     <Text style={styles.back}>{group.name}</Text>
                   </Pressable>
                 </Pressable>
               </View>
-              <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: spacing.lg }}>
+              <ScrollView contentContainerStyle={{ paddingBottom: spacing.lg }}>
                 {sub.person && <PersonView member={sub.person} onShowOnMap={(m) => { setFocus(m); toggleSheet(false); }} />}
                 {sub.pin && (
                   <PinView
@@ -348,8 +400,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
           </Pressable>
           </View>
           <View style={{ paddingHorizontal: spacing.md }}>
-            <Segmented options={TABS} value={tab} onChange={setTab} />
+            <Segmented options={TABS} value={tab} onChange={switchTab} />
           </View>
+          <Animated.View style={{ flex: 1, opacity: tabO, transform: [{ translateX: tabX }] }}>
           <ScrollView
             ref={list}
             onLayout={(e) => setListH(e.nativeEvent.layout.height)}
@@ -452,8 +505,10 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
               </Text>
             )}
           </ScrollView>
+          </Animated.View>
           </>
           )}
+          </Animated.View>
         </Animated.View>
       )}
 
@@ -462,7 +517,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
         style={[
           styles.panel,
           {
-            height: p.interpolate({ inputRange: [0, 1], outputRange: [h || 1, ROW_H] }),
+            height: Animated.add(p.interpolate({ inputRange: [0, 1], outputRange: [(h || 1) - ROW_H, 0] }), rowH),
             backgroundColor: p.interpolate({ inputRange: [0, 1], outputRange: [colors.primarySoft, colors.surface] }),
           },
         ]}
@@ -514,30 +569,46 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
 
       {/* Compact scrollable row once collapsed */}
       {mode === 'row' && (
-        <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.rowScroll} contentContainerStyle={styles.rowContent}>
+        <Animated.View style={[styles.rowWrap, { height: rowH }]}>
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.rowContent}
+          onTouchStart={() => focusRow(true)}
+          onScrollBeginDrag={() => focusRow(true)}
+        >
           {rowIdx.map((i) => {
             const g = ALL[i];
             return (
               <Pressable key={g.id} onPress={() => select(i)} style={[styles.rowItem, { width: itemW }]}>
-                <Bubble size={RS} tint={groupColor(g.id)}>
-                  {g.id === 'everyone' && <Ionicons name="people" size={18} color={groupColor(g.id)} />}
-                </Bubble>
-                {g.unread > 0 && <Badge count={g.unread} style={styles.rowBadge} />}
-                <Text numberOfLines={1} style={[styles.rowLabel, i === selected && { color: colors.primary, fontFamily: fonts.bodyBold }]}>
+                <Animated.View style={{ transform: [{ translateY: grow.lift }, { scale: grow.scale }] }}>
+                  <Bubble size={RS} tint={groupColor(g.id)}>
+                    {g.id === 'everyone' && <Ionicons name="people" size={18} color={groupColor(g.id)} />}
+                  </Bubble>
+                  {g.unread > 0 && <Badge count={g.unread} style={styles.rowBadge} />}
+                </Animated.View>
+                <Animated.Text
+                  numberOfLines={1}
+                  style={[styles.rowLabel, { marginTop: grow.gap }, i === selected && { color: colors.primary, fontFamily: fonts.bodyBold }]}
+                >
                   {g.name}
-                </Text>
+                </Animated.Text>
               </Pressable>
             );
           })}
           {overflow && (
             <Pressable onPress={backToField} style={[styles.rowItem, { width: itemW }]}>
-              <Bubble size={RS} tint={colors.textMuted}>
-                <Ionicons name="ellipsis-horizontal" size={18} color={colors.textMuted} />
-              </Bubble>
-              <Text numberOfLines={1} style={styles.rowLabel}>More bubbles...</Text>
+              <Animated.View style={{ transform: [{ translateY: grow.lift }, { scale: grow.scale }] }}>
+                <Bubble size={RS} tint={colors.textMuted}>
+                  <Ionicons name="ellipsis-horizontal" size={18} color={colors.textMuted} />
+                </Bubble>
+              </Animated.View>
+              <Animated.Text numberOfLines={1} style={[styles.rowLabel, { marginTop: grow.gap }]}>More bubbles...</Animated.Text>
             </Pressable>
           )}
         </ScrollView>
+        </Animated.View>
       )}
 
       {profileOpen && (
@@ -586,7 +657,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center' },
   noTouch: { pointerEvents: 'none' },
-  mapArea: { position: 'absolute', top: 0, left: 0, right: 0, bottom: ROW_H },
+  mapArea: { position: 'absolute', top: 0, left: 0, right: 0 },
   rightStack: { position: 'absolute', right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4, alignItems: 'center', gap: spacing.sm + 4 },
   fab: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   panel: { position: 'absolute', left: 0, right: 0, bottom: 0, pointerEvents: 'none' },
@@ -595,7 +666,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: ROW_H,
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.md,
     borderTopRightRadius: radius.md,
@@ -606,7 +676,7 @@ const styles = StyleSheet.create({
   handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: spacing.sm },
   sheetTitle: { fontFamily: fonts.subheading, fontSize: 17, color: colors.text },
   back: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
-  toolbar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  toolbar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   editBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   sheetBody: { paddingBottom: spacing.md },
   searchWrap: { height: SEARCH_H, justifyContent: 'center', paddingHorizontal: spacing.md },
@@ -619,11 +689,11 @@ const styles = StyleSheet.create({
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.text },
   distance: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
   iconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  rowScroll: { position: 'absolute', left: 0, right: 0, bottom: 0, height: ROW_H, borderTopWidth: 1, borderTopColor: colors.border },
+  rowWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 1, borderTopColor: colors.border },
   rowContent: { paddingTop: spacing.sm },
   rowItem: { alignItems: 'center' },
-  rowBadge: { position: 'absolute', left: '50%', marginLeft: RS / 2 - 14, top: 2, transform: [{ scale: 0.8 }] },
-  rowLabel: { ...type.caption, fontSize: 11, lineHeight: 16, marginTop: 4, width: '92%', textAlign: 'center' },
+  rowBadge: { position: 'absolute', right: -8, top: -6, transform: [{ scale: 0.8 }] },
+  rowLabel: { ...type.caption, fontSize: 11, lineHeight: 16, width: '92%', textAlign: 'center' },
   toast: {
     position: 'absolute',
     alignSelf: 'center',

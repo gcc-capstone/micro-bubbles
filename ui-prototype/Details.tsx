@@ -17,6 +17,12 @@ export const longDate = (iso: string) => {
   return `${WEEKDAYS[new Date(y, m - 1, d).getDay()]}, ${MONTHS[m - 1]} ${d}`;
 };
 
+// "0.4 mi away", or just "Nearby" when very close.
+const away = (lat: number, lng: number) => {
+  const label = formatMiles(distanceFromMe(lat, lng));
+  return label === 'Nearby' ? label : `${label} away`;
+};
+
 const directions = (lat: number, lng: number) =>
   Linking.openURL(
     Platform.OS === 'ios' ? `http://maps.apple.com/?daddr=${lat},${lng}` : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
@@ -98,7 +104,7 @@ export function PersonView({ member, onShowOnMap }: { member: Member | null; onS
           <Text style={type.body}>{member.place}</Text>
         </View>
         <Text style={type.caption}>
-          {formatMiles(distanceFromMe(member.lat, member.lng))} away · Updated {member.updated.toLowerCase()} · {member.battery}% battery
+          {away(member.lat, member.lng)} · Updated {member.updated.toLowerCase()} · {member.battery}% battery
         </Text>
       </View>
 
@@ -166,7 +172,7 @@ export function PinView({ pin, groupName, color, onShowOnMap }: {
           <Text style={type.caption}>from {ratingCount(pin)} members</Text>
         </View>
         <Text style={type.caption}>
-          Pinned by {pin.by} in {groupName} · {formatMiles(distanceFromMe(pin.lat, pin.lng))} away
+          Pinned by {pin.by} in {groupName} · {away(pin.lat, pin.lng)}
         </Text>
         <Text style={[type.body, { textAlign: 'center', marginTop: spacing.sm }]}>{pin.note}</Text>
       </View>
