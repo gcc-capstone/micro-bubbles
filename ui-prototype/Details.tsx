@@ -204,7 +204,18 @@ export function PinView({ pin, groupName, color, onShowOnMap }: {
 
 /* ---------- Event ---------- */
 
+// Page sheet version (Calendar).
 export function EventDetail({ event, onClose }: { event: BubbleEvent | null; onClose: () => void }) {
+  if (!event) return null;
+  return (
+    <PageSheet visible title="Event" onClose={onClose}>
+      <EventView event={event} />
+    </PageSheet>
+  );
+}
+
+// Plain view (also shown inside the map's bottom sheet).
+export function EventView({ event }: { event: BubbleEvent | null }) {
   const [rsvp, setRsvp] = useState('');
   useEffect(() => setRsvp(''), [event]);
   if (!event) return null;
@@ -213,7 +224,7 @@ export function EventDetail({ event, onClose }: { event: BubbleEvent | null; onC
   const going = rsvp === 'Going' ? ['You', ...event.going] : event.going;
 
   return (
-    <PageSheet visible title="Event" onClose={onClose}>
+    <View>
       <View style={styles.eventHero}>
         <View style={[styles.edge, { backgroundColor: color }]} />
         <View style={{ flex: 1, gap: 2 }}>
@@ -255,7 +266,7 @@ export function EventDetail({ event, onClose }: { event: BubbleEvent | null; onC
       <Section>
         <Toggle icon="alarm-outline" label="Remind me 1 hour before" initial />
       </Section>
-    </PageSheet>
+    </View>
   );
 }
 

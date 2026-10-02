@@ -2,17 +2,18 @@
 // ponytail: flat lat/lng projection on a drawn backdrop; good enough for previewing layout.
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { LocationCircle, MapPin, MemberPin, YouDot } from './components';
+import { EventPin, LocationCircle, MapPin, MemberPin, YouDot } from './components';
 import { colors } from './theme';
 import { initials, memberColor, ME } from './data';
 import type { BubbleMapProps } from './BubbleMap';
 
 const SIDE = 50;
 
-export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress }: BubbleMapProps) {
+export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, events = [], onEventPress, radiusMi }: BubbleMapProps) {
   const [size, setSize] = useState({ w: 0, h: 0 });
 
-  const pts = focus ? [focus] : members;
+  const r = (radiusMi ?? 0) / 69;
+  const pts = focus ? [focus] : radiusMi ? [{ lat: ME.lat - r, lng: ME.lng }, { lat: ME.lat + r, lng: ME.lng }] : members;
   const lats = pts.map((p) => p.lat);
   const lngs = pts.map((p) => p.lng);
   const cLat = (Math.max(...lats) + Math.min(...lats)) / 2;
@@ -40,6 +41,11 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
           {pins.map((pin) => (
             <Pressable key={pin.name} onPress={() => onPinPress?.(pin)} style={{ position: 'absolute', left: x(pin.lng) - 15, top: y(pin.lat) - 44 }}>
               <MapPin color={color} icon={pin.icon} style={{ position: 'relative' }} />
+            </Pressable>
+          ))}
+          {events.map((e) => (
+            <Pressable key={e.key} onPress={() => onEventPress?.(e.key)} style={{ position: 'absolute', left: x(e.lng) - 70, top: y(e.lat) - 48, zIndex: 5 }}>
+              <EventPin title={e.title} when={e.when} color={e.color} style={{ position: 'relative' }} />
             </Pressable>
           ))}
           <YouDot style={{ left: x(ME.lng) - 20, top: y(ME.lat) - 20 }} />

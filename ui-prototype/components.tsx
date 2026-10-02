@@ -130,6 +130,23 @@ export function MapPin({ color, icon, rank, label, style }: { color: string; ico
   );
 }
 
+// Upcoming event on the map: rounded tag with the Bubble's color edge and a pointer at the spot.
+export function EventPin({ title, when, color, style }: { title: string; when: string; color: string; style?: Style }) {
+  return (
+    <View style={[s.abs, s.centerX, style]}>
+      <View style={s.eventTag}>
+        <View style={[s.eventTagEdge, { backgroundColor: color }]} />
+        <Ionicons name="calendar" size={14} color={colors.primary} />
+        <View>
+          <Text numberOfLines={1} style={s.eventTagTitle}>{title}</Text>
+          <Text style={s.eventTagWhen}>{when}</Text>
+        </View>
+      </View>
+      <View style={s.eventTagPointer} />
+    </View>
+  );
+}
+
 // Geofenced place: a shaded area, no outline. faint (dashed) = belongs to a Bubble that isn't selected.
 export function LocationCircle({ size, color, icon, label, dashed, style }: {
   size: number; color: string; icon: IconName; label: string; dashed?: boolean; style?: Style;
@@ -452,6 +469,29 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingBottom: spacing.sm,
+  },
+  eventTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: 180,
+    backgroundColor: colors.surface,
+    borderRadius: radius.sm,
+    paddingLeft: spacing.sm + 4,
+    paddingRight: spacing.sm + 2,
+    paddingVertical: 5,
+    overflow: 'hidden',
+    ...shadow,
+  },
+  eventTagEdge: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
+  eventTagTitle: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.text },
+  eventTagWhen: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.primary },
+  eventTagPointer: {
+    width: 10,
+    height: 10,
+    marginTop: -5,
+    backgroundColor: colors.surface,
+    transform: [{ rotate: '45deg' }],
   },
   placeTag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
   placeTagText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.surface },

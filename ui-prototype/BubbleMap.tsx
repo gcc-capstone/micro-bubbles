@@ -3,11 +3,12 @@ import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import MapView, { Circle, Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { MapPin, MemberPin, YouDot } from './components';
+import { EventPin, MapPin, MemberPin, YouDot } from './components';
 import { colors, fonts, radius, spacing } from './theme';
 import { initials, Member, memberColor, ME, Pin, Place } from './data';
 
 export type Focus = { name: string; lat: number; lng: number };
+export type MapEvent = { key: string; title: string; when: string; color: string; lat: number; lng: number };
 
 export type BubbleMapProps = {
   members: Member[];
@@ -19,9 +20,12 @@ export type BubbleMapProps = {
   bottomInset: number; // space covered by the sheet/row, kept clear when fitting
   onMemberPress: (m: Member) => void;
   onPinPress?: (p: Pin) => void;
+  events?: MapEvent[];
+  onEventPress?: (key: string) => void;
+  radiusMi?: number; // when set (and nothing is focused), center on you and show this radius
 };
 
-export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress }: BubbleMapProps) {
+export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, events = [], onEventPress, radiusMi }: BubbleMapProps) {
   const map = useRef<MapView>(null);
   const ready = useRef(false);
 
@@ -29,6 +33,9 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
     if (!ready.current) return;
     if (focus) {
       map.current?.animateToRegion({ latitude: focus.lat, longitude: focus.lng, latitudeDelta: 0.004, longitudeDelta: 0.004 }, 500);
+    } else if (radiusMi) {
+      const d = (radiusMi * 2.2) / 69; // degrees of latitude spanning the radius, with a little margin
+      map.current?.animateToRegion({ latitude: ME.lat, longitude: ME.lng, latitudeDelta: d, longitudeDelta: d / Math.cos((ME.lat * Math.PI) / 180) }, 500);
     } else {
       map.current?.fitToCoordinates(
         members.map((m) => ({ latitude: m.lat, longitude: m.lng })),
@@ -36,7 +43,7 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
       );
     }
   };
-  useEffect(fit, [members, focus, topInset, bottomInset]);
+  useEffect(fit, [members, focus, topInset, bottomInset, radiusMi]);
 
   return (
     // Native compass appears only while rotated (platform convention); mapPadding keeps it and the
@@ -45,6 +52,8 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
       ref={map}
       style={StyleSheet.absoluteFill}
       mapPadding={{ top: topInset, right: 0, bottom: bottomInset, left: 0 }}
+      zoomEnabled // pinch to zoom
+      rotateEnabled
       onMapReady={() => {
         ready.current = true;
         fit();
@@ -70,6 +79,11 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
       {pins.map((pin) => (
         <Marker key={'pin-' + pin.name} coordinate={{ latitude: pin.lat, longitude: pin.lng }} anchor={{ x: 0.5, y: 1 }} onPress={() => onPinPress?.(pin)}>
           <MapPin color={color} icon={pin.icon} style={{ position: 'relative' }} />
+        </Marker>
+      ))}
+      {events.map((e) => (
+        <Marker key={'event-' + e.key} coordinate={{ latitude: e.lat, longitude: e.lng }} anchor={{ x: 0.5, y: 1 }} onPress={() => onEventPress?.(e.key)} zIndex={5}>
+          <EventPin title={e.title} when={e.when} color={e.color} style={{ position: 'relative' }} />
         </Marker>
       ))}
       <Marker coordinate={{ latitude: ME.lat, longitude: ME.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}>

@@ -8,8 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, IconName, MapButton, MenuButton, Segmented, Separator } from './components';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
-import { ALL, avgRating, distanceFromMe, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Member, memberColor, Pin } from './data';
-import { BubbleProfile, DropPin, PersonView, PinView } from './Details';
+import { ALL, avgRating, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Member, memberColor, Pin, TODAY } from './data';
+import { BubbleProfile, DropPin, EventView, longDate, PersonView, PinView } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
 
 const RS = 44; // row bubble size
@@ -80,6 +80,19 @@ const MENU_ICONS: Record<string, IconName> = {
   'Leave Bubble': 'exit-outline',
 };
 
+const eventKey = (e: BubbleEvent) => `${e.groupId}|${e.date}|${e.title}`;
+const clockMinutes = (t: string) => {
+  const [hm, ap] = t.split(' ');
+  const [hh, mm] = hm.split(':').map(Number);
+  return ((hh % 12) + (ap === 'PM' ? 12 : 0)) * 60 + mm;
+};
+const isoPlus = (iso: string, days: number) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const t = new Date(y, m - 1, d + days);
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+};
+const dayLabel = (iso: string) => (iso === TODAY ? 'Today' : iso === isoPlus(TODAY, 1) ? 'Tomorrow' : longDate(iso).split(',')[0]);
+
 const minutesAgo = (s: string) =>
   s === 'Now' ? 0 : parseInt(s, 10) * (s.includes('h') ? 60 : s.includes('d') ? 1440 : s.includes('w') ? 10080 : 1);
 
@@ -93,9 +106,10 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
   const [tab, setTab] = useState(TABS[0]);
   const [sort, setSort] = useState<Record<string, string>>({ Activity: 'Newest', Pins: 'Top rated', Members: 'Nearest' });
   const [filters, setFilters] = useState<Record<string, string[]>>({ Activity: [], Pins: [], Members: [] });
-  const [sub, setSub] = useState<{ person?: Member; pin?: Pin } | null>(null); // sheet sub-view
+  const [sub, setSub] = useState<{ person?: Member; pin?: Pin; event?: BubbleEvent } | null>(null); // sheet sub-view
   const [profileOpen, setProfileOpen] = useState<false | 'view' | 'edit'>(false);
   const [muted, setMuted] = useState<Record<string, boolean>>({});
+
   const [dropOpen, setDropOpen] = useState(false);
   const [, setTick] = useState(0); // re-render after in-memory edits (drop pin, edit/leave Bubble)
   const refresh = () => setTick((t) => t + 1);
@@ -145,7 +159,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
       return {
         x: (w - CANVAS.w * k) / 2 + c.x * k,
         y: fieldTop + (h - fieldTop - 8 - CANVAS.h * k) / 2 + c.y * k,
-        s: bubbleSize(g.id === 'everyone' ? nearbyCount : g.members.length) * k,
+        s: bubbleSize(g.members.length) * k,
         scale: 1,
       };
     }
@@ -232,17 +246,23 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
   };
 
   const base: Group | null = selected === null ? null : ALL[selected];
-  const near = (x: { lat: number; lng: number }) => distanceFromMe(x.lat, x.lng) <= everyoneRadius;
-  // An update is nearby if the person it's about is; otherwise if the Bubble has a place nearby.
-  const activityNear = (g: Group, text: string) => {
-    const who = g.members.find((m) => text.startsWith(m.name));
-    return who ? near(who) : g.places.some(near);
+  const group = base;
+
+  // Upcoming events (next 7 days) for the selected Bubble, pinned on the map; one per place.
+  const weekOut = isoPlus(TODAY, 7);
+  const upcoming = group
+    ? EVENTS.filter((e) => (group.id === 'everyone' || e.groupId === group.id) && e.date >= TODAY && e.date <= weekOut)
+        .sort((a, b) => a.date.localeCompare(b.date) || clockMinutes(a.time) - clockMinutes(b.time))
+        .filter((e, i, all) => all.findIndex((x) => x.place === e.place) === i)
+    : [];
+  const mapEvents = upcoming.map((e) => ({ key: eventKey(e), title: e.title, when: `${dayLabel(e.date)} · ${e.time}`, color: groupColor(e.groupId), lat: e.lat, lng: e.lng }));
+  const openEvent = (key: string) => {
+    const e = upcoming.find((x) => eventKey(x) === key)!;
+    setFocus({ name: e.title, lat: e.lat, lng: e.lng });
+    slideIn(subX, subO, 1);
+    setSub({ event: e });
+    toggleSheet(true);
   };
-  const nearbyCount = ALL[0].members.filter(near).length;
-  const group: Group | null =
-    base?.id === 'everyone'
-      ? { ...base, members: base.members.filter(near), pins: base.pins.filter(near), places: base.places.filter(near) }
-      : base;
   const color = group ? groupColor(group.id) : colors.primary;
   const sheetMax = (h - ROW_H - insets.top) * 0.8;
   const q = query.trim().toLowerCase();
@@ -338,7 +358,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
   const activity = !group
     ? []
     : (group.id === 'everyone'
-        ? GROUPS.flatMap((g) => g.activity.map((a, i) => ({ ...a, key: `${g.id}:${i}`, unread: i < g.unread, g }))).filter((a) => activityNear(a.g, a.text))
+        ? GROUPS.flatMap((g) => g.activity.map((a, i) => ({ ...a, key: `${g.id}:${i}`, unread: i < g.unread })))
         : group.activity.map((a, i) => ({ ...a, key: `${group.id}:${i}`, unread: i < group.unread })))
         .map((a) => ({ ...a, unread: a.unread && !read[a.key] }))
         .filter((a) => match(a.text))
@@ -381,6 +401,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
             bottomInset={SHEET_MIN}
             onMemberPress={openPerson}
             onPinPress={openPin}
+            radiusMi={group.id === 'everyone' ? everyoneRadius : undefined}
+            events={mapEvents}
+            onEventPress={openEvent}
           />
           {/* Right-side controls, just above the sheet */}
           <Animated.View
@@ -419,6 +442,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
               </View>
               <ScrollView contentContainerStyle={{ paddingBottom: spacing.lg }}>
                 {sub.person && <PersonView member={sub.person} onShowOnMap={(m) => { setFocus(m); toggleSheet(false); }} />}
+                {sub.event && <EventView event={sub.event} />}
                 {sub.pin && (
                   <PinView
                     pin={sub.pin}
@@ -439,9 +463,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
               <View style={{ flex: 1 }}>
                 <Text style={styles.sheetTitle}>{group.name}</Text>
                 <Text numberOfLines={1} style={type.caption}>
-                  {group.id === 'everyone'
-                    ? `${group.members.length} people within ${everyoneRadius} mi`
-                    : `${group.members.length} members · ${group.places.map((pl) => pl.name).join(', ')}`}
+                  {`${group.members.length} ${group.id === 'everyone' ? 'people' : 'members'} · ${
+                    group.members.filter((m) => distanceFromMe(m.lat, m.lng) <= everyoneRadius).length
+                  } within ${everyoneRadius} mi`}
                 </Text>
               </View>
               <MenuButton
@@ -557,7 +581,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
 
             {((tab === 'Activity' && !activity.length) || (tab === 'Pins' && !pins.length) || (tab === 'Members' && !members.length)) && (
               <Text style={[type.caption, { padding: spacing.md }]}>
-                {group.id === 'everyone' ? `Nothing within ${everyoneRadius} mi. Change the radius in Profile > Settings.` : 'Nothing here.'}
+                Nothing here.
               </Text>
             )}
           </ScrollView>
@@ -605,7 +629,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
                   size={f.s}
                   tint={groupColor(g.id)}
                   label={g.name}
-                  sublabel={g.id === 'everyone' ? `${nearbyCount} within ${everyoneRadius} mi` : `${g.members.length} members`}
+                  sublabel={`${g.members.length} ${g.id === 'everyone' ? 'people' : 'members'}`}
                   count={g.unread}
                   delay={i * 500}
                   still={reduceMotion || watch}

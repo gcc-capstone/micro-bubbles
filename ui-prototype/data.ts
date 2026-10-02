@@ -16,7 +16,7 @@ export type Place = { name: string; icon: IconName; lat: number; lng: number; ra
 
 export type Pin = { name: string; note: string; by: string; rating: number; icon: IconName; lat: number; lng: number };
 
-export type BubbleEvent = { groupId: string; title: string; date: string; time: string; place: string; going: string[] }; // date: YYYY-MM-DD
+export type BubbleEvent = { groupId: string; title: string; date: string; time: string; place: string; going: string[]; lat: number; lng: number }; // date: YYYY-MM-DD
 
 export type Activity = { icon: IconName; text: string; time: string };
 
@@ -290,16 +290,16 @@ export const GROUPS: Group[] = [
 ];
 
 export const EVENTS: BubbleEvent[] = [
-  { groupId: 'senior', title: 'Team meeting', date: '2026-10-02', time: '4:00 PM', place: 'TLC Room 104', going: ['Sydney Goettel', 'Ina Tang', 'Tim Shin', 'Sam Mayfield'] },
-  { groupId: 'soccer', title: 'Game vs. Mercer', date: '2026-10-03', time: '10:00 AM', place: 'Field 7 · Davis Park', going: ['Michaela Ross', 'Ava Chen', 'Coach Miller', 'Liam Patel'] },
-  { groupId: 'theatre', title: 'Rehearsal', date: '2026-10-05', time: '7:00 PM', place: 'Fine Arts Center', going: ['Lena Ortiz', 'Venture Hale', 'Maya Thompson'] },
-  { groupId: 'theatre', title: 'Rehearsal', date: '2026-10-07', time: '7:00 PM', place: 'Fine Arts Center', going: ['Lena Ortiz', 'Priya Nair', 'Owen Brooks'] },
-  { groupId: 'krav', title: 'Sparring night', date: '2026-10-08', time: '6:30 PM', place: 'Krav Maga Studio', going: ['Marcus Reed', 'Dana Kim'] },
-  { groupId: 'senior', title: 'Team meeting', date: '2026-10-09', time: '4:00 PM', place: 'TLC Room 104', going: ['Sydney Goettel', 'Sam Mayfield'] },
-  { groupId: 'soccer', title: 'Practice', date: '2026-10-09', time: '5:30 PM', place: 'Davis Park', going: ['Coach Miller', 'Michaela Ross'] },
-  { groupId: 'fallbreak', title: 'Waffle House run', date: '2026-10-10', time: '9:00 PM', place: 'Waffle House', going: ['Sam Mayfield', 'Sydney Goettel', 'Ina Tang', 'Tim Shin'] },
-  { groupId: 'hiking', title: 'Beginner hike', date: '2026-10-17', time: '9:00 AM', place: 'Sunken Garden Trail', going: ['Nia Johnson', 'Caleb Moore', 'Rachel Kim'] },
-  { groupId: 'theatre', title: 'Opening night', date: '2026-10-23', time: '7:30 PM', place: 'Fine Arts Center', going: ['Lena Ortiz', 'Venture Hale', 'Maya Thompson', 'Owen Brooks', 'Priya Nair', 'Caleb Wright'] },
+  { groupId: 'senior', title: 'Team meeting', date: '2026-10-02', time: '4:00 PM', place: 'TLC Room 104', going: ['Sydney Goettel', 'Ina Tang', 'Tim Shin', 'Sam Mayfield'], lat: 41.1549, lng: -80.0773 },
+  { groupId: 'soccer', title: 'Game vs. Mercer', date: '2026-10-03', time: '10:00 AM', place: 'Field 7 · Davis Park', going: ['Michaela Ross', 'Ava Chen', 'Coach Miller', 'Liam Patel'], lat: 41.1686, lng: -80.096 },
+  { groupId: 'theatre', title: 'Rehearsal', date: '2026-10-05', time: '7:00 PM', place: 'Fine Arts Center', going: ['Lena Ortiz', 'Venture Hale', 'Maya Thompson'], lat: 41.1575, lng: -80.0782 },
+  { groupId: 'theatre', title: 'Rehearsal', date: '2026-10-07', time: '7:00 PM', place: 'Fine Arts Center', going: ['Lena Ortiz', 'Priya Nair', 'Owen Brooks'], lat: 41.1575, lng: -80.0782 },
+  { groupId: 'krav', title: 'Sparring night', date: '2026-10-08', time: '6:30 PM', place: 'Krav Maga Studio', going: ['Marcus Reed', 'Dana Kim'], lat: 41.158, lng: -80.088 },
+  { groupId: 'senior', title: 'Team meeting', date: '2026-10-09', time: '4:00 PM', place: 'TLC Room 104', going: ['Sydney Goettel', 'Sam Mayfield'], lat: 41.1549, lng: -80.0773 },
+  { groupId: 'soccer', title: 'Practice', date: '2026-10-09', time: '5:30 PM', place: 'Davis Park', going: ['Coach Miller', 'Michaela Ross'], lat: 41.168, lng: -80.095 },
+  { groupId: 'fallbreak', title: 'Waffle House run', date: '2026-10-10', time: '9:00 PM', place: 'Waffle House', going: ['Sam Mayfield', 'Sydney Goettel', 'Ina Tang', 'Tim Shin'], lat: 40.6965, lng: -80.108 },
+  { groupId: 'hiking', title: 'Beginner hike', date: '2026-10-17', time: '9:00 AM', place: 'Sunken Garden Trail', going: ['Nia Johnson', 'Caleb Moore', 'Rachel Kim'], lat: 40.95, lng: -80.11 },
+  { groupId: 'theatre', title: 'Opening night', date: '2026-10-23', time: '7:30 PM', place: 'Fine Arts Center', going: ['Lena Ortiz', 'Venture Hale', 'Maya Thompson', 'Owen Brooks', 'Priya Nair', 'Caleb Wright'], lat: 41.1575, lng: -80.0782 },
 ];
 
 // "Everyone" view: every member, place and pin across all groups, once each, plus each group's latest activity.
