@@ -3,12 +3,14 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Bubble, Button, IconName } from './components';
+import { Avatar, Bubble, Button, IconName, MenuButton } from './components';
 import { bubbleColors, colors, fonts, radius, spacing, type } from './theme';
 import { GROUPS, PROFILE } from './data';
 
-export default function ProfileScreen({ reduceMotion, onReduceMotion, onStyles }: {
-  reduceMotion: boolean; onReduceMotion: (v: boolean) => void; onStyles: () => void;
+const RADII = [1, 5, 10, 25, 50];
+
+export default function ProfileScreen({ reduceMotion, onReduceMotion, everyoneRadius, onEveryoneRadius, onStyles }: {
+  reduceMotion: boolean; onReduceMotion: (v: boolean) => void; everyoneRadius: number; onEveryoneRadius: (mi: number) => void; onStyles: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
@@ -114,6 +116,17 @@ export default function ProfileScreen({ reduceMotion, onReduceMotion, onStyles }
         <View style={styles.group}>
           {setting('globe-outline', 'Public profile', isPublic, setIsPublic, false)}
           {setting('location-outline', 'Share my location', sharing, setSharing)}
+          <View style={[styles.settingRow, styles.divider]}>
+            <Ionicons name="radio-outline" size={20} color={colors.primary} />
+            <Text style={[type.body, { flex: 1 }]}>Everyone map radius</Text>
+            <MenuButton
+              icon="chevron-expand"
+              label={`${everyoneRadius} mi`}
+              options={RADII.map((r) => `${r} mi`)}
+              selected={[`${everyoneRadius} mi`]}
+              onSelect={(o) => onEveryoneRadius(parseInt(o, 10))}
+            />
+          </View>
           {setting('notifications-outline', 'Notifications', alerts, setAlerts)}
           {setting('accessibility-outline', 'Reduce motion', reduceMotion, onReduceMotion)}
           <Pressable style={[styles.settingRow, styles.divider]} onPress={onStyles}>

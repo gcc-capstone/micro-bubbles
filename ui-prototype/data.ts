@@ -356,6 +356,11 @@ export const distanceFromMe = (lat: number, lng: number) => {
 };
 export const formatMiles = (mi: number) => (mi < 0.1 ? 'Nearby' : mi < 10 ? `${mi.toFixed(1)} mi` : `${Math.round(mi)} mi`);
 
+// Average rating from everyone in the Bubble. ponytail: derived from the pin's dummy rating
+// so the numbers look real; a backend would store individual ratings.
+export const ratingCount = (pin: Pin) => 3 + (pin.name.length % 9);
+export const avgRating = (pin: Pin) => Math.max(1, Math.min(5, pin.rating - (pin.name.length % 6) / 10));
+
 // Stable color per group and per person.
 export const groupColor = (id: string) => {
   const i = ALL.findIndex((g) => g.id === id);

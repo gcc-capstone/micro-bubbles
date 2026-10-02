@@ -1,19 +1,20 @@
-// Home: Bubbles as floating bubbles (few) or an Apple Watch-style honeycomb (many). Tapping one
-// collapses them into a compact row under a full-bleed map; the selected Bubble's sheet sits on
-// top of the row. Re-tapping the Bubbles tab (resetKey) returns to the bubble view.
+// Home: opens on the map of Everyone within your radius. The Bubble row pages along the bottom;
+// the selected Bubble's sheet sits on top of it, with people and pins as sub-views inside the sheet.
+// Re-tapping the Bubbles tab (resetKey) or "More bubbles..." shows all Bubbles as floating
+// bubbles (few) or an Apple Watch-style honeycomb (many).
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, MapButton, MenuButton, Segmented, Separator } from './components';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
-import { ALL, distanceFromMe, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, ME, Member, memberColor, Pin } from './data';
-import { BubbleProfile, DropPin, PersonDetail, PinDetail } from './Details';
+import { ALL, avgRating, distanceFromMe, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, ME, Member, memberColor, Pin } from './data';
+import { BubbleProfile, DropPin, PersonView, PinView } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
 
 const RS = 44; // row bubble size
-const GAP = 12;
-const ROW_H = 78;
+const ROW_ITEM_MIN = 68; // narrowest slot per bubble; slots stretch so each page shows whole bubbles
+const ROW_H = 8 + RS + 4 + 16 + 8; // padding + bubble + gap + one-line label + padding
 const SHEET_MIN = 66;
 const SEARCH_H = 52;
 const MAX_ROW = 11; // more than this many Bubbles shows a "More bubbles..." bubble
@@ -25,7 +26,7 @@ const SORTS: Record<string, string[]> = {
 };
 const FILTERS: Record<string, string[]> = {
   Activity: ['Unread', 'Arrivals & departures', 'Pins', 'Events'],
-  Pins: ['5 stars', 'Pinned by me', 'Within 10 mi'],
+  Pins: ['4.5+ stars', 'Pinned by me', 'Within 10 mi'],
   Members: ['Moving now', 'Within 1 mi', 'Updated in the last hour'],
 };
 const ACTIVITY_KIND: Record<string, string[]> = {
@@ -70,17 +71,17 @@ const HEX = hexLayout(ALL.length);
 
 const minutesAgo = (s: string) => (s === 'Now' ? 0 : parseInt(s, 10) * (s.includes('h') ? 60 : s.includes('d') ? 1440 : 1));
 
-export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: number; reduceMotion: boolean }) {
+export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: { resetKey: number; reduceMotion: boolean; everyoneRadius: number }) {
   const insets = useSafeAreaInsets();
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [selected, setSelected] = useState<number | null>(null);
-  const [mode, setMode] = useState<'field' | 'animating' | 'row'>('field');
+  // Start on the map with Everyone selected.
+  const [selected, setSelected] = useState<number | null>(0);
+  const [mode, setMode] = useState<'field' | 'animating' | 'row'>('row');
   const [sheetOpen, setSheetOpen] = useState(false);
   const [tab, setTab] = useState(TABS[0]);
   const [sort, setSort] = useState<Record<string, string>>({ Activity: 'Newest', Pins: 'Top rated', Members: 'Nearest' });
   const [filters, setFilters] = useState<Record<string, string[]>>({ Activity: [], Pins: [], Members: [] });
-  const [person, setPerson] = useState<Member | null>(null);
-  const [pinDetail, setPinDetail] = useState<Pin | null>(null);
+  const [sub, setSub] = useState<{ person?: Member; pin?: Pin } | null>(null); // sheet sub-view
   const [profileOpen, setProfileOpen] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
   const [, setTick] = useState(0); // re-render after in-memory edits (drop pin, edit/leave Bubble)
@@ -90,7 +91,7 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
   const [focus, setFocus] = useState<Focus | null>(null);
   const [toast, setToast] = useState('');
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const p = useRef(new Animated.Value(0)).current;
+  const p = useRef(new Animated.Value(1)).current;
   const sheetP = useRef(new Animated.Value(0)).current;
   const list = useRef<ScrollView>(null);
   const [listH, setListH] = useState(0);
@@ -141,6 +142,8 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
   };
 
   // Row shows up to MAX_ROW - 1 Bubbles (selected one always visible) plus "More bubbles...".
+  const perPage = Math.max(4, Math.floor(w / ROW_ITEM_MIN));
+  const itemW = w / perPage;
   const overflow = ALL.length > MAX_ROW;
   let rowIdx = ALL.map((_, i) => i).slice(0, overflow ? MAX_ROW - 1 : ALL.length);
   if (selected !== null && !rowIdx.includes(selected)) rowIdx = [...rowIdx.slice(0, -1), selected];
@@ -166,6 +169,7 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
   const select = (i: number) => {
     if (mode === 'row') {
       setFocus(null);
+      setSub(null);
       if (i === selected) return toggleSheet(!sheetOpen);
       setSelected(i);
       return;
@@ -201,7 +205,12 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
     setTimeout(() => setToast(''), 2000);
   };
 
-  const group: Group | null = selected === null ? null : ALL[selected];
+  const base: Group | null = selected === null ? null : ALL[selected];
+  const near = (x: { lat: number; lng: number }) => distanceFromMe(x.lat, x.lng) <= everyoneRadius;
+  const group: Group | null =
+    base?.id === 'everyone'
+      ? { ...base, members: base.members.filter(near), pins: base.pins.filter(near), places: base.places.filter(near) }
+      : base;
   const color = group ? groupColor(group.id) : colors.primary;
   const sheetMax = (h - ROW_H - insets.top) * 0.8;
   const q = query.trim().toLowerCase();
@@ -211,7 +220,13 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
     setFilters({ ...filters, [tab]: has(f) ? filters[tab].filter((x) => x !== f) : [...filters[tab], f] });
   const openPerson = (m: Member) => {
     setFocus(m);
-    setPerson(m);
+    setSub({ person: m });
+    toggleSheet(true);
+  };
+  const openPin = (pn: Pin) => {
+    setFocus(pn);
+    setSub({ pin: pn });
+    toggleSheet(true);
   };
 
   // Header drag: down collapses, up expands (the grabber replaces the old chevron).
@@ -242,8 +257,8 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
     : group.pins
         .map((pin) => ({ ...pin, mi: distanceFromMe(pin.lat, pin.lng) }))
         .filter((pin) => match(pin.name, pin.note, pin.by))
-        .filter((pin) => (!has('5 stars') || pin.rating === 5) && (!has('Pinned by me') || pin.by === 'You') && (!has('Within 10 mi') || pin.mi <= 10))
-        .sort((a, b) => (sort.Pins === 'Nearest' ? a.mi - b.mi : sort.Pins === 'A–Z' ? a.name.localeCompare(b.name) : b.rating - a.rating));
+        .filter((pin) => (!has('4.5+ stars') || avgRating(pin) >= 4.5) && (!has('Pinned by me') || pin.by === 'You') && (!has('Within 10 mi') || pin.mi <= 10))
+        .sort((a, b) => (sort.Pins === 'Nearest' ? a.mi - b.mi : sort.Pins === 'A–Z' ? a.name.localeCompare(b.name) : avgRating(b) - avgRating(a)));
   const members = !group
     ? []
     : group.members
@@ -268,7 +283,7 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
             topInset={insets.top}
             bottomInset={SHEET_MIN}
             onMemberPress={openPerson}
-            onPinPress={setPinDetail}
+            onPinPress={openPin}
           />
           {/* Right-side controls, just above the sheet */}
           <Animated.View
@@ -287,6 +302,32 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
         <Animated.View
           style={[styles.sheet, { opacity: p, height: sheetP.interpolate({ inputRange: [0, 1], outputRange: [SHEET_MIN, sheetMax] }) }]}
         >
+          {sub ? (
+            <>
+              {/* Sub-view: a person or pin, with its own back button */}
+              <View {...headerPan.panHandlers}>
+                <Pressable onPress={() => toggleSheet(!sheetOpen)} style={styles.sheetHeader}>
+                  <View style={styles.handle} />
+                  <Pressable onPress={() => { setSub(null); setFocus(null); }} hitSlop={10} style={[styles.row, { gap: 2 }]}>
+                    <Ionicons name="chevron-back" size={22} color={colors.primary} />
+                    <Text style={styles.back}>{group.name}</Text>
+                  </Pressable>
+                </Pressable>
+              </View>
+              <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: spacing.lg }}>
+                {sub.person && <PersonView member={sub.person} onShowOnMap={(m) => { setFocus(m); toggleSheet(false); }} />}
+                {sub.pin && (
+                  <PinView
+                    pin={sub.pin}
+                    groupName={GROUPS.find((g) => g.pins.some((x) => x.name === sub.pin?.name))?.name ?? group.name}
+                    color={color}
+                    onShowOnMap={(pn) => { setFocus(pn); toggleSheet(false); }}
+                  />
+                )}
+              </ScrollView>
+            </>
+          ) : (
+          <>
           <View {...headerPan.panHandlers}>
           <Pressable onPress={() => toggleSheet(!sheetOpen)} style={styles.sheetHeader}>
             <View style={styles.handle} />
@@ -295,7 +336,9 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
               <View style={{ flex: 1 }}>
                 <Text style={styles.sheetTitle}>{group.name}</Text>
                 <Text numberOfLines={1} style={type.caption}>
-                  {group.members.length} members · {group.places.map((pl) => pl.name).join(', ')}
+                  {group.id === 'everyone'
+                    ? `${group.members.length} people within ${everyoneRadius} mi`
+                    : `${group.members.length} members · ${group.places.map((pl) => pl.name).join(', ')}`}
                 </Text>
               </View>
               <Pressable onPress={() => setProfileOpen(true)} hitSlop={10} style={styles.editBtn}>
@@ -361,25 +404,23 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
                 <Pressable
                   key={pin.name}
                   style={[styles.listRow, i > 0 && styles.divider]}
-                  onPress={() => {
-                    setFocus(pin);
-                    setPinDetail(pin);
-                  }}
+                  onPress={() => openPin(pin)}
                 >
                   <View style={[styles.iconCircle, { backgroundColor: color + '1F' }]}>
                     <Ionicons name={pin.icon} size={18} color={color} />
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={styles.rowTitle}>{pin.name}</Text>
-                    <View style={styles.row}>
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <Ionicons key={n} name={n <= pin.rating ? 'star' : 'star-outline'} size={12} color={colors.primary} />
-                      ))}
-                      <Text style={[type.caption, { marginLeft: spacing.xs }]}>by {pin.by}</Text>
-                    </View>
-                    <Text style={type.caption}>{pin.note}</Text>
+                    <Text numberOfLines={1} style={type.caption}>{pin.note}</Text>
+                    <Text style={type.caption}>by {pin.by}</Text>
                   </View>
-                  <Text style={type.caption}>{formatMiles(pin.mi)}</Text>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <View style={[styles.row, { gap: 2 }]}>
+                      <Text style={styles.distance}>{avgRating(pin).toFixed(1)}</Text>
+                      <Ionicons name="star" size={13} color={colors.primary} />
+                    </View>
+                    <Text style={type.caption}>{formatMiles(pin.mi)}</Text>
+                  </View>
                 </Pressable>
               ))}
 
@@ -406,9 +447,13 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
               ))}
 
             {((tab === 'Activity' && !activity.length) || (tab === 'Pins' && !pins.length) || (tab === 'Members' && !members.length)) && (
-              <Text style={[type.caption, { paddingVertical: spacing.md }]}>Nothing here.</Text>
+              <Text style={[type.caption, { padding: spacing.md }]}>
+                {group.id === 'everyone' ? `Nothing within ${everyoneRadius} mi. Change the radius in Profile > Settings.` : 'Nothing here.'}
+              </Text>
             )}
           </ScrollView>
+          </>
+          )}
         </Animated.View>
       )}
 
@@ -429,7 +474,7 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
           {ALL.map((g, i) => {
             const f = fieldSpot(i, g);
             const slot = rowIdx.includes(i) ? rowIdx.indexOf(i) : MAX_ROW - 1;
-            const rx = spacing.md + slot * (RS + GAP) + RS / 2;
+            const rx = slot * itemW + itemW / 2;
             const ry = h - ROW_H + spacing.sm + RS / 2;
             return (
               <Animated.View
@@ -469,11 +514,11 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
 
       {/* Compact scrollable row once collapsed */}
       {mode === 'row' && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rowScroll} contentContainerStyle={styles.rowContent}>
+        <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.rowScroll} contentContainerStyle={styles.rowContent}>
           {rowIdx.map((i) => {
             const g = ALL[i];
             return (
-              <Pressable key={g.id} onPress={() => select(i)} style={styles.rowItem}>
+              <Pressable key={g.id} onPress={() => select(i)} style={[styles.rowItem, { width: itemW }]}>
                 <Bubble size={RS} tint={groupColor(g.id)}>
                   {g.id === 'everyone' && <Ionicons name="people" size={18} color={groupColor(g.id)} />}
                 </Bubble>
@@ -485,7 +530,7 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
             );
           })}
           {overflow && (
-            <Pressable onPress={backToField} style={styles.rowItem}>
+            <Pressable onPress={backToField} style={[styles.rowItem, { width: itemW }]}>
               <Bubble size={RS} tint={colors.textMuted}>
                 <Ionicons name="ellipsis-horizontal" size={18} color={colors.textMuted} />
               </Bubble>
@@ -495,26 +540,6 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
         </ScrollView>
       )}
 
-      <PersonDetail
-        member={person}
-        onClose={() => setPerson(null)}
-        onShowOnMap={(m) => {
-          setPerson(null);
-          setFocus(m);
-          toggleSheet(false);
-        }}
-      />
-      <PinDetail
-        pin={pinDetail}
-        groupName={group ? GROUPS.find((g) => g.pins.some((x) => x.name === pinDetail?.name))?.name ?? group.name : ''}
-        color={color}
-        onClose={() => setPinDetail(null)}
-        onShowOnMap={(pn) => {
-          setPinDetail(null);
-          setFocus(pn);
-          toggleSheet(false);
-        }}
-      />
       {profileOpen && (
         <BubbleProfile
           group={group}
@@ -580,7 +605,8 @@ const styles = StyleSheet.create({
   sheetHeader: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.sm },
   handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: spacing.sm },
   sheetTitle: { fontFamily: fonts.subheading, fontSize: 17, color: colors.text },
-  toolbar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+  back: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
+  toolbar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
   editBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   sheetBody: { paddingBottom: spacing.md },
   searchWrap: { height: SEARCH_H, justifyContent: 'center', paddingHorizontal: spacing.md },
@@ -594,10 +620,10 @@ const styles = StyleSheet.create({
   distance: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
   iconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   rowScroll: { position: 'absolute', left: 0, right: 0, bottom: 0, height: ROW_H, borderTopWidth: 1, borderTopColor: colors.border },
-  rowContent: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, gap: GAP },
-  rowItem: { width: RS, alignItems: 'center' },
-  rowBadge: { position: 'absolute', right: -6, top: -4, transform: [{ scale: 0.8 }] },
-  rowLabel: { ...type.caption, fontSize: 11, marginTop: 3, width: RS + GAP - 2, textAlign: 'center' },
+  rowContent: { paddingTop: spacing.sm },
+  rowItem: { alignItems: 'center' },
+  rowBadge: { position: 'absolute', left: '50%', marginLeft: RS / 2 - 14, top: 2, transform: [{ scale: 0.8 }] },
+  rowLabel: { ...type.caption, fontSize: 11, lineHeight: 16, marginTop: 4, width: '92%', textAlign: 'center' },
   toast: {
     position: 'absolute',
     alignSelf: 'center',

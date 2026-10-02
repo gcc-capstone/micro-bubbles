@@ -135,6 +135,6 @@ const styles = StyleSheet.create({
   dayText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.text },
   dots: { flexDirection: 'row', gap: 2, height: 6, marginTop: 2 },
   dot: { width: 5, height: 5, borderRadius: 3 },
-  // edge-to-edge list, like Apple Calendar
-  list: { marginHorizontal: -spacing.md, backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  // rounded card like the month grid, rows keep the colored edge and dim separators
+  list: { backgroundColor: colors.surface, borderRadius: radius.md, overflow: 'hidden', paddingVertical: spacing.xs },
 });

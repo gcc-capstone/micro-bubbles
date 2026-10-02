@@ -28,6 +28,7 @@ export default function App() {
   const [showStyles, setShowStyles] = useState(false);
   const [homeReset, setHomeReset] = useState(0); // re-tapping Bubbles returns to the bubble view
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [everyoneRadius, setEveryoneRadius] = useState(10); // miles shown on the default Everyone map
 
   // Start from the system setting; Profile > Settings can override it.
   useEffect(() => {
@@ -44,10 +45,18 @@ export default function App() {
       ) : (
         <View style={styles.screen}>
           <View style={{ flex: 1 }}>
-            {tab === 0 && <HomeScreen resetKey={homeReset} reduceMotion={reduceMotion} />}
+            {tab === 0 && <HomeScreen resetKey={homeReset} reduceMotion={reduceMotion} everyoneRadius={everyoneRadius} />}
             {tab === 1 && <InboxScreen />}
             {tab === 2 && <CalendarScreen />}
-            {tab === 3 && <ProfileScreen reduceMotion={reduceMotion} onReduceMotion={setReduceMotion} onStyles={() => setShowStyles(true)} />}
+            {tab === 3 && (
+              <ProfileScreen
+                reduceMotion={reduceMotion}
+                onReduceMotion={setReduceMotion}
+                everyoneRadius={everyoneRadius}
+                onEveryoneRadius={setEveryoneRadius}
+                onStyles={() => setShowStyles(true)}
+              />
+            )}
           </View>
           <TabBar tabs={TABS} active={tab} onPress={(i) => (i === 0 && tab === 0 ? setHomeReset(homeReset + 1) : setTab(i))} />
         </View>

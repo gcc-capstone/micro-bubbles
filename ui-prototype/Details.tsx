@@ -1,11 +1,12 @@
-// Detail, edit and create views shown as page sheets: person, pin, event, Bubble profile, drop pin.
+// Person and pin views (shown inside the map's bottom sheet) plus event, Bubble profile and
+// drop pin views (shown as page sheets).
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Bubble, Button, IconName, PageSheet, Segmented, Separator } from './components';
 import { bubbleColors, colors, fonts, radius, spacing, type } from './theme';
 import {
-  BubbleEvent, distanceFromMe, EVENTS, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Member, memberColor, Pin,
+  avgRating, BubbleEvent, distanceFromMe, EVENTS, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Member, memberColor, Pin, ratingCount,
 } from './data';
 import BubbleMap from './BubbleMap';
 
@@ -80,7 +81,7 @@ function Stars({ value, size = 18, onChange }: { value: number; size?: number; o
 
 const QUICK_NOTES = ['👋', '?', 'On my way!', 'Call me'];
 
-export function PersonDetail({ member, onClose, onShowOnMap }: { member: Member | null; onClose: () => void; onShowOnMap: (m: Member) => void }) {
+export function PersonView({ member, onShowOnMap }: { member: Member | null; onShowOnMap: (m: Member) => void }) {
   const [sent, setSent] = useState('');
   useEffect(() => setSent(''), [member]);
   if (!member) return null;
@@ -88,7 +89,7 @@ export function PersonDetail({ member, onClose, onShowOnMap }: { member: Member 
   const shared = GROUPS.filter((g) => g.members.some((m) => m.name === member.name));
 
   return (
-    <PageSheet visible title={member.name} onClose={onClose}>
+    <View>
       <View style={styles.hero}>
         <Avatar color={memberColor(member.name)} initials={initials(member.name)} size={88} />
         <Text style={[type.h1, { marginTop: spacing.sm }]}>{member.name}</Text>
@@ -140,26 +141,30 @@ export function PersonDetail({ member, onClose, onShowOnMap }: { member: Member 
           </View>
         ))}
       </Section>
-    </PageSheet>
+    </View>
   );
 }
 
 /* ---------- Pin ---------- */
 
-export function PinDetail({ pin, groupName, color, onClose, onShowOnMap }: {
-  pin: Pin | null; groupName: string; color: string; onClose: () => void; onShowOnMap: (p: Pin) => void;
+export function PinView({ pin, groupName, color, onShowOnMap }: {
+  pin: Pin | null; groupName: string; color: string; onShowOnMap: (p: Pin) => void;
 }) {
   const [mine, setMine] = useState(0);
   useEffect(() => setMine(0), [pin]);
   if (!pin) return null;
   return (
-    <PageSheet visible title="Pin" onClose={onClose}>
+    <View>
       <View style={styles.hero}>
         <View style={[styles.bigIcon, { backgroundColor: color + '22' }]}>
           <Ionicons name={pin.icon} size={36} color={color} />
         </View>
         <Text style={[type.h1, { marginTop: spacing.sm, textAlign: 'center' }]}>{pin.name}</Text>
-        <Stars value={pin.rating} />
+        <View style={[styles.inline, { gap: 4 }]}>
+          <Text style={styles.avg}>{avgRating(pin).toFixed(1)}</Text>
+          <Ionicons name="star" size={16} color={colors.primary} />
+          <Text style={type.caption}>from {ratingCount(pin)} members</Text>
+        </View>
         <Text style={type.caption}>
           Pinned by {pin.by} in {groupName} · {formatMiles(distanceFromMe(pin.lat, pin.lng))} away
         </Text>
@@ -187,7 +192,7 @@ export function PinDetail({ pin, groupName, color, onClose, onShowOnMap }: {
           ))}
         </View>
       </Section>
-    </PageSheet>
+    </View>
   );
 }
 
@@ -488,6 +493,7 @@ export function DropPin({ visible, groups, initialGroupId, onClose, onDrop }: {
 
 const styles = StyleSheet.create({
   inline: { flexDirection: 'row', alignItems: 'center' },
+  avg: { fontFamily: fonts.heading, fontSize: 17, color: colors.text },
   hero: { alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: 4 },
   section: { marginTop: spacing.lg, paddingHorizontal: spacing.md, gap: 6 },
   sectionTitle: { ...type.caption, fontFamily: fonts.bodyBold, textTransform: 'uppercase', paddingHorizontal: spacing.md },
