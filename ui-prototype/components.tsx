@@ -1,6 +1,8 @@
 // Shared UI building blocks for Bubbles screens. All values come from theme.ts.
 import { ComponentProps, ReactNode, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleProp, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
+import {
+  Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, useWindowDimensions, View, ViewStyle,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
@@ -182,19 +184,89 @@ export function Chip({ icon, label, color = colors.textMuted, variant = 'soft' }
   );
 }
 
-// Plain list row for an event: time, title, where, which Bubble, how many going.
-export function EventRow({ time, title, place, groupName, going, divider }: {
-  time: string; title: string; place: string; groupName: string; going: number; divider?: boolean;
+// Apple Calendar-style event row: colored left edge, title over place, time on the right.
+export function EventRow({ time, title, place, groupName, color, onPress }: {
+  time: string; title: string; place: string; groupName: string; color: string; onPress?: () => void;
 }) {
   return (
-    <View style={[s.eventRow, divider && s.eventDivider]}>
-      <Text style={s.eventTime}>{time}</Text>
+    <Pressable onPress={onPress} style={s.eventRow}>
+      <View style={[s.eventEdge, { backgroundColor: color }]} />
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={s.eventTitle}>{title}</Text>
         <Text style={type.caption}>{place} · {groupName}</Text>
       </View>
-      <Text style={type.caption}>{going} going</Text>
-    </View>
+      <Text style={s.eventTime}>{time}</Text>
+    </Pressable>
+  );
+}
+
+// Thin, dimmed list separator, inset from the left like iOS lists.
+export function Separator({ inset = spacing.md }: { inset?: number }) {
+  return <View style={[s.separator, { marginLeft: inset }]} />;
+}
+
+// Button that opens a small popover menu (iOS-style). multi keeps it open for toggling filters.
+export function MenuButton({ icon, label, options, selected, onSelect, multi, active }: {
+  icon: IconName; label?: string; options: string[]; selected: string[]; onSelect: (o: string) => void; multi?: boolean; active?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ right: 0, top: 0 });
+  const ref = useRef<View>(null);
+  const { width } = useWindowDimensions();
+  const show = () =>
+    ref.current?.measureInWindow((x, y, w, h) => {
+      setPos({ right: width - x - w, top: y + h + 6 });
+      setOpen(true);
+    });
+  return (
+    <>
+      <Pressable ref={ref} onPress={show} style={[s.menuBtn, active && s.menuBtnOn]}>
+        <Ionicons name={icon} size={15} color={active ? colors.primary : colors.text} />
+        {label && <Text style={[s.menuBtnText, active && { color: colors.primary }]}>{label}</Text>}
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)}>
+          <View style={[s.popover, pos]}>
+            {options.map((o, i) => (
+              <Pressable
+                key={o}
+                style={[s.popItem, i > 0 && s.popDivider]}
+                onPress={() => {
+                  onSelect(o);
+                  if (!multi) setOpen(false);
+                }}
+              >
+                <Text style={[type.body, { flex: 1 }]}>{o}</Text>
+                {selected.includes(o) && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
+// Full-height iOS page sheet (swipe down to close) for details, editing and creating.
+export function PageSheet({ visible, title, onClose, right, children }: {
+  visible: boolean; title: string; onClose: () => void; right?: ReactNode; children: ReactNode;
+}) {
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[s.page, { paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
+        <View style={s.pageHeader}>
+          <Pressable onPress={onClose} hitSlop={10} style={{ minWidth: 60 }}>
+            <Text style={s.pageAction}>Close</Text>
+          </Pressable>
+          <Text numberOfLines={1} style={s.pageTitle}>{title}</Text>
+          <View style={{ minWidth: 60, alignItems: 'flex-end' }}>{right}</View>
+        </View>
+        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }} keyboardShouldPersistTaps="handled">
+          {children}
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 
@@ -402,9 +474,20 @@ const s = StyleSheet.create({
   chipOutline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.sm + 2, paddingVertical: 4 },
 
   eventTitle: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.text },
-  eventRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm + 4 },
-  eventDivider: { borderTopWidth: 1, borderTopColor: colors.border },
-  eventTime: { width: 64, fontFamily: fonts.bodyBold, fontSize: 13, color: colors.primary },
+  eventRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 4, paddingVertical: spacing.sm + 4, paddingHorizontal: spacing.md },
+  eventEdge: { width: 4, alignSelf: 'stretch', borderRadius: 2 },
+  eventTime: { ...type.caption, color: colors.text },
+  separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
+  menuBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm + 2, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.background },
+  menuBtnOn: { backgroundColor: colors.primarySoft },
+  menuBtnText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
+  popover: { position: 'absolute', minWidth: 210, backgroundColor: colors.surface, borderRadius: radius.sm + 4, ...shadow, shadowOpacity: 0.18, shadowRadius: 20 },
+  popItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 4 },
+  popDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  page: { flex: 1, backgroundColor: colors.background },
+  pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 6 },
+  pageTitle: { flex: 1, textAlign: 'center', fontFamily: fonts.bodyBold, fontSize: 17, color: colors.text },
+  pageAction: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
   segmented: { flexDirection: 'row', gap: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   segment: { paddingVertical: spacing.sm, borderBottomWidth: 2, borderBottomColor: 'transparent', marginBottom: -1 },
   segmentOn: { borderBottomColor: colors.primary },

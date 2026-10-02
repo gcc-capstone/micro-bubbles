@@ -28,6 +28,9 @@ export type Group = {
   pins: Pin[];
   unread: number;
   activity: Activity[]; // newest first
+  color?: string; // chosen in Bubble profile > Edit; defaults to the palette
+  about?: string;
+  isPublic?: boolean;
 };
 
 // Where "You" are: Grove City College campus. Prototype "today" is Oct 2, 2026.
@@ -46,6 +49,7 @@ export const GROUPS: Group[] = [
   {
     id: 'soccer',
     name: 'Home Soccer',
+    about: 'U12 team parents and players. Game days at Davis Park.',
     unread: 2,
     places: [DAVIS_PARK],
     activity: [
@@ -94,6 +98,7 @@ export const GROUPS: Group[] = [
   {
     id: 'fallbreak',
     name: 'Fall Break Crew',
+    about: 'Plans, photos and stories from our fall break trips.',
     unread: 0,
     places: [WAFFLE_HOUSE, CAMPUS],
     activity: [
@@ -178,6 +183,7 @@ export const GROUPS: Group[] = [
   {
     id: 'hiking',
     name: 'Hiking Club',
+    about: 'Weekend hikes around Moraine and beyond. Beginners welcome.',
     unread: 2,
     places: [{ name: 'Moraine State Park', icon: 'leaf', lat: 40.952, lng: -80.095, radius: 1500 }],
     activity: [
@@ -237,6 +243,8 @@ export const GROUPS: Group[] = [
   {
     id: 'imsports',
     name: 'GCC IM Sports',
+    isPublic: true,
+    about: 'Public Bubble for Grove City College intramural players. No code needed.',
     unread: 0,
     places: [{ name: 'IM Fields', icon: 'football', lat: 41.153, lng: -80.081, radius: 150 }],
     activity: [
@@ -349,6 +357,10 @@ export const distanceFromMe = (lat: number, lng: number) => {
 export const formatMiles = (mi: number) => (mi < 0.1 ? 'Nearby' : mi < 10 ? `${mi.toFixed(1)} mi` : `${Math.round(mi)} mi`);
 
 // Stable color per group and per person.
-export const groupColor = (id: string) => bubbleColors[Math.max(0, ALL.findIndex((g) => g.id === id)) % bubbleColors.length];
+export const groupColor = (id: string) => {
+  const i = ALL.findIndex((g) => g.id === id);
+  return ALL[i]?.color ?? bubbleColors[Math.max(0, i) % bubbleColors.length];
+};
+export const joinCode = (id: string) => `${id.slice(0, 4).toUpperCase()}-${(id.length * 7919).toString(36).toUpperCase()}`;
 export const memberColor = (name: string) => bubbleColors[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % bubbleColors.length];
 export const initials = (name: string) => name.split(' ').map((w) => w[0]).join('').slice(0, 2);

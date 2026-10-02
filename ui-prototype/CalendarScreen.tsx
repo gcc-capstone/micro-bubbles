@@ -3,9 +3,10 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { EventRow } from './components';
+import { Bubble, EventRow, Separator } from './components';
+import { EventDetail } from './Details';
 import { colors, fonts, radius, spacing, type } from './theme';
-import { ALL, EVENTS, TODAY } from './data';
+import { ALL, BubbleEvent, EVENTS, groupColor, TODAY } from './data';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -16,6 +17,7 @@ export default function CalendarScreen() {
   const [day, setDay] = useState(TODAY);
   const [filter, setFilter] = useState('everyone');
   const insets = useSafeAreaInsets();
+  const [open, setOpen] = useState<BubbleEvent | null>(null);
 
   const events = EVENTS.filter((e) => filter === 'everyone' || e.groupId === filter);
   const first = new Date(month.y, month.m, 1).getDay();
@@ -36,6 +38,7 @@ export default function CalendarScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
         {ALL.map((g) => (
           <Pressable key={g.id} onPress={() => setFilter(g.id)} style={[styles.filter, filter === g.id && styles.filterOn]}>
+            <Bubble size={14} tint={groupColor(g.id)} />
             <Text style={[styles.filterText, filter === g.id && { color: colors.primary }]}>{g.name}</Text>
           </Pressable>
         ))}
@@ -67,8 +70,8 @@ export default function CalendarScreen() {
                   <Text style={[styles.dayText, isSel && { color: colors.surface }]}>{d}</Text>
                 </View>
                 <View style={styles.dots}>
-                  {dots.map((_, n) => (
-                    <View key={n} style={styles.dot} />
+                  {dots.map((e, n) => (
+                    <View key={n} style={[styles.dot, { backgroundColor: groupColor(e.groupId) }]} />
                   ))}
                 </View>
               </Pressable>
@@ -87,18 +90,21 @@ export default function CalendarScreen() {
       ) : (
         <View style={styles.list}>
           {dayEvents.map((e, i) => (
-            <EventRow
-              key={i}
-              time={e.time}
-              title={e.title}
-              place={e.place}
-              groupName={ALL.find((g) => g.id === e.groupId)!.name}
-              going={e.going.length}
-              divider={i > 0}
-            />
+            <View key={i}>
+              {i > 0 && <Separator inset={spacing.md + 16} />}
+              <EventRow
+                time={e.time}
+                title={e.title}
+                place={e.place}
+                groupName={ALL.find((g) => g.id === e.groupId)?.name ?? ''}
+                color={groupColor(e.groupId)}
+                onPress={() => setOpen(e)}
+              />
+            </View>
           ))}
         </View>
       )}
+      <EventDetail event={open} onClose={() => setOpen(null)} />
     </ScrollView>
   );
 }
@@ -128,6 +134,7 @@ const styles = StyleSheet.create({
   daySel: { backgroundColor: colors.primary, borderColor: colors.primary },
   dayText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.text },
   dots: { flexDirection: 'row', gap: 2, height: 6, marginTop: 2 },
-  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary },
-  list: { backgroundColor: colors.surface, borderRadius: radius.md, paddingHorizontal: spacing.md },
+  dot: { width: 5, height: 5, borderRadius: 3 },
+  // edge-to-edge list, like Apple Calendar
+  list: { marginHorizontal: -spacing.md, backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
 });

@@ -18,9 +18,10 @@ export type BubbleMapProps = {
   topInset: number; // status bar + overlay buttons, kept clear when fitting
   bottomInset: number; // space covered by the sheet/row, kept clear when fitting
   onMemberPress: (m: Member) => void;
+  onPinPress?: (p: Pin) => void;
 };
 
-export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress }: BubbleMapProps) {
+export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress }: BubbleMapProps) {
   const map = useRef<MapView>(null);
   const ready = useRef(false);
 
@@ -67,7 +68,7 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
         </Marker>
       ))}
       {pins.map((pin) => (
-        <Marker key={'pin-' + pin.name} coordinate={{ latitude: pin.lat, longitude: pin.lng }} anchor={{ x: 0.5, y: 1 }} title={pin.name} description={pin.note}>
+        <Marker key={'pin-' + pin.name} coordinate={{ latitude: pin.lat, longitude: pin.lng }} anchor={{ x: 0.5, y: 1 }} onPress={() => onPinPress?.(pin)}>
           <MapPin color={color} icon={pin.icon} style={{ position: 'relative' }} />
         </Marker>
       ))}

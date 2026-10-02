@@ -5,9 +5,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Badge, Bubble, FloatingBubble, MapButton, Segmented } from './components';
+import { Avatar, Badge, Bubble, FloatingBubble, MapButton, MenuButton, Segmented, Separator } from './components';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
-import { ALL, distanceFromMe, formatMiles, Group, groupColor, GROUPS, initials, ME, memberColor } from './data';
+import { ALL, distanceFromMe, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, ME, Member, memberColor, Pin } from './data';
+import { BubbleProfile, DropPin, PersonDetail, PinDetail } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
 
 const RS = 44; // row bubble size
@@ -18,9 +19,19 @@ const SEARCH_H = 52;
 const MAX_ROW = 11; // more than this many Bubbles shows a "More bubbles..." bubble
 const TABS = ['Activity', 'Pins', 'Members'];
 const SORTS: Record<string, string[]> = {
-  Activity: ['All', 'Unread'],
-  Pins: ['Top rated', 'Nearest'],
-  Members: ['Nearest', 'A–Z', 'Recent'],
+  Activity: ['Newest', 'Oldest'],
+  Pins: ['Top rated', 'Nearest', 'A–Z'],
+  Members: ['Nearest', 'A–Z', 'Recently updated'],
+};
+const FILTERS: Record<string, string[]> = {
+  Activity: ['Unread', 'Arrivals & departures', 'Pins', 'Events'],
+  Pins: ['5 stars', 'Pinned by me', 'Within 10 mi'],
+  Members: ['Moving now', 'Within 1 mi', 'Updated in the last hour'],
+};
+const ACTIVITY_KIND: Record<string, string[]> = {
+  'Arrivals & departures': ['enter-outline', 'exit-outline'],
+  Pins: ['pin-outline'],
+  Events: ['calendar-outline'],
 };
 
 // Few Bubbles: hand-placed floating layout on a 375 x 560 canvas, sized by member count.
@@ -66,7 +77,14 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
   const [mode, setMode] = useState<'field' | 'animating' | 'row'>('field');
   const [sheetOpen, setSheetOpen] = useState(false);
   const [tab, setTab] = useState(TABS[0]);
-  const [sort, setSort] = useState<Record<string, string>>({ Activity: 'All', Pins: 'Top rated', Members: 'Nearest' });
+  const [sort, setSort] = useState<Record<string, string>>({ Activity: 'Newest', Pins: 'Top rated', Members: 'Nearest' });
+  const [filters, setFilters] = useState<Record<string, string[]>>({ Activity: [], Pins: [], Members: [] });
+  const [person, setPerson] = useState<Member | null>(null);
+  const [pinDetail, setPinDetail] = useState<Pin | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [dropOpen, setDropOpen] = useState(false);
+  const [, setTick] = useState(0); // re-render after in-memory edits (drop pin, edit/leave Bubble)
+  const refresh = () => setTick((t) => t + 1);
   const [query, setQuery] = useState('');
   const [read, setRead] = useState<Record<string, boolean>>({});
   const [focus, setFocus] = useState<Focus | null>(null);
@@ -136,11 +154,14 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
     }
   };
 
+  const toggleSheetRef = useRef((_: boolean) => {});
   const toggleSheet = (open: boolean) => {
     setSheetOpen(open);
     setQuery('');
     animate(sheetP, open ? 1 : 0, 300);
   };
+
+  toggleSheetRef.current = toggleSheet;
 
   const select = (i: number) => {
     if (mode === 'row') {
@@ -185,26 +206,52 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
   const sheetMax = (h - ROW_H - insets.top) * 0.8;
   const q = query.trim().toLowerCase();
   const match = (...fields: string[]) => !q || fields.some((f) => f.toLowerCase().includes(q));
+  const has = (f: string) => filters[tab].includes(f);
+  const toggleFilter = (f: string) =>
+    setFilters({ ...filters, [tab]: has(f) ? filters[tab].filter((x) => x !== f) : [...filters[tab], f] });
+  const openPerson = (m: Member) => {
+    setFocus(m);
+    setPerson(m);
+  };
+
+  // Header drag: down collapses, up expands (the grabber replaces the old chevron).
+  const headerPan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dy) > 8,
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 30) toggleSheetRef.current(false);
+        if (g.dy < -30) toggleSheetRef.current(true);
+      },
+    }),
+  ).current;
 
   // Sheet rows for the current tab, after sort/filter and search.
   const activity = !group
     ? []
     : (group.id === 'everyone' ? GROUPS.map((g) => ({ ...g.activity[0], key: `${g.id}:0`, unread: g.unread > 0 })) : group.activity.map((a, i) => ({ ...a, key: `${group.id}:${i}`, unread: i < group.unread })))
         .map((a) => ({ ...a, unread: a.unread && !read[a.key] }))
-        .filter((a) => (sort.Activity === 'Unread' ? a.unread : true) && match(a.text));
+        .filter((a) => match(a.text))
+        .filter((a) => !has('Unread') || a.unread)
+        .filter((a) => {
+          const kinds = filters.Activity.filter((f) => ACTIVITY_KIND[f]);
+          return !kinds.length || kinds.some((f) => ACTIVITY_KIND[f].includes(a.icon));
+        });
+  if (sort.Activity === 'Oldest') activity.reverse();
   const pins = !group
     ? []
     : group.pins
         .map((pin) => ({ ...pin, mi: distanceFromMe(pin.lat, pin.lng) }))
         .filter((pin) => match(pin.name, pin.note, pin.by))
-        .sort((a, b) => (sort.Pins === 'Nearest' ? a.mi - b.mi : b.rating - a.rating));
+        .filter((pin) => (!has('5 stars') || pin.rating === 5) && (!has('Pinned by me') || pin.by === 'You') && (!has('Within 10 mi') || pin.mi <= 10))
+        .sort((a, b) => (sort.Pins === 'Nearest' ? a.mi - b.mi : sort.Pins === 'A–Z' ? a.name.localeCompare(b.name) : b.rating - a.rating));
   const members = !group
     ? []
     : group.members
         .map((m) => ({ ...m, mi: distanceFromMe(m.lat, m.lng) }))
         .filter((m) => match(m.name, m.place))
+        .filter((m) => (!has('Moving now') || m.moving) && (!has('Within 1 mi') || m.mi <= 1) && (!has('Updated in the last hour') || minutesAgo(m.updated) < 60))
         .sort((a, b) =>
-          sort.Members === 'A–Z' ? a.name.localeCompare(b.name) : sort.Members === 'Recent' ? minutesAgo(a.updated) - minutesAgo(b.updated) : a.mi - b.mi,
+          sort.Members === 'A–Z' ? a.name.localeCompare(b.name) : sort.Members === 'Recently updated' ? minutesAgo(a.updated) - minutesAgo(b.updated) : a.mi - b.mi,
         );
 
   return (
@@ -220,15 +267,16 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
             focus={focus}
             topInset={insets.top}
             bottomInset={SHEET_MIN}
-            onMemberPress={setFocus}
+            onMemberPress={openPerson}
+            onPinPress={setPinDetail}
           />
           {/* Right-side controls, just above the sheet */}
           <Animated.View
             style={[styles.rightStack, { opacity: sheetP.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }, sheetOpen && styles.noTouch]}
           >
             <MapButton icon="locate" onPress={() => setFocus({ name: 'You', lat: ME.lat, lng: ME.lng })} />
-            <Pressable style={styles.fab} onPress={() => showToast("Drop Pin isn't built yet in the prototype")}>
-              <Ionicons name="add" size={28} color={colors.surface} />
+            <Pressable style={styles.fab} onPress={() => setDropOpen(true)}>
+              <Ionicons name="add" size={30} color={colors.primary} />
             </Pressable>
           </Animated.View>
         </Animated.View>
@@ -239,6 +287,7 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
         <Animated.View
           style={[styles.sheet, { opacity: p, height: sheetP.interpolate({ inputRange: [0, 1], outputRange: [SHEET_MIN, sheetMax] }) }]}
         >
+          <View {...headerPan.panHandlers}>
           <Pressable onPress={() => toggleSheet(!sheetOpen)} style={styles.sheetHeader}>
             <View style={styles.handle} />
             <View style={[styles.row, { gap: spacing.sm }]}>
@@ -249,19 +298,14 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
                   {group.members.length} members · {group.places.map((pl) => pl.name).join(', ')}
                 </Text>
               </View>
-              <Ionicons name={sheetOpen ? 'chevron-down' : 'chevron-up'} size={20} color={colors.textMuted} />
+              <Pressable onPress={() => setProfileOpen(true)} hitSlop={10} style={styles.editBtn}>
+                <Ionicons name="pencil" size={16} color={colors.primary} />
+              </Pressable>
             </View>
           </Pressable>
+          </View>
           <View style={{ paddingHorizontal: spacing.md }}>
             <Segmented options={TABS} value={tab} onChange={setTab} />
-          </View>
-          {/* Sort / filter bar, always visible */}
-          <View style={styles.sortBar}>
-            {SORTS[tab].map((o) => (
-              <Pressable key={o} onPress={() => setSort({ ...sort, [tab]: o })} style={[styles.sortChip, sort[tab] === o && styles.sortChipOn]}>
-                <Text style={[styles.sortText, sort[tab] === o && { color: colors.primary }]}>{o}</Text>
-              </Pressable>
-            ))}
           </View>
           <ScrollView
             ref={list}
@@ -283,6 +327,23 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
               </View>
             </View>
 
+            {/* Sort and filter menus, below the hidden search */}
+            <View style={styles.toolbar}>
+              <Text style={[type.caption, { flex: 1 }]}>
+                {tab === 'Activity' ? `${activity.length} updates` : tab === 'Pins' ? `${pins.length} pins` : `${members.length} members`}
+              </Text>
+              <MenuButton icon="swap-vertical" label={sort[tab]} options={SORTS[tab]} selected={[sort[tab]]} onSelect={(o) => setSort({ ...sort, [tab]: o })} />
+              <MenuButton
+                icon={filters[tab].length ? 'funnel' : 'funnel-outline'}
+                label={filters[tab].length ? `${filters[tab].length}` : undefined}
+                options={FILTERS[tab]}
+                selected={filters[tab]}
+                onSelect={toggleFilter}
+                multi
+                active={filters[tab].length > 0}
+              />
+            </View>
+
             {tab === 'Activity' &&
               activity.map((a, i) => (
                 <Pressable key={a.key} onPress={() => setRead({ ...read, [a.key]: true })} style={[styles.listRow, i > 0 && styles.divider, a.unread && styles.unread]}>
@@ -302,7 +363,7 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
                   style={[styles.listRow, i > 0 && styles.divider]}
                   onPress={() => {
                     setFocus(pin);
-                    toggleSheet(false);
+                    setPinDetail(pin);
                   }}
                 >
                   <View style={[styles.iconCircle, { backgroundColor: color + '1F' }]}>
@@ -327,10 +388,7 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
                 <Pressable
                   key={m.name}
                   style={[styles.listRow, i > 0 && styles.divider]}
-                  onPress={() => {
-                    setFocus(m);
-                    toggleSheet(false);
-                  }}
+                  onPress={() => openPerson(m)}
                 >
                   <Avatar color={memberColor(m.name)} initials={initials(m.name)} size={40} />
                   <View style={{ flex: 1 }}>
@@ -437,6 +495,59 @@ export default function HomeScreen({ resetKey, reduceMotion }: { resetKey: numbe
         </ScrollView>
       )}
 
+      <PersonDetail
+        member={person}
+        onClose={() => setPerson(null)}
+        onShowOnMap={(m) => {
+          setPerson(null);
+          setFocus(m);
+          toggleSheet(false);
+        }}
+      />
+      <PinDetail
+        pin={pinDetail}
+        groupName={group ? GROUPS.find((g) => g.pins.some((x) => x.name === pinDetail?.name))?.name ?? group.name : ''}
+        color={color}
+        onClose={() => setPinDetail(null)}
+        onShowOnMap={(pn) => {
+          setPinDetail(null);
+          setFocus(pn);
+          toggleSheet(false);
+        }}
+      />
+      {profileOpen && (
+        <BubbleProfile
+          group={group}
+          onClose={() => setProfileOpen(false)}
+          onChanged={refresh}
+          onLeave={() => {
+            // ponytail: removes from the in-memory lists only
+            const g = group!;
+            GROUPS.splice(GROUPS.indexOf(g), 1);
+            ALL.splice(ALL.indexOf(g), 1);
+            setProfileOpen(false);
+            setSelected(0);
+            showToast(`You left ${g.name}`);
+          }}
+        />
+      )}
+      <DropPin
+        visible={dropOpen}
+        groups={GROUPS}
+        initialGroupId={group?.id}
+        onClose={() => setDropOpen(false)}
+        onDrop={(pin, groupId, notify) => {
+          const g = GROUPS.find((x) => x.id === groupId)!;
+          g.pins.unshift(pin);
+          EVERYONE.pins.unshift(pin);
+          g.activity.unshift({ icon: 'pin-outline', text: `You pinned ${pin.name}${notify ? ' and notified members' : ''}`, time: 'Now' });
+          setDropOpen(false);
+          setSelected(ALL.indexOf(g));
+          setFocus(pin);
+          showToast(`Pinned ${pin.name} in ${g.name}`);
+        }}
+      />
+
       {toast !== '' && (
         <View style={[styles.toast, { top: insets.top + 64 }]}>
           <Text style={styles.toastText}>{toast}</Text>
@@ -452,7 +563,7 @@ const styles = StyleSheet.create({
   noTouch: { pointerEvents: 'none' },
   mapArea: { position: 'absolute', top: 0, left: 0, right: 0, bottom: ROW_H },
   rightStack: { position: 'absolute', right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4, alignItems: 'center', gap: spacing.sm + 4 },
-  fab: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...shadow },
+  fab: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   panel: { position: 'absolute', left: 0, right: 0, bottom: 0, pointerEvents: 'none' },
   title: { position: 'absolute', left: spacing.md, pointerEvents: 'none' },
   sheet: {
@@ -469,16 +580,14 @@ const styles = StyleSheet.create({
   sheetHeader: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.sm },
   handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: spacing.sm },
   sheetTitle: { fontFamily: fonts.subheading, fontSize: 17, color: colors.text },
-  sortBar: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  sortChip: { paddingHorizontal: spacing.sm + 4, paddingVertical: 5, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border },
-  sortChipOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  sortText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.textMuted },
+  toolbar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+  editBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   sheetBody: { paddingBottom: spacing.md },
   searchWrap: { height: SEARCH_H, justifyContent: 'center', paddingHorizontal: spacing.md },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.background, borderRadius: radius.sm, paddingHorizontal: spacing.sm + 2, height: 36 },
   searchInput: { ...type.body, flex: 1, padding: 0 },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 4, paddingVertical: spacing.sm + 2, paddingHorizontal: spacing.md },
-  divider: { borderTopWidth: 1, borderTopColor: colors.border },
+  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   unread: { backgroundColor: colors.primarySoft },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
   rowTitle: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.text },

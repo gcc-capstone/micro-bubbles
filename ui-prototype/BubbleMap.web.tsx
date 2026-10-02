@@ -9,7 +9,7 @@ import type { BubbleMapProps } from './BubbleMap';
 
 const SIDE = 50;
 
-export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress }: BubbleMapProps) {
+export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress }: BubbleMapProps) {
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   const pts = focus ? [focus] : members;
@@ -38,7 +38,9 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
             return <LocationCircle key={p.name} size={d} color={color} icon={p.icon} label={p.name} style={{ left: x(p.lng) - d / 2, top: y(p.lat) - d / 2 }} />;
           })}
           {pins.map((pin) => (
-            <MapPin key={pin.name} color={color} icon={pin.icon} style={{ left: x(pin.lng) - 15, top: y(pin.lat) - 44 }} />
+            <Pressable key={pin.name} onPress={() => onPinPress?.(pin)} style={{ position: 'absolute', left: x(pin.lng) - 15, top: y(pin.lat) - 44 }}>
+              <MapPin color={color} icon={pin.icon} style={{ position: 'relative' }} />
+            </Pressable>
           ))}
           <YouDot style={{ left: x(ME.lng) - 20, top: y(ME.lat) - 20 }} />
           {members.map((m) => (
