@@ -16,27 +16,25 @@ export function Bubble({ size, tint = colors.primary, children }: { size: number
   return (
     <View style={[s.bubble, { width: size, height: size, borderRadius: r, backgroundColor: tint + '12', borderColor: tint + '59', shadowColor: tint }]}>
       {/* rim depth */}
-      <View pointerEvents="none" style={[s.fill, { borderRadius: r, borderWidth: Math.max(2, size * 0.06), borderColor: tint + '1A' }]} />
+      <View style={[s.fill, s.noTouch, { borderRadius: r, borderWidth: Math.max(2, size * 0.06), borderColor: tint + '1A' }]} />
       {/* curved window reflection, top-left */}
       <View
-        pointerEvents="none"
-        style={[s.fill, inset(0.08), s.arc, { borderRadius: r, borderWidth: Math.max(1.5, size * 0.035), borderTopColor: 'rgba(255,255,255,0.95)' }]}
+        style={[s.fill, s.noTouch, inset(0.08), s.arc, { borderRadius: r, borderWidth: Math.max(1.5, size * 0.035), borderTopColor: 'rgba(255,255,255,0.95)' }]}
       />
       {/* faint bounce light, bottom-right */}
       <View
-        pointerEvents="none"
-        style={[s.fill, inset(0.12), s.arc, { borderRadius: r, borderWidth: Math.max(1, size * 0.02), borderBottomColor: 'rgba(255,255,255,0.7)' }]}
+        style={[s.fill, s.noTouch, inset(0.12), s.arc, { borderRadius: r, borderWidth: Math.max(1, size * 0.02), borderBottomColor: 'rgba(255,255,255,0.7)' }]}
       />
       {/* glint */}
-      <View pointerEvents="none" style={[s.glint, { width: size * 0.08, height: size * 0.08, top: size * 0.26, left: size * 0.26 }]} />
+      <View style={[s.glint, s.noTouch, { width: size * 0.08, height: size * 0.08, top: size * 0.26, left: size * 0.26 }]} />
       {children}
     </View>
   );
 }
 
 // Bubble that floats and sways; springs bigger when selected.
-export function FloatingBubble({ size, tint, label, count = 0, delay = 0, selected, onPress, style }: {
-  size: number; tint: string; label: string; count?: number; delay?: number; selected?: boolean; onPress?: () => void; style?: Style;
+export function FloatingBubble({ size, tint, label, sublabel, count = 0, delay = 0, selected, onPress, style }: {
+  size: number; tint: string; label: string; sublabel?: string; count?: number; delay?: number; selected?: boolean; onPress?: () => void; style?: Style;
 }) {
   const t = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -52,7 +50,8 @@ export function FloatingBubble({ size, tint, label, count = 0, delay = 0, select
     <Animated.View style={[{ position: 'absolute', transform: [{ translateY: wave(-12, 8) }, { translateX: wave(5, -5) }, { scale }] }, style]}>
       <Pressable onPress={onPress}>
         <Bubble size={size} tint={tint}>
-          <Text numberOfLines={1} style={[s.bubbleLabel, { color: tint, fontSize: size > 110 ? 16 : 13 }]}>{label}</Text>
+          <Text numberOfLines={2} style={[s.bubbleLabel, { color: tint, fontSize: size > 130 ? 17 : size > 105 ? 15 : 13, maxWidth: size * 0.78 }]}>{label}</Text>
+          {sublabel && <Text style={[s.bubbleSub, { color: tint }]}>{sublabel}</Text>}
         </Bubble>
         {count > 0 && <Badge count={count} style={{ position: 'absolute', right: size * 0.08, top: size * 0.04 }} />}
       </Pressable>
@@ -81,12 +80,14 @@ export function Badge({ count, style }: { count: number; style?: Style }) {
 /* ---------- Map ---------- */
 
 // Member on the map; status adds a moving arrow or an SOS ring, tag shows a label under it.
-export function MemberPin({ color, status, tag, style }: { color: string; status?: 'moving' | 'sos'; tag?: string; style?: Style }) {
+export function MemberPin({ color, initials, status, tag, style }: {
+  color: string; initials?: string; status?: 'moving' | 'sos'; tag?: string; style?: Style;
+}) {
   const sos = status === 'sos';
   return (
     <View style={[s.abs, s.centerX, style]}>
       <View style={[s.round, sos && s.sosRing]}>
-        <Avatar color={color} size={36} ring={colors.surface} />
+        <Avatar color={color} initials={initials} size={36} ring={colors.surface} />
         {status === 'moving' && (
           <View style={s.movingBadge}><Ionicons name="navigate" size={9} color={colors.surface} /></View>
         )}
@@ -150,9 +151,9 @@ export function Cluster({ count, style }: { count: number; style?: Style }) {
   );
 }
 
-export function MapButton({ icon }: { icon: IconName }) {
+export function MapButton({ icon, onPress }: { icon: IconName; onPress?: () => void }) {
   return (
-    <Pressable style={s.mapButton}>
+    <Pressable style={s.mapButton} onPress={onPress}>
       <Ionicons name={icon} size={18} color={colors.text} />
     </Pressable>
   );
@@ -170,6 +171,50 @@ export function Chip({ icon, label, color = colors.textMuted, variant = 'soft' }
     <View style={[s.chip, variant === 'outline' ? s.chipOutline : s.chipSoft]}>
       {icon && <Ionicons name={icon} size={variant === 'soft' ? 11 : 14} color={color} />}
       <Text style={variant === 'soft' ? s.chipSoftText : s.tagText}>{label}</Text>
+    </View>
+  );
+}
+
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+// Event row: date block, details, which Bubble it belongs to, and who's going.
+export function EventCard({ date, title, time, place, color, groupName, going }: {
+  date: string; title: string; time: string; place: string; color: string; groupName: string; going: { initials: string; color: string }[];
+}) {
+  const [, m, d] = date.split('-').map(Number);
+  return (
+    <Card style={[s.row, { gap: spacing.md }]}>
+      <View style={s.dateBlock}>
+        <Text style={[s.dateMonth, { color }]}>{MONTHS[m - 1]}</Text>
+        <Text style={s.dateDay}>{d}</Text>
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={s.eventTitle}>{title}</Text>
+        <Text style={type.caption}>{time} · {place}</Text>
+        <View style={[s.row, { gap: 4 }]}>
+          <Bubble size={12} tint={color} />
+          <Text style={type.caption}>{groupName}</Text>
+        </View>
+      </View>
+      <View style={s.row}>
+        {going.slice(0, 3).map((g, n) => (
+          <View key={n} style={{ marginLeft: n ? -10 : 0 }}><Avatar initials={g.initials} color={g.color} size={28} ring={colors.surface} /></View>
+        ))}
+        {going.length > 3 && <Text style={[type.caption, { marginLeft: 4 }]}>+{going.length - 3}</Text>}
+      </View>
+    </Card>
+  );
+}
+
+// Segmented tabs, e.g. Members / Pins / Events / Places.
+export function Segmented({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <View style={s.segmented}>
+      {options.map((o) => (
+        <Pressable key={o} onPress={() => onChange(o)} style={[s.segment, o === value && s.segmentOn]}>
+          <Text style={[s.segmentText, o === value && { color: colors.primary }]}>{o}</Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -286,6 +331,7 @@ const s = StyleSheet.create({
   centerX: { alignItems: 'center' },
   abs: { position: 'absolute' },
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  noTouch: { pointerEvents: 'none' },
   round: { borderRadius: radius.pill, ...shadow },
 
   bubble: {
@@ -298,7 +344,8 @@ const s = StyleSheet.create({
   },
   arc: { borderColor: 'transparent', transform: [{ rotate: '-45deg' }] },
   glint: { position: 'absolute', borderRadius: radius.pill, backgroundColor: colors.surface },
-  bubbleLabel: { fontFamily: fonts.bodyBold },
+  bubbleLabel: { fontFamily: fonts.bodyBold, textAlign: 'center' },
+  bubbleSub: { fontFamily: fonts.body, fontSize: 11, opacity: 0.8 },
 
   avatarText: { color: colors.surface, fontFamily: fonts.bodyBold },
   badge: {
@@ -377,6 +424,15 @@ const s = StyleSheet.create({
   chipSoft: { backgroundColor: colors.primarySoft, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   chipSoftText: { ...type.caption, fontSize: 12 },
   chipOutline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.sm + 2, paddingVertical: 4 },
+
+  dateBlock: { width: 52, paddingVertical: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.primarySoft, alignItems: 'center' },
+  dateMonth: { fontFamily: fonts.bodyBold, fontSize: 12 },
+  dateDay: { fontFamily: fonts.heading, fontSize: 20, color: colors.text },
+  eventTitle: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.text },
+  segmented: { flexDirection: 'row', backgroundColor: colors.primarySoft, borderRadius: radius.pill, padding: 3 },
+  segment: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: radius.pill },
+  segmentOn: { backgroundColor: colors.surface, ...shadow },
+  segmentText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.textMuted },
 
   button: { borderRadius: radius.pill, paddingVertical: spacing.md - 2, alignItems: 'center' },
   buttonPrimary: { backgroundColor: colors.primary },
