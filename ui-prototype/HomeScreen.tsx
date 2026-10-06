@@ -71,6 +71,16 @@ const hexLayout = (n: number) => {
 };
 const HEX = hexLayout(ALL.length);
 
+// Layout used when there are many Bubbles. 'stream' = horizontal, endlessly scrolling band of
+// bubbles; 'honeycomb' = Apple Watch-style grid (kept for comparison, switch back here).
+const MANY_LAYOUT: 'stream' | 'honeycomb' = 'stream';
+const STREAM_D = 80; // horizontal spacing between stream bubbles
+// Stable pseudo-random 0..1 per index, so bubbles look scattered but don't jump between renders.
+const jitter = (i: number, seed: number) => {
+  const v = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
+  return v - Math.floor(v);
+};
+
 const MENU_ICONS: Record<string, IconName> = {
   'Bubble Info': 'information-circle-outline',
   'Edit Bubble': 'create-outline',
@@ -145,7 +155,10 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
       onPanResponderGrant: () => (dragStart.current = offsetRef.current),
       onPanResponderMove: (_, g) => {
         const c = (v: number) => Math.max(-maxPan, Math.min(maxPan, v));
-        offsetRef.current = { x: c(dragStart.current.x + g.dx), y: c(dragStart.current.y + g.dy) };
+        offsetRef.current =
+          MANY_LAYOUT === 'stream'
+            ? { x: dragStart.current.x + g.dx, y: 0 } // horizontal only, endless
+            : { x: c(dragStart.current.x + g.dx), y: c(dragStart.current.y + g.dy) };
         setOffset(offsetRef.current);
       },
     }),
@@ -162,6 +175,19 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
         s: bubbleSize(g.members.length) * k,
         scale: 1,
       };
+    }
+    if (MANY_LAYOUT === 'stream') {
+      // Band vertically centered in the free space; x wraps around so the stream never ends.
+      const cy = fieldTop + (h - fieldTop) / 2;
+      const band = Math.min(380, (h - fieldTop) * 0.7);
+      const total = ALL.length * STREAM_D;
+      const raw = i * STREAM_D + (jitter(i, 1) - 0.5) * 30 + offset.x + w * 0.2;
+      const x = ((((raw + STREAM_D) % total) + total) % total) - STREAM_D;
+      const y = cy + (i % 2 ? 1 : -1) * (0.15 + jitter(i, 2) * 0.35) * band; // alternate above/below so neighbors don't collide
+      // Bubbles grow toward the middle and shrink as they leave either side.
+      const edge = Math.min(x, w - x);
+      const scale = Math.max(0.25, Math.min(1, (edge + 20) / (w * 0.22)));
+      return { x, y, s: Math.min(140, bubbleSize(g.members.length) * 0.85), scale };
     }
     const cx = w / 2;
     const cy = fieldTop + (h - fieldTop) / 2;
