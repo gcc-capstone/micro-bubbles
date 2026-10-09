@@ -36,7 +36,7 @@ const MONTH_HEAD = 48;
 const CELL = 56;
 const MONTH_PAD = spacing.sm + 4; // side padding in month view
 const DAY_HEAD = 30;
-const EVT_H = 54;
+const EVT_H = 62;
 const DAY_PAD = 6;
 const WEEK_PAD = spacing.md + 4; // side padding for the week strip and its dividers
 
@@ -504,6 +504,7 @@ const styles = StyleSheet.create({
   weekCell: { flex: 1, alignItems: 'center' },
   dayHead: { height: DAY_HEAD, paddingTop: spacing.sm + 2, fontFamily: fonts.bodyBold, fontSize: 13, color: colors.textMuted },
   empty: { ...type.caption, textAlign: 'center' },
-  list: { backgroundColor: colors.surface, borderRadius: radius.sm + 2, overflow: 'hidden' }, // tighter corners echo the color bar
+  // radius matches the week strip's day circles at this row height (34pt circle / ~62pt row) without looking pill-like
+  list: { backgroundColor: colors.surface, borderRadius: radius.sm, overflow: 'hidden' },
   sep: { position: 'absolute', top: 0, left: spacing.md + 16, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
 });
