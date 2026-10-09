@@ -521,7 +521,7 @@ const s = StyleSheet.create({
   chipOutline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.sm + 2, paddingVertical: 4 },
 
   eventTitle: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.text },
-  eventRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 4, paddingVertical: spacing.sm + 4, paddingHorizontal: spacing.md },
+  eventRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 4, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
   eventEdge: { width: 4, alignSelf: 'stretch', borderRadius: 2 },
   eventTime: { ...type.caption, color: colors.text },
   separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },

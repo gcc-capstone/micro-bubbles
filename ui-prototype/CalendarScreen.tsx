@@ -35,9 +35,10 @@ const YEAR_H = YEAR_HEAD + 6 * MINI_H;
 const MONTH_HEAD = 48;
 const CELL = 56;
 const MONTH_PAD = spacing.sm + 4; // side padding in month view
-const DAY_HEAD = 36;
-const EVT_H = 64;
-const DAY_PAD = 8;
+const DAY_HEAD = 30;
+const EVT_H = 54;
+const DAY_PAD = 6;
+const WEEK_PAD = spacing.md + 6; // side padding in the week list
 
 type Level = 'year' | 'month' | 'week';
 
@@ -47,6 +48,8 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
   const cellW = Math.floor((width - 2 * MONTH_PAD) / 7); // exact pixels; % widths can wrap the 7th column
   const [level, setLevel] = useState<Level>('month');
   const [sel, setSel] = useState(T); // selected day (week view) and anchor for other views
+  const selRef = useRef(sel);
+  selRef.current = sel;
   const [visYear, setVisYear] = useState(TP.y);
   const [visMonth, setVisMonth] = useState({ y: TP.y, m: TP.m });
   const [filter, setFilter] = useState('everyone');
@@ -116,6 +119,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
     setVisYear(p.y);
     setVisMonth({ y: p.y, m: p.m });
     if (next === 'week') {
+      hold();
       stripWeekRef.current = weekIndex(anchor);
       setStripWeek(stripWeekRef.current);
     }
@@ -335,6 +339,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
         {level === 'week' && (
           <>
             {/* Week strip: pages one week at a time */}
+            <View style={styles.divider} />
             <View style={styles.stripWrap}>
               <View style={[styles.dowRow, { borderBottomWidth: 0 }]}>
                 {dows.map((d, i) => (
@@ -376,12 +381,24 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
               />
             </View>
 
+            <View style={styles.divider} />
+            {/* fixed gap under the strip (padding inside the list would scroll away) */}
+            <View style={{ height: spacing.sm + 4 }} />
             {/* Endless day-by-day event list */}
             <FlatList
               ref={dayList}
               data={eventDays}
               keyExtractor={(n) => `${n}`}
               initialScrollIndex={eventDays.length ? listIndex(sel) : undefined}
+              // initialScrollIndex can land a few points off; snap to the exact offset once laid out
+              onLayout={() => {
+                if (!eventDays.length) return;
+                const index = listIndex(selRef.current);
+                hold(); // don't let the settling list change the selected day
+                setTimeout(() => dayList.current?.scrollToIndex({ index, viewPosition: 0, animated: false }), 50);
+              }}
+              // room after the last event so any day can scroll to the top (otherwise the list stops short)
+              ListFooterComponent={<View style={{ height: 600 }} />}
               ListEmptyComponent={<Text style={[styles.empty, { padding: spacing.md }]}>No events in this Bubble</Text>}
               getItemLayout={(_, i) => ({ length: dayOffsets[i + 1] - dayOffsets[i], offset: dayOffsets[i], index: i })}
               onScroll={(e) => {
@@ -397,7 +414,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                 const p = parts(n);
                 const evs = byDay.get(n) ?? [];
                 return (
-                  <View style={{ height: dayH(n), paddingHorizontal: spacing.md }}>
+                  <View style={{ height: dayH(n), paddingHorizontal: WEEK_PAD }}>
                     <Text style={[styles.dayHead, n === T && { color: colors.primary }]}>
                       {DOW_NAMES[p.dow]}, {MONTHS[p.m]} {p.d}
                       {p.y !== TP.y ? `, ${p.y}` : ''}
@@ -480,10 +497,12 @@ const styles = StyleSheet.create({
   dots: { flexDirection: 'row', gap: 2, height: 6, marginTop: 2 },
   dot: { width: 5, height: 5, borderRadius: 3 },
 
-  stripWrap: { backgroundColor: colors.surface, paddingTop: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  // same background as the page; slim inset dividers above and below mark the strip
+  stripWrap: { paddingTop: 4 },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: WEEK_PAD },
   weekRow: { flexDirection: 'row', paddingVertical: spacing.sm },
   weekCell: { flex: 1, alignItems: 'center' },
-  dayHead: { height: DAY_HEAD, paddingTop: spacing.sm + 4, fontFamily: fonts.bodyBold, fontSize: 14, color: colors.textMuted },
+  dayHead: { height: DAY_HEAD, paddingTop: spacing.sm + 2, fontFamily: fonts.bodyBold, fontSize: 13, color: colors.textMuted },
   empty: { ...type.caption, textAlign: 'center' },
   list: { backgroundColor: colors.surface, borderRadius: radius.md, overflow: 'hidden' },
   sep: { position: 'absolute', top: 0, left: spacing.md + 16, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
