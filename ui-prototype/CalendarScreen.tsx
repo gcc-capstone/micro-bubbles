@@ -26,19 +26,19 @@ const MR = 600; // months
 const WR = 520; // weeks
 
 // Fixed row heights (must match styles below) so getItemLayout is exact.
-const YEAR_HEAD = 56;
+const YEAR_HEAD = 60;
 const MINI_NAME = 24;
 const MINI_ROW = 17;
 const MINI_GAP = 14;
 const MINI_H = MINI_NAME + 6 * MINI_ROW + MINI_GAP;
-const YEAR_H = YEAR_HEAD + 6 * MINI_H;
+const YEAR_H = YEAR_HEAD + 4 * MINI_H; // 3 columns x 4 rows
 const MONTH_HEAD = 48;
 const CELL = 56;
-const MONTH_PAD = spacing.sm + 4; // side padding in month view
+const MONTH_PAD = spacing.xs; // minimal side padding in month view
 const DAY_HEAD = 30;
 const EVT_H = 58;
 const DAY_PAD = 6;
-const WEEK_PAD = spacing.md + 4; // side padding for the week strip and its dividers
+const WEEK_PAD = spacing.xs; // minimal side padding for the week strip
 
 type Level = 'year' | 'month' | 'week';
 
@@ -223,7 +223,8 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
           <Text style={styles.navText}>Today</Text>
         </Pressable>
       </View>
-      <Text style={[type.largeTitle, styles.title, level !== 'week' && { color: colors.primary }]}>{title}</Text>
+      {/* Only Month has a large title; Year uses its in-list year headings, Week shows the selected day in the list. */}
+      {level === 'month' && <Text style={[type.largeTitle, styles.title, { color: colors.primary }]}>{title}</Text>}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.filters}>
         {ALL.map((g) => (
@@ -241,11 +242,6 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
             data={YEARS}
             keyExtractor={(i) => `${i}`}
             initialScrollIndex={visYear - TP.y + YR}
-            // then nudge to the row of the month we came from, so zooming out keeps your place
-            onLayout={() => {
-              const offset = YEAR_H * (visYear - TP.y + YR) + YEAR_HEAD + Math.floor(visMonth.m / 2) * MINI_H;
-              setTimeout(() => yearList.current?.scrollToOffset({ offset, animated: false }), 50); // after first render
-            }}
             initialNumToRender={2}
             getItemLayout={(_, i) => ({ length: YEAR_H, offset: YEAR_H * i, index: i })}
             onViewableItemsChanged={onYearViewable}
@@ -254,12 +250,12 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
             renderItem={({ index }) => {
               const y = yearOf(index);
               return (
-                <View style={{ height: YEAR_H, paddingHorizontal: spacing.md + 6 }}>
-                  <Text style={styles.yearHead}>{y}</Text>
+                <View style={{ height: YEAR_H, paddingHorizontal: spacing.sm }}>
+                  <Text style={[styles.yearHead, y === TP.y && { color: colors.primary }]}>{y}</Text>
                   <View style={styles.yearGrid}>
                     {MONTHS.map((name, m) => (
                       <Pressable key={name} style={styles.mini} onPress={() => go('month', monthStart(y, m))}>
-                        <Text style={[styles.miniName, y === TP.y && m === TP.m && { color: colors.primary }]}>{name}</Text>
+                        <Text style={[styles.miniName, y === TP.y && m === TP.m && { color: colors.primary }]}>{name.slice(0, 3)}</Text>
                         <View style={styles.miniGrid}>
                           {Array.from({ length: 42 }, (_, c) => {
                             const d = c - leadBlanks(y, m, weekStart) + 1;
@@ -427,7 +423,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                             <EventRow
                               time={e.time}
                               title={e.title}
-                              place={<LinkedText style={type.caption} text={e.place} />}
+                              place={<LinkedText numberOfLines={1} style={type.caption} text={e.place} />}
                               groupName={ALL.find((g) => g.id === e.groupId)?.name ?? ''}
                               color={groupColor(e.groupId)}
                               onPress={() => setOpen(e)}
@@ -473,14 +469,14 @@ const styles = StyleSheet.create({
   filterOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   filterText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
 
-  yearHead: { height: YEAR_HEAD, fontFamily: fonts.heading, fontSize: 28, color: colors.text, paddingTop: spacing.sm },
+  yearHead: { ...type.largeTitle, height: YEAR_HEAD, paddingTop: spacing.xs, paddingHorizontal: spacing.xs },
   yearGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  mini: { width: '47%', height: MINI_H },
+  mini: { width: '31.5%', height: MINI_H },
   miniName: { height: MINI_NAME, fontFamily: fonts.subheading, fontSize: 17, color: colors.text },
   miniGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   miniCell: { width: `${100 / 7}%`, height: MINI_ROW, alignItems: 'center', justifyContent: 'center', borderRadius: 99 },
   miniToday: { backgroundColor: colors.primary },
-  miniDay: { fontSize: 10, fontFamily: fonts.body, color: colors.text },
+  miniDay: { fontSize: 9, fontFamily: fonts.body, color: colors.text },
   miniBusy: { color: colors.primary, fontFamily: fonts.bodyBold },
 
   dowRow: { flexDirection: 'row', paddingBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },

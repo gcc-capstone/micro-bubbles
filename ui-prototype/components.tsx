@@ -209,10 +209,11 @@ export function EventRow({ time, title, place, groupName, color, onPress }: {
     <Pressable onPress={onPress} style={s.eventRow}>
       <View style={[s.eventEdge, { backgroundColor: color }]} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={s.eventTitle}>{title}</Text>
-        <View style={[s.row, { flexWrap: 'wrap' }]}>
-          {typeof place === 'string' ? <Text style={type.caption}>{place}</Text> : place}
-          <Text style={type.caption}> · {groupName}</Text>
+        <Text numberOfLines={1} style={s.eventTitle}>{title}</Text>
+        {/* one line on narrow phones: place keeps priority, Bubble name truncates */}
+        <View style={s.row}>
+          <View style={{ flexShrink: 0, maxWidth: '70%' }}>{typeof place === 'string' ? <Text numberOfLines={1} style={type.caption}>{place}</Text> : place}</View>
+          <Text numberOfLines={1} style={[type.caption, { flexShrink: 1 }]}> · {groupName}</Text>
         </View>
       </View>
       <Text style={s.eventTime}>{time}</Text>
