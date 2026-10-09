@@ -4,13 +4,17 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Bubble, Button, IconName, MenuButton } from './components';
+import { LinkedText } from './Details';
 import { bubbleColors, colors, fonts, radius, spacing, type } from './theme';
 import { GROUPS, PROFILE } from './data';
 
 const RADII = [1, 5, 10, 25, 50];
 
-export default function ProfileScreen({ reduceMotion, onReduceMotion, everyoneRadius, onEveryoneRadius, onStyles }: {
-  reduceMotion: boolean; onReduceMotion: (v: boolean) => void; everyoneRadius: number; onEveryoneRadius: (mi: number) => void; onStyles: () => void;
+const EVENT_DAYS = [1, 3, 7, 14, 30];
+
+export default function ProfileScreen({ reduceMotion, onReduceMotion, everyoneRadius, onEveryoneRadius, eventsOnMap, onEventsOnMap, eventDays, onEventDays, onStyles }: {
+  reduceMotion: boolean; onReduceMotion: (v: boolean) => void; everyoneRadius: number; onEveryoneRadius: (mi: number) => void;
+  eventsOnMap: boolean; onEventsOnMap: (v: boolean) => void; eventDays: number; onEventDays: (d: number) => void; onStyles: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
@@ -105,7 +109,7 @@ export default function ProfileScreen({ reduceMotion, onReduceMotion, everyoneRa
           {PROFILE.photos.map((ph, i) => (
             <View key={ph} style={[styles.photo, { width: tile, height: tile, backgroundColor: bubbleColors[i % bubbleColors.length] + '33' }]}>
               <Ionicons name="image-outline" size={24} color={bubbleColors[i % bubbleColors.length]} />
-              <Text numberOfLines={2} style={styles.photoLabel}>{ph}</Text>
+              <LinkedText numberOfLines={2} style={styles.photoLabel} text={ph} />
             </View>
           ))}
         </View>
@@ -127,6 +131,20 @@ export default function ProfileScreen({ reduceMotion, onReduceMotion, everyoneRa
               onSelect={(o) => onEveryoneRadius(parseInt(o, 10))}
             />
           </View>
+          {setting('calendar-outline', 'Show events on map', eventsOnMap, onEventsOnMap)}
+          {eventsOnMap && (
+            <View style={[styles.settingRow, styles.divider]}>
+              <Ionicons name="time-outline" size={20} color={colors.primary} />
+              <Text style={[type.body, { flex: 1 }]}>Days ahead</Text>
+              <MenuButton
+                icon="chevron-expand"
+                label={`${eventDays} ${eventDays === 1 ? 'day' : 'days'}`}
+                options={EVENT_DAYS.map((d) => `${d} ${d === 1 ? 'day' : 'days'}`)}
+                selected={[`${eventDays} ${eventDays === 1 ? 'day' : 'days'}`]}
+                onSelect={(o) => onEventDays(parseInt(o, 10))}
+              />
+            </View>
+          )}
           {setting('notifications-outline', 'Notifications', alerts, setAlerts)}
           {setting('accessibility-outline', 'Reduce motion', reduceMotion, onReduceMotion)}
           <Pressable style={[styles.settingRow, styles.divider]} onPress={onStyles}>

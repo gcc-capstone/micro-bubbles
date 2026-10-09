@@ -370,3 +370,34 @@ export const groupColor = (id: string) => {
 export const joinCode = (id: string) => `${id.slice(0, 4).toUpperCase()}-${(id.length * 7919).toString(36).toUpperCase()}`;
 export const memberColor = (name: string) => bubbleColors[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % bubbleColors.length];
 export const initials = (name: string) => name.split(' ').map((w) => w[0]).join('').slice(0, 2);
+
+// Every named location the UI can link to (Bubble places, pins, event spots, and common spots
+// people are at). Used to make place names tappable and to build location details.
+export type Loc = { name: string; lat: number; lng: number; icon: IconName };
+const EXTRA_LOCS: Loc[] = [
+  { name: 'Library', icon: 'library', lat: 41.1562, lng: -80.0798 },
+  { name: 'STEM Hall', icon: 'school', lat: 41.153, lng: -80.075 },
+  { name: 'Harker Hall', icon: 'bed', lat: 41.157, lng: -80.0805 },
+  { name: 'Rec Center', icon: 'barbell', lat: 41.1545, lng: -80.0822 },
+  { name: 'Downtown Grove City', icon: 'business', lat: 41.1595, lng: -80.0865 },
+  { name: 'Grove City High School', icon: 'school', lat: 41.165, lng: -80.085 },
+  { name: 'Route 58', icon: 'car', lat: 41.162, lng: -80.088 },
+  { name: 'Slippery Rock', icon: 'business', lat: 41.064, lng: -80.056 },
+  { name: 'Scottsville', icon: 'business', lat: 43.0256, lng: -77.7453 },
+  { name: 'Rochester', icon: 'business', lat: 43.1566, lng: -77.6088 },
+  { name: 'Butler', icon: 'business', lat: 40.861, lng: -79.895 },
+];
+export const LOCATIONS: Loc[] = (
+  [
+    ...GROUPS.flatMap((g) => g.places.map((p) => ({ name: p.name, lat: p.lat, lng: p.lng, icon: p.icon }))),
+    ...GROUPS.flatMap((g) => g.pins.map((p) => ({ name: p.name, lat: p.lat, lng: p.lng, icon: p.icon }))),
+    ...EVENTS.map((e) => ({ name: e.place, lat: e.lat, lng: e.lng, icon: 'calendar' as IconName })),
+    ...EXTRA_LOCS,
+  ] as Loc[]
+)
+  .filter((l, i, all) => all.findIndex((x) => x.name === l.name) === i) // first entry wins (places before events)
+  .sort((a, b) => b.name.length - a.name.length); // longest first, so "Davis Park" wins over "Park"
+
+// Straight-line meters between two points (for "who's here" on location details).
+export const meters = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) =>
+  Math.hypot((a.lat - b.lat) * 111000, (a.lng - b.lng) * 111000 * Math.cos((a.lat * Math.PI) / 180));

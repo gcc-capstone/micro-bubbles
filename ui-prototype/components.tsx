@@ -203,14 +203,17 @@ export function Chip({ icon, label, color = colors.textMuted, variant = 'soft' }
 
 // Apple Calendar-style event row: colored left edge, title over place, time on the right.
 export function EventRow({ time, title, place, groupName, color, onPress }: {
-  time: string; title: string; place: string; groupName: string; color: string; onPress?: () => void;
+  time: string; title: string; place: ReactNode; groupName: string; color: string; onPress?: () => void;
 }) {
   return (
     <Pressable onPress={onPress} style={s.eventRow}>
       <View style={[s.eventEdge, { backgroundColor: color }]} />
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={s.eventTitle}>{title}</Text>
-        <Text style={type.caption}>{place} · {groupName}</Text>
+        <View style={[s.row, { flexWrap: 'wrap' }]}>
+          {typeof place === 'string' ? <Text style={type.caption}>{place}</Text> : place}
+          <Text style={type.caption}> · {groupName}</Text>
+        </View>
       </View>
       <Text style={s.eventTime}>{time}</Text>
     </Pressable>

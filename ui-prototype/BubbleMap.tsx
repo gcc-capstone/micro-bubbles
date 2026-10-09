@@ -27,12 +27,13 @@ export type BubbleMapProps = {
   bottomInset: number; // space covered by the sheet/row, kept clear when fitting
   onMemberPress: (m: Member) => void;
   onPinPress?: (p: Pin) => void;
+  onPlacePress?: (p: Place) => void;
   events?: MapEvent[];
   onEventPress?: (key: string) => void;
   radiusMi?: number; // when set (and nothing is focused), center on you and show this radius
 };
 
-export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, events = [], onEventPress, radiusMi }: BubbleMapProps) {
+export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi }: BubbleMapProps) {
   const map = useRef<MapView>(null);
   const ready = useRef(false);
   const [region, setRegion] = useState<Region | null>(null);
@@ -128,7 +129,7 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
         />
       ))}
       {places.map((p) => (
-        <Marker key={'tag-' + p.name} coordinate={{ latitude: p.lat, longitude: p.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}>
+        <Marker key={'tag-' + p.name} coordinate={{ latitude: p.lat, longitude: p.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false} onPress={() => onPlacePress?.(p)}>
           <View style={[styles.placeTag, { backgroundColor: color }]}>
             <Ionicons name={p.icon} size={11} color={colors.surface} />
             <Text style={styles.placeTagText}>{p.name}</Text>

@@ -8,8 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, IconName, MapButton, MenuButton, Segmented, Separator } from './components';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
-import { ALL, avgRating, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Member, memberColor, Pin, TODAY } from './data';
-import { BubbleProfile, DropPin, EventView, longDate, PersonView, PinView } from './Details';
+import { ALL, avgRating, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Loc, Member, memberColor, Pin, TODAY } from './data';
+import { BubbleProfile, DropPin, EventView, LinkedText, LocationView, longDate, PersonView, PinView } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
 
 const RS = 44; // row bubble size
@@ -106,7 +106,9 @@ const dayLabel = (iso: string) => (iso === TODAY ? 'Today' : iso === isoPlus(TOD
 const minutesAgo = (s: string) =>
   s === 'Now' ? 0 : parseInt(s, 10) * (s.includes('h') ? 60 : s.includes('d') ? 1440 : s.includes('w') ? 10080 : 1);
 
-export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: { resetKey: number; reduceMotion: boolean; everyoneRadius: number }) {
+export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eventsOnMap, eventDays }: {
+  resetKey: number; reduceMotion: boolean; everyoneRadius: number; eventsOnMap: boolean; eventDays: number;
+}) {
   const insets = useSafeAreaInsets();
   const [size, setSize] = useState({ w: 0, h: 0 });
   // Start on the map with Everyone selected.
@@ -116,7 +118,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
   const [tab, setTab] = useState(TABS[0]);
   const [sort, setSort] = useState<Record<string, string>>({ Activity: 'Newest', Pins: 'Top rated', Members: 'Nearest' });
   const [filters, setFilters] = useState<Record<string, string[]>>({ Activity: [], Pins: [], Members: [] });
-  const [sub, setSub] = useState<{ person?: Member; pin?: Pin; event?: BubbleEvent } | null>(null); // sheet sub-view
+  const [sub, setSub] = useState<{ person?: Member; pin?: Pin; event?: BubbleEvent; place?: Loc } | null>(null); // sheet sub-view
   const [profileOpen, setProfileOpen] = useState<false | 'view' | 'edit'>(false);
   const [muted, setMuted] = useState<Record<string, boolean>>({});
 
@@ -275,7 +277,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
   const group = base;
 
   // Upcoming events (next 7 days) for the selected Bubble, pinned on the map; one per place.
-  const weekOut = isoPlus(TODAY, 7);
+  const weekOut = isoPlus(TODAY, eventDays);
   const upcoming = group
     ? EVENTS.filter((e) => (group.id === 'everyone' || e.groupId === group.id) && e.date >= TODAY && e.date <= weekOut)
         .sort((a, b) => a.date.localeCompare(b.date) || clockMinutes(a.time) - clockMinutes(b.time))
@@ -428,7 +430,13 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
             onMemberPress={openPerson}
             onPinPress={openPin}
             radiusMi={group.id === 'everyone' ? everyoneRadius : undefined}
-            events={mapEvents}
+            events={eventsOnMap ? mapEvents : []}
+            onPlacePress={(pl) => {
+              setFocus(pl);
+              slideIn(subX, subO, 1);
+              setSub({ place: { name: pl.name, lat: pl.lat, lng: pl.lng, icon: pl.icon } });
+              toggleSheet(true);
+            }}
             onEventPress={openEvent}
           />
           {/* Right-side controls, just above the sheet */}
@@ -469,6 +477,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
               <ScrollView contentContainerStyle={{ paddingBottom: spacing.lg }}>
                 {sub.person && <PersonView member={sub.person} onShowOnMap={(m) => { setFocus(m); toggleSheet(false); }} />}
                 {sub.event && <EventView event={sub.event} />}
+                {sub.place && <LocationView loc={sub.place} />}
                 {sub.pin && (
                   <PinView
                     pin={sub.pin}
@@ -552,7 +561,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
                   <View style={[styles.iconCircle, { backgroundColor: color + '1F' }]}>
                     <Ionicons name={a.icon} size={18} color={color} />
                   </View>
-                  <Text style={[type.body, { flex: 1 }, a.unread && { fontFamily: fonts.bodyBold }]}>{a.text}</Text>
+                  <View style={{ flex: 1 }}>
+                    <LinkedText style={[type.body, a.unread && { fontFamily: fonts.bodyBold }]} text={a.text} />
+                  </View>
                   <Text style={type.caption}>{a.time}</Text>
                   {a.unread && <View style={styles.unreadDot} />}
                 </Pressable>
@@ -595,7 +606,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius }: {
                     <Text style={styles.rowTitle}>{m.name}</Text>
                     <View style={[styles.row, { gap: 4 }]}>
                       {m.moving && <Ionicons name="navigate" size={11} color={colors.primary} />}
-                      <Text style={type.caption}>{m.place}</Text>
+                      <LinkedText style={type.caption} text={m.place} />
                     </View>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>

@@ -29,6 +29,8 @@ export default function App() {
   const [homeReset, setHomeReset] = useState(0); // re-tapping Bubbles returns to the bubble view
   const [reduceMotion, setReduceMotion] = useState(false);
   const [everyoneRadius, setEveryoneRadius] = useState(10); // miles shown on the default Everyone map
+  const [eventsOnMap, setEventsOnMap] = useState(false);
+  const [eventDays, setEventDays] = useState(7); // how far ahead events show on the map
 
   // Start from the system setting; Profile > Settings can override it.
   useEffect(() => {
@@ -45,7 +47,9 @@ export default function App() {
       ) : (
         <View style={styles.screen}>
           <View style={{ flex: 1 }}>
-            {tab === 0 && <HomeScreen resetKey={homeReset} reduceMotion={reduceMotion} everyoneRadius={everyoneRadius} />}
+            {tab === 0 && (
+              <HomeScreen resetKey={homeReset} reduceMotion={reduceMotion} everyoneRadius={everyoneRadius} eventsOnMap={eventsOnMap} eventDays={eventDays} />
+            )}
             {tab === 1 && <InboxScreen />}
             {tab === 2 && <CalendarScreen />}
             {tab === 3 && (
@@ -54,6 +58,10 @@ export default function App() {
                 onReduceMotion={setReduceMotion}
                 everyoneRadius={everyoneRadius}
                 onEveryoneRadius={setEveryoneRadius}
+                eventsOnMap={eventsOnMap}
+                onEventsOnMap={setEventsOnMap}
+                eventDays={eventDays}
+                onEventDays={setEventDays}
                 onStyles={() => setShowStyles(true)}
               />
             )}

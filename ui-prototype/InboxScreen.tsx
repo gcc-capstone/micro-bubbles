@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Separator } from './components';
+import { LinkedText } from './Details';
 import { colors, fonts, radius, spacing, type } from './theme';
 import { INBOX, InboxItem } from './data';
 
@@ -62,7 +63,7 @@ export default function InboxScreen() {
                   <Ionicons name={it.icon} size={18} color={it.id === 'sos' ? colors.danger : colors.primary} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={[styles.title, !it.read && { fontFamily: fonts.bodyBold }]}>{it.title}</Text>
+                  <LinkedText style={[styles.title, !it.read && { fontFamily: fonts.bodyBold }]} text={it.title} />
                   <Text style={type.caption}>{it.body}</Text>
                   {it.invite === 'pending' && (
                     <View style={styles.actions}>

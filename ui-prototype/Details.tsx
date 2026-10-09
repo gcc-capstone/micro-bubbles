@@ -1,12 +1,13 @@
 // Person and pin views (shown inside the map's bottom sheet) plus event, Bubble profile and
 // drop pin views (shown as page sheets).
-import { useEffect, useState } from 'react';
-import { Alert, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ReactNode, useEffect, useState } from 'react';
+import { Alert, Linking, Platform, Pressable, ScrollView, Share, StyleProp, StyleSheet, Switch, Text, TextInput, TextStyle, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Bubble, Button, IconName, PageSheet, Segmented, Separator } from './components';
 import { bubbleColors, colors, fonts, radius, spacing, type } from './theme';
 import {
-  avgRating, BubbleEvent, distanceFromMe, EVENTS, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Member, memberColor, Pin, ratingCount,
+  avgRating, BubbleEvent, distanceFromMe, EVENTS, formatMiles, Group, groupColor, GROUPS, initials, joinCode, Loc, LOCATIONS, ME, Member, memberColor, meters,
+  Pin, ratingCount,
 } from './data';
 import BubbleMap from './BubbleMap';
 
@@ -83,6 +84,139 @@ function Stars({ value, size = 18, onChange }: { value: number; size?: number; o
   );
 }
 
+/* ---------- Locations ---------- */
+
+// Location details: where it is, who's there, pins and upcoming events nearby.
+export function LocationView({ loc }: { loc: Loc }) {
+  const here = (x: { lat: number; lng: number }, m = 250) => meters(loc, x) < m;
+  const people = GROUPS.flatMap((g) => g.members).filter((m, i, all) => all.findIndex((x) => x.name === m.name) === i && here(m));
+  const pins = GROUPS.flatMap((g) => g.pins).filter((p) => here(p) && p.name !== loc.name);
+  const events = EVENTS.filter((e) => here(e));
+  const places = GROUPS.flatMap((g) => g.places.map((p) => ({ ...p, group: g }))).filter((p) => p.name === loc.name);
+  return (
+    <View>
+      <View style={styles.hero}>
+        <View style={[styles.bigIcon, { backgroundColor: colors.primarySoft }]}>
+          <Ionicons name={loc.icon} size={34} color={colors.primary} />
+        </View>
+        <Text style={[type.h1, { marginTop: spacing.sm, textAlign: 'center' }]}>{loc.name}</Text>
+        <Text style={type.caption}>{away(loc.lat, loc.lng)}</Text>
+      </View>
+      <View style={styles.mapPreview}>
+        <BubbleMap members={people} places={[]} pins={[]} color={colors.primary} focus={{ name: loc.name, lat: loc.lat, lng: loc.lng }} topInset={0} bottomInset={0} onMemberPress={() => {}} />
+      </View>
+      <View style={[styles.actions, { marginTop: spacing.md }]}>
+        <ActionButton icon="navigate-outline" label="Directions" onPress={() => directions(loc.lat, loc.lng)} />
+        <ActionButton icon="share-outline" label="Share" onPress={() => Share.share({ message: `${loc.name} — shared from Bubbles` })} />
+      </View>
+
+      {places.length > 0 && (
+        <Section title="Place alerts">
+          {places.map((p, i) => (
+            <View key={p.group.id}>
+              {i > 0 && <Separator inset={48} />}
+              <Toggle icon="notifications-outline" label={`Arrivals & departures · ${p.group.name}`} initial={p.name === 'Davis Park'} />
+            </View>
+          ))}
+        </Section>
+      )}
+
+      <Section title={`Here now · ${people.length}`}>
+        {people.length === 0 && <Row icon="people-outline" label="Nobody from your Bubbles" color={colors.textMuted} />}
+        {people.map((m, i) => (
+          <View key={m.name}>
+            {i > 0 && <Separator inset={60} />}
+            <View style={styles.row}>
+              <Avatar size={32} initials={initials(m.name)} color={memberColor(m.name)} />
+              <Text style={[type.body, { flex: 1 }]}>{m.name}</Text>
+              <Text style={type.caption}>{m.updated}</Text>
+            </View>
+          </View>
+        ))}
+      </Section>
+
+      {pins.length > 0 && (
+        <Section title="Pins nearby">
+          {pins.map((p, i) => (
+            <View key={p.name}>
+              {i > 0 && <Separator inset={48} />}
+              <Row icon={p.icon} label={p.name} value={`${avgRating(p).toFixed(1)}★`} />
+            </View>
+          ))}
+        </Section>
+      )}
+
+      {events.length > 0 && (
+        <Section title="Events here">
+          {events.map((e, i) => (
+            <View key={i}>
+              {i > 0 && <Separator inset={48} />}
+              <Row icon="calendar-outline" label={e.title} value={`${longDate(e.date).split(', ')[1]} · ${e.time}`} />
+            </View>
+          ))}
+        </Section>
+      )}
+    </View>
+  );
+}
+
+export function LocationDetail({ loc, onClose }: { loc: Loc | null; onClose: () => void }) {
+  if (!loc) return null;
+  return (
+    <PageSheet visible title="Location" onClose={onClose}>
+      <LocationView loc={loc} />
+    </PageSheet>
+  );
+}
+
+// Wraps anything so tapping it opens that location's details (nested sheets work on iOS).
+export function PlaceLink({ loc, children }: { loc: Loc; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable onPress={() => setOpen(true)}>{children}</Pressable>
+      {open && <LocationDetail loc={loc} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+// Text where every known place name becomes a tappable teal link.
+export function LinkedText({ text, style, numberOfLines }: { text: string; style?: StyleProp<TextStyle>; numberOfLines?: number }) {
+  const [open, setOpen] = useState<Loc | null>(null);
+  const parts: (string | Loc)[] = [];
+  let rest = text;
+  while (rest) {
+    let best: { i: number; loc: Loc } | null = null;
+    for (const loc of LOCATIONS) {
+      const i = rest.indexOf(loc.name);
+      if (i >= 0 && (!best || i < best.i)) best = { i, loc }; // LOCATIONS is longest-first, so ties keep the longer name
+    }
+    if (!best) {
+      parts.push(rest);
+      break;
+    }
+    if (best.i > 0) parts.push(rest.slice(0, best.i));
+    parts.push(best.loc);
+    rest = rest.slice(best.i + best.loc.name.length);
+  }
+  return (
+    <>
+      <Text style={style} numberOfLines={numberOfLines}>
+        {parts.map((p, i) =>
+          typeof p === 'string' ? (
+            p
+          ) : (
+            <Text key={i} style={styles.link} onPress={() => setOpen(p)} suppressHighlighting={false}>
+              {p.name}
+            </Text>
+          ),
+        )}
+      </Text>
+      {open && <LocationDetail loc={open} onClose={() => setOpen(null)} />}
+    </>
+  );
+}
+
 /* ---------- Person ---------- */
 
 const QUICK_NOTES = ['👋', '?', 'On my way!', 'Call me'];
@@ -101,7 +235,7 @@ export function PersonView({ member, onShowOnMap }: { member: Member | null; onS
         <Text style={[type.h1, { marginTop: spacing.sm }]}>{member.name}</Text>
         <View style={[styles.inline, { gap: 4 }]}>
           {member.moving && <Ionicons name="navigate" size={13} color={colors.primary} />}
-          <Text style={type.body}>{member.place}</Text>
+          <LinkedText style={type.body} text={member.place} />
         </View>
         <Text style={type.caption}>
           {away(member.lat, member.lng)} · Updated {member.updated.toLowerCase()} · {member.battery}% battery
@@ -235,7 +369,11 @@ export function EventView({ event }: { event: BubbleEvent | null }) {
       </View>
 
       <Section>
-        <Row icon="location-outline" label={event.place} />
+        <PlaceLink loc={{ name: event.place, lat: event.lat, lng: event.lng, icon: 'location-outline' }}>
+          <Row icon="location-outline" label={event.place} color={colors.primary}>
+            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+          </Row>
+        </PlaceLink>
         <Separator inset={48} />
         <View style={styles.row}>
           <Bubble size={20} tint={color} />
@@ -385,7 +523,11 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
             {group.places.map((pl, i) => (
               <View key={pl.name}>
                 {i > 0 && <Separator inset={48} />}
-                <Row icon={pl.icon} label={pl.name} value={`${pl.radius} m`} />
+                <PlaceLink loc={pl}>
+                  <Row icon={pl.icon} label={pl.name} value={`${pl.radius} m`}>
+                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                  </Row>
+                </PlaceLink>
               </View>
             ))}
           </Section>
@@ -510,6 +652,7 @@ export function DropPin({ visible, groups, initialGroupId, onClose, onDrop }: {
 
 const styles = StyleSheet.create({
   inline: { flexDirection: 'row', alignItems: 'center' },
+  link: { color: colors.primary, fontFamily: fonts.bodyBold },
   avg: { fontFamily: fonts.heading, fontSize: 17, color: colors.text },
   hero: { alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: 4 },
   section: { marginTop: spacing.lg, paddingHorizontal: spacing.md, gap: 6 },
