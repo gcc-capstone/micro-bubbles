@@ -38,7 +38,7 @@ const MONTH_PAD = spacing.sm + 4; // side padding in month view
 const DAY_HEAD = 30;
 const EVT_H = 54;
 const DAY_PAD = 6;
-const WEEK_PAD = spacing.md + 6; // side padding in the week list
+const WEEK_PAD = spacing.md + 10; // side padding for the week strip and its dividers
 
 type Level = 'year' | 'month' | 'week';
 
@@ -341,7 +341,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
             {/* Week strip: pages one week at a time */}
             <View style={styles.divider} />
             <View style={styles.stripWrap}>
-              <View style={[styles.dowRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.dowRow, { borderBottomWidth: 0, paddingHorizontal: WEEK_PAD }]}>
                 {dows.map((d, i) => (
                   <Text key={i} style={[styles.cellW, styles.dow]}>{d}</Text>
                 ))}
@@ -359,7 +359,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                 windowSize={3}
                 extraData={sel}
                 renderItem={({ index }) => (
-                  <View style={[styles.weekRow, { width }]}>
+                  <View style={[styles.weekRow, { width, paddingHorizontal: WEEK_PAD }]}>
                     {Array.from({ length: 7 }, (_, k) => {
                       const n = weekOf(index) + k;
                       const isSel = n === sel;
@@ -414,7 +414,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                 const p = parts(n);
                 const evs = byDay.get(n) ?? [];
                 return (
-                  <View style={{ height: dayH(n), paddingHorizontal: WEEK_PAD }}>
+                  <View style={{ height: dayH(n), paddingHorizontal: spacing.md }}>
                     <Text style={[styles.dayHead, n === T && { color: colors.primary }]}>
                       {DOW_NAMES[p.dow]}, {MONTHS[p.m]} {p.d}
                       {p.y !== TP.y ? `, ${p.y}` : ''}
