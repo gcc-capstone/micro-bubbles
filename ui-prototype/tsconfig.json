@@ -5,6 +5,7 @@
   },
   "exclude": [
     "node_modules",
-    "cluster.check.ts"
+    "cluster.check.ts",
+    "calendarMath.check.ts"
   ]
 }

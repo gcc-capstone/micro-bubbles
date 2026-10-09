@@ -12,9 +12,12 @@ const RADII = [1, 5, 10, 25, 50];
 
 const EVENT_DAYS = [1, 3, 7, 14, 30];
 
-export default function ProfileScreen({ reduceMotion, onReduceMotion, everyoneRadius, onEveryoneRadius, eventsOnMap, onEventsOnMap, eventDays, onEventDays, onStyles }: {
+export default function ProfileScreen({
+  reduceMotion, onReduceMotion, everyoneRadius, onEveryoneRadius, eventsOnMap, onEventsOnMap, eventDays, onEventDays, weekStartPref, systemWeekStart, onWeekStartPref, onStyles,
+}: {
   reduceMotion: boolean; onReduceMotion: (v: boolean) => void; everyoneRadius: number; onEveryoneRadius: (mi: number) => void;
-  eventsOnMap: boolean; onEventsOnMap: (v: boolean) => void; eventDays: number; onEventDays: (d: number) => void; onStyles: () => void;
+  eventsOnMap: boolean; onEventsOnMap: (v: boolean) => void; eventDays: number; onEventDays: (d: number) => void;
+  weekStartPref: 'System' | 'Sunday' | 'Monday'; systemWeekStart: number; onWeekStartPref: (v: 'System' | 'Sunday' | 'Monday') => void; onStyles: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
@@ -145,6 +148,17 @@ export default function ProfileScreen({ reduceMotion, onReduceMotion, everyoneRa
               />
             </View>
           )}
+          <View style={[styles.settingRow, styles.divider]}>
+            <Ionicons name="calendar-number-outline" size={20} color={colors.primary} />
+            <Text style={[type.body, { flex: 1 }]}>Week starts on</Text>
+            <MenuButton
+              icon="chevron-expand"
+              label={weekStartPref === 'System' ? `System (${systemWeekStart ? 'Mon' : 'Sun'})` : weekStartPref}
+              options={[`System (${systemWeekStart ? 'Monday' : 'Sunday'})`, 'Sunday', 'Monday']}
+              selected={[weekStartPref === 'System' ? `System (${systemWeekStart ? 'Monday' : 'Sunday'})` : weekStartPref]}
+              onSelect={(o) => onWeekStartPref(o.startsWith('System') ? 'System' : (o as 'Sunday' | 'Monday'))}
+            />
+          </View>
           {setting('notifications-outline', 'Notifications', alerts, setAlerts)}
           {setting('accessibility-outline', 'Reduce motion', reduceMotion, onReduceMotion)}
           <Pressable style={[styles.settingRow, styles.divider]} onPress={onStyles}>

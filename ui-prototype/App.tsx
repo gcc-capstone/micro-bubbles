@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { getCalendars } from 'expo-localization';
 import { useFonts, Lato_400Regular, Lato_700Bold } from '@expo-google-fonts/lato';
 import { Montserrat_600SemiBold, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { Tab, TabBar } from './components';
@@ -31,6 +32,10 @@ export default function App() {
   const [everyoneRadius, setEveryoneRadius] = useState(10); // miles shown on the default Everyone map
   const [eventsOnMap, setEventsOnMap] = useState(false);
   const [eventDays, setEventDays] = useState(7); // how far ahead events show on the map
+  const [weekStartPref, setWeekStartPref] = useState<'System' | 'Sunday' | 'Monday'>('System');
+  // expo-localization: firstWeekday 1 = Sunday, 2 = Monday
+  const systemWeekStart = (getCalendars()[0]?.firstWeekday ?? 1) === 2 ? 1 : 0;
+  const weekStart = weekStartPref === 'System' ? systemWeekStart : weekStartPref === 'Monday' ? 1 : 0;
 
   // Start from the system setting; Profile > Settings can override it.
   useEffect(() => {
@@ -51,7 +56,7 @@ export default function App() {
               <HomeScreen resetKey={homeReset} reduceMotion={reduceMotion} everyoneRadius={everyoneRadius} eventsOnMap={eventsOnMap} eventDays={eventDays} />
             )}
             {tab === 1 && <InboxScreen />}
-            {tab === 2 && <CalendarScreen />}
+            {tab === 2 && <CalendarScreen weekStart={weekStart} reduceMotion={reduceMotion} />}
             {tab === 3 && (
               <ProfileScreen
                 reduceMotion={reduceMotion}
@@ -62,6 +67,9 @@ export default function App() {
                 onEventsOnMap={setEventsOnMap}
                 eventDays={eventDays}
                 onEventDays={setEventDays}
+                weekStartPref={weekStartPref}
+                systemWeekStart={systemWeekStart}
+                onWeekStartPref={setWeekStartPref}
                 onStyles={() => setShowStyles(true)}
               />
             )}

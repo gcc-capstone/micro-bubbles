@@ -1,96 +1,212 @@
 // Calendar (report Task 15), Apple Calendar-style drill-down in one tab:
-// Year → tap a month → Month → tap a day → Week (week strip + that day's events).
-// Back buttons go up a level; "Today" jumps to today's week. Filter by Bubble at the top.
-import { useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+//   Year  - endless vertical scroll of years, months in two columns. Tap a month →
+//   Month - endless vertical scroll of month grids (7 columns), any year. Tap a day →
+//   Week  - week strip that pages a week at a time + endless day-by-day event list; the strip
+//           follows the list (top day when scrolling down, bottom day when scrolling up).
+// Lists are virtualized over a wide but fixed range with known row heights, so jumps are instant.
+import { useMemo, useRef, useState } from 'react';
+import { Animated, FlatList, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Bubble, EventRow, Separator } from './components';
+import { Bubble, EventRow } from './components';
 import { EventDetail, LinkedText } from './Details';
 import { colors, fonts, radius, spacing, type } from './theme';
 import { ALL, BubbleEvent, EVENTS, groupColor, TODAY } from './data';
+import { addMonths, dayNum, daysIn, leadBlanks, monthStart, offsets, parts, startOfWeek, weekRows } from './calendarMath';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const parse = (s: string) => {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
-};
-const addDays = (s: string, n: number) => {
-  const d = parse(s);
-  d.setDate(d.getDate() + n);
-  return iso(d);
-};
-// Cells for a month grid: leading blanks, then 1..days.
-const monthCells = (y: number, m: number) => [
-  ...Array<null>(new Date(y, m, 1).getDay()).fill(null),
-  ...Array.from({ length: new Date(y, m + 1, 0).getDate() }, (_, i) => i + 1),
-];
+const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DOW_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const T = dayNum(TODAY);
+const TP = parts(T);
+// Range of each endless list (items either side of today).
+const YR = 100; // years
+const MR = 600; // months
+const DR = 3650; // days
+const WR = 520; // weeks
+
+// Fixed row heights (must match styles below) so getItemLayout is exact.
+const YEAR_HEAD = 56;
+const MINI_NAME = 24;
+const MINI_ROW = 17;
+const MINI_GAP = 14;
+const YEAR_H = YEAR_HEAD + 6 * (MINI_NAME + 6 * MINI_ROW + MINI_GAP);
+const MONTH_HEAD = 48;
+const CELL = 56;
+const DAY_HEAD = 36;
+const EVT_H = 64;
+const EMPTY_H = 40;
+const DAY_PAD = 8;
 
 type Level = 'year' | 'month' | 'week';
 
-export default function CalendarScreen() {
+export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart: number; reduceMotion: boolean }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [level, setLevel] = useState<Level>('month');
-  const [day, setDay] = useState(TODAY); // selected day; month/year views follow it
+  const [sel, setSel] = useState(T); // selected day (week view) and anchor for other views
+  const [visYear, setVisYear] = useState(TP.y);
+  const [visMonth, setVisMonth] = useState({ y: TP.y, m: TP.m });
   const [filter, setFilter] = useState('everyone');
   const [open, setOpen] = useState<BubbleEvent | null>(null);
-  const fade = useRef(new Animated.Value(1)).current;
 
-  const sel = parse(day);
-  const y = sel.getFullYear();
-  const m = sel.getMonth();
-  const events = EVENTS.filter((e) => filter === 'everyone' || e.groupId === filter);
-  const on = (date: string) => events.filter((e) => e.date === date);
+  const yearList = useRef<FlatList<number>>(null);
+  const monthList = useRef<FlatList<number>>(null);
+  const dayList = useRef<FlatList<number>>(null);
+  const strip = useRef<FlatList<number>>(null);
 
-  const go = (next: Level, nextDay = day) => {
-    fade.setValue(0);
-    Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    setLevel(next);
-    setDay(nextDay);
+  // Callbacks handed to FlatList are created once, so they read settings through refs.
+  const weekStartRef = useRef(weekStart);
+  weekStartRef.current = weekStart;
+  const reduceMotionRef = useRef(reduceMotion);
+  reduceMotionRef.current = reduceMotion;
+
+  // Events by day number for the chosen Bubble.
+  const byDay = useMemo(() => {
+    const map = new Map<number, BubbleEvent[]>();
+    EVENTS.filter((e) => filter === 'everyone' || e.groupId === filter).forEach((e) => {
+      const n = dayNum(e.date);
+      map.set(n, [...(map.get(n) ?? []), e]);
+    });
+    return map;
+  }, [filter]);
+
+  /* ---------- index math ---------- */
+  const yearOf = (i: number) => TP.y + i - YR;
+  const monthOf = (i: number) => addMonths(TP.y, TP.m, i - MR);
+  const monthIndex = (y: number, m: number) => y * 12 + m - (TP.y * 12 + TP.m) + MR;
+  const baseWeek = startOfWeek(T, weekStart);
+  const weekOf = (i: number) => baseWeek + 7 * (i - WR);
+  const weekIndex = (n: number) => (startOfWeek(n, weekStart) - baseWeek) / 7 + WR;
+
+  const monthOffsets = useMemo(
+    () => offsets(Array.from({ length: 2 * MR + 1 }, (_, i) => MONTH_HEAD + weekRows(monthOf(i).y, monthOf(i).m, weekStart) * CELL)),
+    [weekStart],
+  );
+  const dayH = (n: number) => {
+    const k = byDay.get(n)?.length ?? 0;
+    return DAY_HEAD + (k ? k * EVT_H : EMPTY_H) + DAY_PAD;
   };
-  // Nav bar: back button to the level above, title, Today.
-  const back = level === 'month' ? `${y}` : level === 'week' ? MONTHS[m] : null;
-  const title = level === 'year' ? `${y}` : level === 'month' ? MONTHS[m] : `${WEEKDAY_NAMES[sel.getDay()]}, ${MONTHS[m].slice(0, 3)} ${sel.getDate()}`;
+  const dayOffsets = useMemo(() => offsets(DAY_IDX.map(dayH)), [byDay]);
 
-  const weekStart = addDays(day, -sel.getDay());
-  const week = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const dayEvents = on(day);
+  /* ---------- level transitions ---------- */
+  const lv = useRef(new Animated.Value(1)).current;
+  const from = useRef(new Animated.Value(1)).current; // starting scale for the current transition
+  const dir = useRef(1);
+  const go = (next: Level, anchor: number) => {
+    const order = ['year', 'month', 'week'];
+    dir.current = order.indexOf(next) - order.indexOf(level) || 1;
+    setSel(anchor);
+    const p = parts(anchor);
+    setVisYear(p.y);
+    setVisMonth({ y: p.y, m: p.m });
+    if (next === 'week') {
+      stripWeekRef.current = weekIndex(anchor);
+      setStripWeek(stripWeekRef.current);
+    }
+    setLevel(next);
+    from.setValue(dir.current > 0 ? 0.9 : 1.1);
+    lv.setValue(reduceMotion ? 1 : 0);
+    // JS driver: the list re-renders during the transition, which would strand a native-driven value.
+    if (!reduceMotion) Animated.spring(lv, { toValue: 1, useNativeDriver: false, damping: 22, stiffness: 220, mass: 0.8 }).start();
+  };
+  // Zooming in starts slightly small, zooming out starts slightly large (Apple Calendar feel).
+  const levelStyle = useRef({
+    flex: 1,
+    opacity: lv,
+    // scale = from + (1 - from) * lv
+    transform: [{ scale: Animated.add(from, Animated.multiply(Animated.subtract(1, from), lv)) }],
+  }).current;
+
+  /* ---------- week view sync ---------- */
+  const [stripWeek, setStripWeek] = useState(weekIndex(T));
+  const stripWeekRef = useRef(stripWeek);
+  const programmatic = useRef(false);
+  const lastY = useRef(0);
+  const scrollingDown = useRef(true);
+  const hold = () => {
+    programmatic.current = true;
+    setTimeout(() => (programmatic.current = false), 700);
+  };
+  const selectDay = (n: number) => {
+    hold();
+    setSel(n);
+    const w = weekIndex(n);
+    if (w !== stripWeekRef.current) {
+      stripWeekRef.current = w;
+      setStripWeek(w);
+      strip.current?.scrollToIndex({ index: w, animated: !reduceMotion });
+    }
+    dayList.current?.scrollToIndex({ index: n - T + DR, animated: !reduceMotion });
+  };
+  // Swiping the strip pages a week; keep the same weekday selected and move the list there.
+  const onStripEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const w = Math.round(e.nativeEvent.contentOffset.x / width);
+    if (w === stripWeekRef.current) return;
+    const n = weekOf(w) + (sel - startOfWeek(sel, weekStart));
+    stripWeekRef.current = w;
+    setStripWeek(w);
+    hold();
+    setSel(n);
+    dayList.current?.scrollToIndex({ index: n - T + DR, animated: false });
+  };
+  const onDayViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (programmatic.current || !viewableItems.length) return;
+    const days = viewableItems.map((v) => v.item as number).sort((a, b) => a - b);
+    const n = scrollingDown.current ? days[0] : days[days.length - 1];
+    setSel(n);
+    const ws = weekStartRef.current;
+    const w = (startOfWeek(n, ws) - startOfWeek(T, ws)) / 7 + WR;
+    if (w !== stripWeekRef.current) {
+      stripWeekRef.current = w;
+      setStripWeek(w);
+      strip.current?.scrollToIndex({ index: w, animated: !reduceMotionRef.current });
+    }
+  }).current;
+
+  const onYearViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (viewableItems[0]) setVisYear(TP.y + (viewableItems[0].index ?? YR) - YR);
+  }).current;
+  const onMonthViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (viewableItems[0]) setVisMonth(addMonths(TP.y, TP.m, (viewableItems[0].index ?? MR) - MR));
+  }).current;
+
+  const today = () => {
+    if (level === 'year') yearList.current?.scrollToIndex({ index: YR, animated: !reduceMotion });
+    if (level === 'month') monthList.current?.scrollToIndex({ index: MR, animated: !reduceMotion });
+    if (level === 'week') selectDay(T);
+  };
+
+  /* ---------- nav ---------- */
+  const selP = parts(sel);
+  const back =
+    level === 'month'
+      ? { label: `${visMonth.y}`, to: () => go('year', monthStart(visMonth.y, visMonth.m)) }
+      : level === 'week'
+        ? { label: MONTHS[selP.m], to: () => go('month', sel) }
+        : null;
+  const title = level === 'year' ? `${visYear}` : level === 'month' ? MONTHS[visMonth.m] : `${DOW_NAMES[selP.dow]}, ${MONTHS[selP.m].slice(0, 3)} ${selP.d}`;
+  const dows = Array.from({ length: 7 }, (_, i) => DOW[(i + weekStart) % 7]);
 
   return (
     <View style={{ flex: 1, paddingTop: insets.top }}>
       <View style={styles.nav}>
         {back ? (
-          <Pressable onPress={() => go(level === 'week' ? 'month' : 'year')} hitSlop={10} style={styles.navBtn}>
+          <Pressable onPress={back.to} hitSlop={10} style={styles.navBtn}>
             <Ionicons name="chevron-back" size={22} color={colors.primary} />
-            <Text style={styles.navText}>{back}</Text>
+            <Text style={styles.navText}>{back.label}</Text>
           </Pressable>
         ) : (
           <View />
         )}
-        <Pressable onPress={() => go(level === 'year' ? 'month' : level, TODAY)} hitSlop={10}>
+        <Pressable onPress={today} hitSlop={10}>
           <Text style={styles.navText}>Today</Text>
         </Pressable>
       </View>
+      {/* Year view has no large title: the in-list year headers act as titles while scrolling (Apple). */}
+      {level !== 'year' && <Text style={[type.largeTitle, styles.title, level === 'month' && { color: colors.primary }]}>{title}</Text>}
 
-      <View style={styles.titleRow}>
-        <Text style={[type.largeTitle, { flex: 1 }, level !== 'week' && { color: colors.primary }]}>{title}</Text>
-        {level !== 'week' && (
-          <View style={styles.titleArrows}>
-            <Pressable onPress={() => go(level, level === 'year' ? `${y - 1}-${day.slice(5)}` : iso(new Date(y, m - 1, 1)))} hitSlop={10}>
-              <Ionicons name="chevron-back" size={24} color={colors.primary} />
-            </Pressable>
-            <Pressable onPress={() => go(level, level === 'year' ? `${y + 1}-${day.slice(5)}` : iso(new Date(y, m + 1, 1)))} hitSlop={10}>
-              <Ionicons name="chevron-forward" size={24} color={colors.primary} />
-            </Pressable>
-          </View>
-        )}
-      </View>
-
-      {/* Bubble filter */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.filters}>
         {ALL.map((g) => (
           <Pressable key={g.id} onPress={() => setFilter(g.id)} style={[styles.filter, filter === g.id && styles.filterOn]}>
@@ -100,108 +216,195 @@ export default function CalendarScreen() {
         ))}
       </ScrollView>
 
-      <Animated.View style={{ flex: 1, opacity: fade }}>
+      <Animated.View style={levelStyle}>
         {level === 'year' && (
-          <ScrollView contentContainerStyle={styles.yearGrid}>
-            {MONTHS.map((name, mi) => (
-              <Pressable key={name} style={{ width: (width - spacing.md * 2 - spacing.md * 2) / 3 }} onPress={() => go('month', iso(new Date(y, mi, 1)))}>
-                <Text style={[styles.miniName, mi === parse(TODAY).getMonth() && y === parse(TODAY).getFullYear() && { color: colors.primary }]}>{name.slice(0, 3)}</Text>
-                <View style={styles.miniGrid}>
-                  {monthCells(y, mi).map((d, i) => {
-                    const date = d ? iso(new Date(y, mi, d)) : '';
-                    const busy = !!d && on(date).length > 0;
-                    return (
-                      <View key={i} style={[styles.miniCell, date === TODAY && styles.miniToday]}>
-                        <Text style={[styles.miniDay, busy && { color: colors.primary, fontFamily: fonts.bodyBold }, date === TODAY && { color: colors.surface }]}>{d ?? ''}</Text>
-                      </View>
-                    );
-                  })}
+          <FlatList
+            ref={yearList}
+            data={YEARS}
+            keyExtractor={(i) => `${i}`}
+            initialScrollIndex={visYear - TP.y + YR}
+            getItemLayout={(_, i) => ({ length: YEAR_H, offset: YEAR_H * i, index: i })}
+            onViewableItemsChanged={onYearViewable}
+            viewabilityConfig={{ itemVisiblePercentThreshold: 40 }}
+            windowSize={5}
+            renderItem={({ index }) => {
+              const y = yearOf(index);
+              return (
+                <View style={{ height: YEAR_H, paddingHorizontal: spacing.md }}>
+                  <Text style={styles.yearHead}>{y}</Text>
+                  <View style={styles.yearGrid}>
+                    {MONTHS.map((name, m) => (
+                      <Pressable key={name} style={styles.mini} onPress={() => go('month', monthStart(y, m))}>
+                        <Text style={[styles.miniName, y === TP.y && m === TP.m && { color: colors.primary }]}>{name}</Text>
+                        <View style={styles.miniGrid}>
+                          {Array.from({ length: 42 }, (_, c) => {
+                            const d = c - leadBlanks(y, m, weekStart) + 1;
+                            const n = monthStart(y, m) + d - 1;
+                            const real = d >= 1 && d <= daysIn(y, m);
+                            return (
+                              <View key={c} style={[styles.miniCell, real && n === T && styles.miniToday]}>
+                                <Text style={[styles.miniDay, real && byDay.has(n) && styles.miniBusy, real && n === T && { color: colors.surface }]}>
+                                  {real ? d : ''}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
-              </Pressable>
-            ))}
-          </ScrollView>
+              );
+            }}
+          />
         )}
 
         {level === 'month' && (
-          <ScrollView contentContainerStyle={styles.content}>
-            <View style={styles.card}>
-              <View style={styles.grid}>
-                {WEEKDAYS.map((d, i) => (
-                  <Text key={i} style={[styles.cell, styles.weekday]}>{d}</Text>
-                ))}
-                {monthCells(y, m).map((d, i) => {
-                  if (d === null) return <View key={i} style={styles.cell} />;
-                  const date = iso(new Date(y, m, d));
-                  return (
-                    <Pressable key={i} style={styles.cell} onPress={() => go('week', date)}>
-                      <View style={[styles.dayCircle, date === TODAY && styles.todayCircle]}>
-                        <Text style={[styles.dayText, date === TODAY && { color: colors.surface }]}>{d}</Text>
-                      </View>
-                      <View style={styles.dots}>
-                        {on(date).slice(0, 3).map((e, n) => (
-                          <View key={n} style={[styles.dot, { backgroundColor: groupColor(e.groupId) }]} />
-                        ))}
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
+          <>
+            <View style={styles.dowRow}>
+              {dows.map((d, i) => (
+                <Text key={i} style={[styles.cellW, styles.dow]}>{d}</Text>
+              ))}
             </View>
-            <Text style={[type.caption, { textAlign: 'center' }]}>Tap a day to see its events</Text>
-          </ScrollView>
+            <FlatList
+              ref={monthList}
+              data={MONTH_IDX}
+              keyExtractor={(i) => `${i}`}
+              initialScrollIndex={monthIndex(visMonth.y, visMonth.m)}
+              getItemLayout={(_, i) => ({ length: monthOffsets[i + 1] - monthOffsets[i], offset: monthOffsets[i], index: i })}
+              onViewableItemsChanged={onMonthViewable}
+              viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+              windowSize={7}
+              renderItem={({ index }) => {
+                const { y, m } = monthOf(index);
+                const lead = leadBlanks(y, m, weekStart);
+                const rows = weekRows(y, m, weekStart);
+                return (
+                  <View style={{ height: MONTH_HEAD + rows * CELL }}>
+                    {/* month name sits above the column of its 1st, like Apple Calendar */}
+                    <Text style={[styles.monthHead, { marginLeft: `${(lead * 100) / 7}%` }, y === TP.y && m === TP.m && { color: colors.primary }]}>
+                      {MONTHS[m].slice(0, 3)}
+                    </Text>
+                    <View style={styles.grid}>
+                      {Array.from({ length: rows * 7 }, (_, c) => {
+                        const d = c - lead + 1;
+                        if (d < 1 || d > daysIn(y, m)) return <View key={c} style={styles.cell} />;
+                        const n = monthStart(y, m) + d - 1;
+                        return (
+                          <Pressable key={c} style={[styles.cell, styles.cellLine]} onPress={() => go('week', n)}>
+                            <View style={[styles.dayCircle, n === T && styles.todayCircle]}>
+                              <Text style={[styles.dayText, n === T && { color: colors.surface }]}>{d}</Text>
+                            </View>
+                            <View style={styles.dots}>
+                              {(byDay.get(n) ?? []).slice(0, 3).map((e, k) => (
+                                <View key={k} style={[styles.dot, { backgroundColor: groupColor(e.groupId) }]} />
+                              ))}
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              }}
+            />
+          </>
         )}
 
         {level === 'week' && (
-          <ScrollView contentContainerStyle={styles.content}>
-            {/* Week strip */}
-            <View style={styles.card}>
-              <View style={styles.weekRow}>
-                <Pressable onPress={() => go('week', addDays(day, -7))} hitSlop={8}>
-                  <Ionicons name="chevron-back" size={20} color={colors.text} />
-                </Pressable>
-                {week.map((date, i) => {
-                  const d = parse(date);
-                  const isSel = date === day;
-                  return (
-                    <Pressable key={date} style={styles.weekCell} onPress={() => setDay(date)}>
-                      <Text style={styles.weekday}>{WEEKDAYS[i]}</Text>
-                      <View style={[styles.dayCircle, date === TODAY && styles.todayRing, isSel && styles.todayCircle]}>
-                        <Text style={[styles.dayText, isSel && { color: colors.surface }]}>{d.getDate()}</Text>
-                      </View>
-                      <View style={styles.dots}>
-                        {on(date).slice(0, 3).map((e, n) => (
-                          <View key={n} style={[styles.dot, { backgroundColor: groupColor(e.groupId) }]} />
-                        ))}
-                      </View>
-                    </Pressable>
-                  );
-                })}
-                <Pressable onPress={() => go('week', addDays(day, 7))} hitSlop={8}>
-                  <Ionicons name="chevron-forward" size={20} color={colors.text} />
-                </Pressable>
-              </View>
-            </View>
-
-            {dayEvents.length === 0 ? (
-              <Text style={[type.caption, { textAlign: 'center', paddingVertical: spacing.lg }]}>No events</Text>
-            ) : (
-              <View style={styles.list}>
-                {dayEvents.map((e, i) => (
-                  <View key={i}>
-                    {i > 0 && <Separator inset={spacing.md + 16} />}
-                    <EventRow
-                      time={e.time}
-                      title={e.title}
-                      place={<LinkedText style={type.caption} text={e.place} />}
-                      groupName={ALL.find((g) => g.id === e.groupId)?.name ?? ''}
-                      color={groupColor(e.groupId)}
-                      onPress={() => setOpen(e)}
-                    />
-                  </View>
+          <>
+            {/* Week strip: pages one week at a time */}
+            <View style={styles.stripWrap}>
+              <View style={[styles.dowRow, { borderBottomWidth: 0 }]}>
+                {dows.map((d, i) => (
+                  <Text key={i} style={[styles.cellW, styles.dow]}>{d}</Text>
                 ))}
               </View>
-            )}
-          </ScrollView>
+              <FlatList
+                ref={strip}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                data={WEEK_IDX}
+                keyExtractor={(i) => `${i}`}
+                initialScrollIndex={stripWeek}
+                getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+                onMomentumScrollEnd={onStripEnd}
+                windowSize={3}
+                extraData={sel}
+                renderItem={({ index }) => (
+                  <View style={[styles.weekRow, { width }]}>
+                    {Array.from({ length: 7 }, (_, k) => {
+                      const n = weekOf(index) + k;
+                      const isSel = n === sel;
+                      return (
+                        <Pressable key={k} style={styles.weekCell} onPress={() => selectDay(n)}>
+                          <View style={[styles.dayCircle, n === T && !isSel && styles.todayRing, isSel && styles.todayCircle]}>
+                            <Text style={[styles.dayText, n === T && !isSel && { color: colors.primary }, isSel && { color: colors.surface }]}>{parts(n).d}</Text>
+                          </View>
+                          <View style={styles.dots}>
+                            {(byDay.get(n) ?? []).slice(0, 3).map((e, j) => (
+                              <View key={j} style={[styles.dot, { backgroundColor: groupColor(e.groupId) }]} />
+                            ))}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              />
+            </View>
+
+            {/* Endless day-by-day event list */}
+            <FlatList
+              ref={dayList}
+              data={DAY_IDX}
+              keyExtractor={(n) => `${n}`}
+              initialScrollIndex={sel - T + DR}
+              getItemLayout={(_, i) => ({ length: dayOffsets[i + 1] - dayOffsets[i], offset: dayOffsets[i], index: i })}
+              onScroll={(e) => {
+                const y = e.nativeEvent.contentOffset.y;
+                scrollingDown.current = y >= lastY.current;
+                lastY.current = y;
+              }}
+              scrollEventThrottle={32}
+              onViewableItemsChanged={onDayViewable}
+              viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+              windowSize={9}
+              renderItem={({ item: n }) => {
+                const p = parts(n);
+                const evs = byDay.get(n) ?? [];
+                return (
+                  <View style={{ height: dayH(n), paddingHorizontal: spacing.md }}>
+                    <Text style={[styles.dayHead, n === T && { color: colors.primary }]}>
+                      {DOW_NAMES[p.dow]}, {MONTHS[p.m]} {p.d}
+                      {p.y !== TP.y ? `, ${p.y}` : ''}
+                      {n === T ? ' · Today' : ''}
+                    </Text>
+                    {evs.length === 0 ? (
+                      <Text style={styles.empty}>No events</Text>
+                    ) : (
+                      <View style={styles.list}>
+                        {evs.map((e, i) => (
+                          <View key={i} style={{ height: EVT_H, justifyContent: 'center' }}>
+                            {i > 0 && <View style={styles.sep} />}
+                            <EventRow
+                              time={e.time}
+                              title={e.title}
+                              place={<LinkedText style={type.caption} text={e.place} />}
+                              groupName={ALL.find((g) => g.id === e.groupId)?.name ?? ''}
+                              color={groupColor(e.groupId)}
+                              onPress={() => setOpen(e)}
+                            />
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              }}
+            />
+          </>
         )}
       </Animated.View>
 
@@ -210,12 +413,17 @@ export default function CalendarScreen() {
   );
 }
 
+// List data is just item indexes (day numbers for the day list); content comes from index math.
+const YEARS = Array.from({ length: 2 * YR + 1 }, (_, i) => i);
+const MONTH_IDX = Array.from({ length: 2 * MR + 1 }, (_, i) => i);
+const DAY_IDX = Array.from({ length: 2 * DR + 1 }, (_, i) => T + i - DR);
+const WEEK_IDX = Array.from({ length: 2 * WR + 1 }, (_, i) => i);
+
 const styles = StyleSheet.create({
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, height: 44 },
   navBtn: { flexDirection: 'row', alignItems: 'center', marginLeft: -6 },
   navText: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
-  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md },
-  titleArrows: { flexDirection: 'row', gap: spacing.lg },
+  title: { paddingHorizontal: spacing.md },
   filters: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 4 },
   filter: {
     flexDirection: 'row',
@@ -230,26 +438,36 @@ const styles = StyleSheet.create({
   },
   filterOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   filterText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
-  content: { padding: spacing.md, paddingTop: 0, gap: spacing.md, paddingBottom: spacing.xl },
-  card: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
-  monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
+
+  yearHead: { height: YEAR_HEAD, fontFamily: fonts.heading, fontSize: 28, color: colors.text, paddingTop: spacing.sm },
+  yearGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  mini: { width: '47%', height: MINI_NAME + 6 * MINI_ROW + MINI_GAP },
+  miniName: { height: MINI_NAME, fontFamily: fonts.subheading, fontSize: 17, color: colors.text },
+  miniGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  miniCell: { width: `${100 / 7}%`, height: MINI_ROW, alignItems: 'center', justifyContent: 'center', borderRadius: 99 },
+  miniToday: { backgroundColor: colors.primary },
+  miniDay: { fontSize: 10, fontFamily: fonts.body, color: colors.text },
+  miniBusy: { color: colors.primary, fontFamily: fonts.bodyBold },
+
+  dowRow: { flexDirection: 'row', paddingBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  cellW: { width: `${100 / 7}%` },
+  dow: { ...type.caption, fontFamily: fonts.bodyBold, textAlign: 'center' },
+  monthHead: { height: MONTH_HEAD, paddingTop: 14, width: `${100 / 7}%`, textAlign: 'center', fontFamily: fonts.subheading, fontSize: 18, color: colors.text },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 4 },
-  weekday: { ...type.caption, fontFamily: fonts.bodyBold, textAlign: 'center' },
+  cell: { width: `${100 / 7}%`, height: CELL, alignItems: 'center', paddingTop: 4 },
+  cellLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   dayCircle: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   todayCircle: { backgroundColor: colors.primary },
   todayRing: { borderWidth: 2, borderColor: colors.primary },
-  dayText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.text },
+  dayText: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.text },
   dots: { flexDirection: 'row', gap: 2, height: 6, marginTop: 2 },
   dot: { width: 5, height: 5, borderRadius: 3 },
-  weekRow: { flexDirection: 'row', alignItems: 'center' },
-  weekCell: { flex: 1, alignItems: 'center', gap: 4 },
-  list: { backgroundColor: colors.surface, borderRadius: radius.md, overflow: 'hidden', paddingVertical: spacing.xs },
-  yearGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
-  yearNav: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', marginBottom: -spacing.sm },
-  miniName: { fontFamily: fonts.subheading, fontSize: 17, color: colors.text, marginBottom: 4 },
-  miniGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  miniCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 99 },
-  miniToday: { backgroundColor: colors.primary },
-  miniDay: { fontSize: 9, fontFamily: fonts.body, color: colors.text },
+
+  stripWrap: { backgroundColor: colors.surface, paddingTop: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  weekRow: { flexDirection: 'row', paddingVertical: spacing.sm },
+  weekCell: { flex: 1, alignItems: 'center' },
+  dayHead: { height: DAY_HEAD, paddingTop: spacing.sm + 4, fontFamily: fonts.bodyBold, fontSize: 14, color: colors.textMuted },
+  empty: { height: EMPTY_H, ...type.caption, paddingTop: spacing.sm, paddingLeft: spacing.xs },
+  list: { backgroundColor: colors.surface, borderRadius: radius.md, overflow: 'hidden' },
+  sep: { position: 'absolute', top: 0, left: spacing.md + 16, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
 });
