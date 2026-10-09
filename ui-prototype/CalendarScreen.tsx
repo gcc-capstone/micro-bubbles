@@ -46,6 +46,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const cellW = Math.floor((width - 2 * MONTH_PAD) / 7); // exact pixels; % widths can wrap the 7th column
+  const monthSide = (width - 7 * cellW) / 2; // split the rounding leftover so both edges match
   const [level, setLevel] = useState<Level>('month');
   const [sel, setSel] = useState(T); // selected day (week view) and anchor for other views
   const selRef = useRef(sel);
@@ -236,6 +237,8 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
       </ScrollView>
 
       <Animated.View style={levelStyle}>
+        {/* full-width divider under the top bar, matching the tab bar's top border */}
+        {level === 'year' && <View style={styles.topBarLine} />}
         {level === 'year' && (
           <FlatList
             ref={yearList}
@@ -250,7 +253,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
             renderItem={({ index }) => {
               const y = yearOf(index);
               return (
-                <View style={{ height: YEAR_H, paddingHorizontal: spacing.sm }}>
+                <View style={{ height: YEAR_H, paddingHorizontal: spacing.md }}>
                   <Text style={[styles.yearHead, y === TP.y && { color: colors.primary }]}>{y}</Text>
                   <View style={styles.yearGrid}>
                     {MONTHS.map((name, m) => (
@@ -281,7 +284,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
 
         {level === 'month' && (
           <>
-            <View style={[styles.dowRow, { paddingHorizontal: MONTH_PAD }]}>
+            <View style={[styles.dowRow, { paddingHorizontal: monthSide }]}>
               {dows.map((d, i) => (
                 <Text key={i} style={[styles.dow, { width: cellW }]}>{d}</Text>
               ))}
@@ -289,7 +292,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
             <FlatList
               ref={monthList}
               data={MONTH_IDX}
-              contentContainerStyle={{ paddingHorizontal: MONTH_PAD }}
+              contentContainerStyle={{ paddingHorizontal: monthSide }}
               keyExtractor={(i) => `${i}`}
               initialScrollIndex={monthIndex(visMonth.y, visMonth.m)}
               getItemLayout={(_, i) => ({ length: monthOffsets[i + 1] - monthOffsets[i], offset: monthOffsets[i], index: i })}
@@ -479,6 +482,7 @@ const styles = StyleSheet.create({
   miniDay: { fontSize: 9, fontFamily: fonts.body, color: colors.text },
   miniBusy: { color: colors.primary, fontFamily: fonts.bodyBold },
 
+  topBarLine: { height: 1, backgroundColor: colors.border }, // same weight as the tab bar border
   dowRow: { flexDirection: 'row', paddingBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   cellW: { width: `${100 / 7}%` },
   dow: { ...type.caption, fontFamily: fonts.bodyBold, textAlign: 'center' },
