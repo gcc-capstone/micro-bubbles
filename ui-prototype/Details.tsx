@@ -650,6 +650,190 @@ export function DropPin({ visible, groups, initialGroupId, onClose, onDrop }: {
   );
 }
 
+/* ---------- New Bubble ---------- */
+
+export function NewBubble({ visible, onClose, onCreate }: {
+  visible: boolean; onClose: () => void; onCreate: (g: Group) => void;
+}) {
+  const [name, setName] = useState('');
+  const [about, setAbout] = useState('');
+  const [color, setColor] = useState(bubbleColors[0]);
+  const [privacy, setPrivacy] = useState('Private');
+  useEffect(() => {
+    if (!visible) return;
+    setName('');
+    setAbout('');
+    setColor(bubbleColors[(GROUPS.length + 1) % bubbleColors.length]);
+    setPrivacy('Private');
+  }, [visible]);
+  const id = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'new';
+
+  const create = () =>
+    onCreate({
+      id: `${id}-${Date.now() % 10000}`,
+      name: name.trim(),
+      about: about.trim() || undefined,
+      color,
+      isPublic: privacy === 'Public',
+      unread: 0,
+      // you're the first member, at your current location
+      members: [{ name: 'Ashlea Morgan', place: 'Grove City College', updated: 'Now', battery: 80, lat: ME.lat, lng: ME.lng }],
+      places: [],
+      pins: [],
+      activity: [{ icon: 'sparkles-outline', text: `You created ${name.trim()}`, time: 'Now' }],
+    });
+
+  return (
+    <PageSheet
+      visible={visible}
+      title="New Bubble"
+      onClose={onClose}
+      right={
+        <Pressable disabled={!name.trim()} onPress={create} hitSlop={10}>
+          <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }, !name.trim() && { color: colors.textMuted }]}>Create</Text>
+        </Pressable>
+      }
+    >
+      <View style={[styles.cover, { backgroundColor: color + '33' }]}>
+        <Bubble size={96} tint={color} />
+      </View>
+      <Section title="Name">
+        <TextInput value={name} onChangeText={setName} placeholder="e.g. Hiking Club" placeholderTextColor={colors.textMuted} style={styles.input} autoFocus />
+      </Section>
+      <Section title="About">
+        <TextInput value={about} onChangeText={setAbout} placeholder="What's this Bubble for?" placeholderTextColor={colors.textMuted} style={[styles.input, { minHeight: 64 }]} multiline />
+      </Section>
+      <Section title="Bubble color">
+        <View style={[styles.row, { gap: spacing.md, flexWrap: 'wrap' }]}>
+          {bubbleColors.map((c) => (
+            <Pressable key={c} onPress={() => setColor(c)}>
+              <Bubble size={40} tint={c}>{c === color && <Ionicons name="checkmark" size={18} color={c} />}</Bubble>
+            </Pressable>
+          ))}
+        </View>
+      </Section>
+      <Section title="Who can join">
+        <View style={{ padding: spacing.md, gap: spacing.sm }}>
+          <Segmented options={['Private', 'Public']} value={privacy} onChange={setPrivacy} />
+          <Text style={type.caption}>
+            {privacy === 'Private' ? 'People join with an invite code and your approval.' : 'Anyone nearby can find and join without a code.'}
+          </Text>
+        </View>
+      </Section>
+    </PageSheet>
+  );
+}
+
+/* ---------- New Event ---------- */
+
+const TIMES = ['9:00 AM', '12:00 PM', '3:00 PM', '5:30 PM', '7:00 PM', '9:00 PM'];
+
+export function NewEvent({ visible, groups, initialGroupId, today, onClose, onCreate }: {
+  visible: boolean; groups: Group[]; initialGroupId?: string; today: string; onClose: () => void; onCreate: (e: BubbleEvent) => void;
+}) {
+  const days = Array.from({ length: 14 }, (_, i) => {
+    const [y, m, d] = today.split('-').map(Number);
+    const t = new Date(y, m - 1, d + i);
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  });
+  const [title, setTitle] = useState('');
+  const [date, setDate] = useState(days[0]);
+  const [time, setTime] = useState(TIMES[4]);
+  const [place, setPlace] = useState<Loc | null>(null);
+  const [groupId, setGroupId] = useState(groups[0]?.id);
+  const [remind, setRemind] = useState(true);
+  useEffect(() => {
+    if (!visible) return;
+    setTitle('');
+    setDate(days[0]);
+    setTime(TIMES[4]);
+    setPlace(null);
+    setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
+    setRemind(true);
+  }, [visible]);
+  const where = place ?? { name: 'Current location', lat: ME.lat, lng: ME.lng, icon: 'locate' as IconName };
+  const ok = title.trim().length > 0;
+
+  return (
+    <PageSheet
+      visible={visible}
+      title="New Event"
+      onClose={onClose}
+      right={
+        <Pressable
+          disabled={!ok}
+          onPress={() => onCreate({ groupId, title: title.trim(), date, time, place: where.name, going: ['Ashlea Morgan'], lat: where.lat, lng: where.lng })}
+          hitSlop={10}
+        >
+          <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }, !ok && { color: colors.textMuted }]}>Add</Text>
+        </Pressable>
+      }
+    >
+      <Section title="Title">
+        <TextInput value={title} onChangeText={setTitle} placeholder="e.g. Beginner hike" placeholderTextColor={colors.textMuted} style={styles.input} autoFocus />
+      </Section>
+
+      <Section title="Day">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: spacing.sm + 4, gap: spacing.sm }}>
+          {days.map((d, i) => {
+            const [y, m, dd] = d.split('-').map(Number);
+            const on = d === date;
+            return (
+              <Pressable key={d} onPress={() => setDate(d)} style={[styles.dayChip, on && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                <Text style={[styles.dayChipTop, on && { color: colors.surface }]}>{i === 0 ? 'Today' : WEEKDAYS[new Date(y, m - 1, dd).getDay()].slice(0, 3)}</Text>
+                <Text style={[styles.dayChipNum, on && { color: colors.surface }]}>{dd}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </Section>
+
+      <Section title="Time">
+        <View style={[styles.row, { flexWrap: 'wrap', gap: spacing.sm }]}>
+          {TIMES.map((t) => (
+            <Pressable key={t} onPress={() => setTime(t)} style={[styles.timeChip, t === time && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+              <Text style={[styles.timeText, t === time && { color: colors.primary }]}>{t}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Section>
+
+      <Section title="Where">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: spacing.sm + 4, gap: spacing.sm }}>
+          {[null, ...LOCATIONS.filter((l) => distanceFromMe(l.lat, l.lng) < 15).slice(0, 12)].map((l) => {
+            const on = (l?.name ?? null) === (place?.name ?? null);
+            return (
+              <Pressable key={l?.name ?? 'here'} onPress={() => setPlace(l)} style={[styles.timeChip, on && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+                <View style={[styles.row, { padding: 0, gap: 4 }]}>
+                  <Ionicons name={l?.icon ?? 'locate'} size={14} color={on ? colors.primary : colors.textMuted} />
+                  <Text style={[styles.timeText, on && { color: colors.primary }]}>{l?.name ?? 'Current location'}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </Section>
+
+      <Section title="Bubble">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}>
+          {groups.map((g) => (
+            <Pressable key={g.id} onPress={() => setGroupId(g.id)} style={{ alignItems: 'center', width: 64 }}>
+              <Bubble size={44} tint={groupColor(g.id)}>
+                {g.id === groupId && <Ionicons name="checkmark" size={20} color={groupColor(g.id)} />}
+              </Bubble>
+              <Text numberOfLines={1} style={[styles.shareLabel, g.id === groupId && { color: colors.primary, fontFamily: fonts.bodyBold }]}>{g.name}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        <Separator />
+        <Row icon="notifications-outline" label="Notify members">
+          <Switch value={remind} onValueChange={setRemind} trackColor={{ true: colors.primary }} />
+        </Row>
+      </Section>
+    </PageSheet>
+  );
+}
+
 const styles = StyleSheet.create({
   inline: { flexDirection: 'row', alignItems: 'center' },
   link: { color: colors.primary, fontFamily: fonts.bodyBold },
@@ -675,5 +859,10 @@ const styles = StyleSheet.create({
   highlightText: { ...type.caption, fontSize: 12, textAlign: 'center', color: colors.text },
   mapPreview: { height: 180, marginHorizontal: spacing.md, borderRadius: radius.md, overflow: 'hidden' },
   category: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  dayChip: { width: 52, paddingVertical: 6, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  dayChipTop: { ...type.caption, fontSize: 11, fontFamily: fonts.bodyBold },
+  dayChipNum: { fontFamily: fonts.heading, fontSize: 18, color: colors.text },
+  timeChip: { paddingHorizontal: spacing.sm + 4, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  timeText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
   shareLabel: { ...type.caption, fontSize: 11, marginTop: 4, textAlign: 'center', width: 64 },
 });

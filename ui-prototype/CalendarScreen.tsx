@@ -380,7 +380,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
               />
             </View>
 
-            <View style={styles.divider} />
+            <View style={styles.topBarLine} /> {/* full width, like the tab bar border */}
             {/* fixed gap under the strip (padding inside the list would scroll away) */}
             <View style={{ height: spacing.sm + 4 }} />
             {/* Endless day-by-day event list */}
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
   miniBusy: { color: colors.primary, fontFamily: fonts.bodyBold },
 
   topBarLine: { height: 1, backgroundColor: colors.border }, // same weight as the tab bar border
-  dowRow: { flexDirection: 'row', paddingBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  dowRow: { flexDirection: 'row', paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: colors.border }, // full-width line, like the tab bar border
   cellW: { width: `${100 / 7}%` },
   dow: { ...type.caption, fontFamily: fonts.bodyBold, textAlign: 'center' },
   monthHead: { height: MONTH_HEAD, paddingTop: 14, width: `${100 / 7}%`, textAlign: 'center', fontFamily: fonts.subheading, fontSize: 18, color: colors.text },

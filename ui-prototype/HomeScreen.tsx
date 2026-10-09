@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, IconName, MapButton, MenuButton, Segmented, Separator } from './components';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
 import { ALL, avgRating, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Loc, Member, memberColor, Pin, TODAY } from './data';
-import { BubbleProfile, DropPin, EventView, LinkedText, LocationView, longDate, PersonView, PinView } from './Details';
+import { BubbleProfile, DropPin, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
 
 const RS = 44; // row bubble size
@@ -123,6 +123,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [muted, setMuted] = useState<Record<string, boolean>>({});
 
   const [dropOpen, setDropOpen] = useState(false);
+  const [newBubbleOpen, setNewBubbleOpen] = useState(false);
+  const [newEventOpen, setNewEventOpen] = useState(false);
+  const [editing, setEditing] = useState(false); // All Bubbles edit mode: tap a bubble's − to leave it
   const [, setTick] = useState(0); // re-render after in-memory edits (drop pin, edit/leave Bubble)
   const refresh = () => setTick((t) => t + 1);
   const [query, setQuery] = useState('');
@@ -333,15 +336,20 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     base?.id === 'everyone'
       ? ['Bubble Info']
       : ['Bubble Info', 'Edit Bubble', 'Add Members', isMuted ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble'];
-  const leaveGroup = () => {
+  const leaveGroup = () => removeGroup(base!);
+  const removeGroup = (g: Group) => {
     // ponytail: removes from the in-memory lists only
-    const g = base!;
     GROUPS.splice(GROUPS.indexOf(g), 1);
     ALL.splice(ALL.indexOf(g), 1);
     setProfileOpen(false);
     setSelected(0);
     showToast(`You left ${g.name}`);
   };
+  const confirmRemove = (g: Group) =>
+    Alert.alert(`Leave ${g.name}?`, 'Members will stop seeing your location, pins and photos.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Leave', style: 'destructive', onPress: () => removeGroup(g) },
+    ]);
   const onBubbleMenu = (o: string) => {
     const g = base!;
     if (o === 'Bubble Info') setProfileOpen('view');
@@ -444,9 +452,14 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             style={[styles.rightStack, { opacity: sheetP.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }, sheetOpen && styles.noTouch]}
           >
             <MapButton icon="locate" onPress={() => setFocus({ name: 'You', lat: ME.lat, lng: ME.lng })} />
-            <Pressable style={styles.fab} onPress={() => setDropOpen(true)}>
-              <Ionicons name="add" size={30} color={colors.primary} />
-            </Pressable>
+            <MenuButton
+              icon="add"
+              options={['New Bubble', 'Drop Pin', 'New Event']}
+              icons={{ 'New Bubble': 'ellipse-outline', 'Drop Pin': 'location-outline', 'New Event': 'calendar-outline' }}
+              onSelect={(o) => (o === 'New Bubble' ? setNewBubbleOpen(true) : o === 'Drop Pin' ? setDropOpen(true) : setNewEventOpen(true))}
+              triggerStyle={styles.fab}
+              trigger={<Ionicons name="add" size={30} color={colors.primary} />}
+            />
           </Animated.View>
         </Animated.View>
       )}
@@ -670,9 +683,14 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   count={g.unread}
                   delay={i * 500}
                   still={reduceMotion}
-                  onPress={() => select(i)}
+                  onPress={() => (editing ? g.id !== 'everyone' && confirmRemove(g) : select(i))}
                   style={{ left: 0, top: 0 }}
                 />
+                {editing && g.id !== 'everyone' && (
+                  <Pressable style={[styles.removeBadge, { transform: [{ scale: f.scale }] }]} onPress={() => confirmRemove(g)} hitSlop={8}>
+                    <Ionicons name="remove" size={18} color={colors.surface} />
+                  </Pressable>
+                )}
               </Animated.View>
             );
           })}
@@ -682,6 +700,19 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         <Animated.Text style={[type.largeTitle, styles.title, { top: insets.top + spacing.sm, opacity: p.interpolate({ inputRange: [0, 0.4], outputRange: [1, 0] }) }]}>
           All Bubbles
         </Animated.Text>
+      )}
+      {mode === 'field' && (
+        // Edit (leave Bubbles) and + (new Bubble), top right like iOS
+        <View style={[styles.fieldActions, { top: insets.top + spacing.sm }]}>
+          <Pressable onPress={() => setEditing(!editing)} hitSlop={10}>
+            <Text style={[styles.fieldAction, editing && { fontFamily: fonts.bodyBold }]}>{editing ? 'Done' : 'Edit'}</Text>
+          </Pressable>
+          {!editing && (
+            <Pressable onPress={() => setNewBubbleOpen(true)} hitSlop={10}>
+              <Ionicons name="add" size={28} color={colors.primary} />
+            </Pressable>
+          )}
+        </View>
       )}
 
       {/* Compact scrollable row once collapsed */}
@@ -748,6 +779,32 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         }}
       />
 
+      <NewBubble
+        visible={newBubbleOpen}
+        onClose={() => setNewBubbleOpen(false)}
+        onCreate={(g) => {
+          GROUPS.push(g);
+          ALL.push(g);
+          setNewBubbleOpen(false);
+          showToast(`Created ${g.name}`);
+          if (mode === 'row') setSelected(ALL.length - 1);
+        }}
+      />
+      <NewEvent
+        visible={newEventOpen}
+        groups={GROUPS}
+        initialGroupId={group?.id}
+        today={TODAY}
+        onClose={() => setNewEventOpen(false)}
+        onCreate={(e) => {
+          EVENTS.push(e);
+          const g = GROUPS.find((x) => x.id === e.groupId);
+          g?.activity.unshift({ icon: 'calendar-outline', text: `You added ${e.title} to the calendar`, time: 'Now' });
+          setNewEventOpen(false);
+          showToast(`Added ${e.title}`);
+        }}
+      />
+
       {toast !== '' && (
         <View style={[styles.toast, { top: insets.top + 64 }]}>
           <Text style={styles.toastText}>{toast}</Text>
@@ -758,6 +815,21 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
 }
 
 const styles = StyleSheet.create({
+  fieldActions: { position: 'absolute', right: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md, height: 41 },
+  fieldAction: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
+  removeBadge: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.danger,
+    borderWidth: 2,
+    borderColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   fill: { flex: 1, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center' },
   noTouch: { pointerEvents: 'none' },

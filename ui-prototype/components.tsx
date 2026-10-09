@@ -228,9 +228,10 @@ export function Separator({ inset = spacing.md }: { inset?: number }) {
 
 // Button that opens a small popover menu (iOS-style). multi keeps it open for toggling filters;
 // plain is an icon-only trigger; icons show on the right of items; destructive items are red.
-export function MenuButton({ icon, label, options, selected = [], onSelect, multi, active, plain, icons, destructive = [] }: {
+// trigger/triggerStyle replace the default button look (e.g. the map's + button).
+export function MenuButton({ icon, label, options, selected = [], onSelect, multi, active, plain, icons, destructive = [], trigger, triggerStyle }: {
   icon: IconName; label?: string; options: string[]; selected?: string[]; onSelect: (o: string) => void; multi?: boolean; active?: boolean;
-  plain?: boolean; icons?: Record<string, IconName>; destructive?: string[];
+  plain?: boolean; icons?: Record<string, IconName>; destructive?: string[]; trigger?: ReactNode; triggerStyle?: Style;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ right: number; top?: number; bottom?: number }>({ right: 0, top: 0 });
@@ -245,9 +246,13 @@ export function MenuButton({ icon, label, options, selected = [], onSelect, mult
     });
   return (
     <>
-      <Pressable ref={ref} onPress={show} hitSlop={plain ? 10 : 0} style={plain ? null : [s.menuBtn, active && s.menuBtnOn]}>
-        <Ionicons name={icon} size={plain ? 24 : 15} color={plain ? colors.textMuted : active ? colors.primary : colors.text} />
-        {label && <Text style={[s.menuBtnText, active && { color: colors.primary }]}>{label}</Text>}
+      <Pressable ref={ref} onPress={show} hitSlop={plain ? 10 : 0} style={trigger ? triggerStyle : plain ? null : [s.menuBtn, active && s.menuBtnOn]}>
+        {trigger ?? (
+          <>
+            <Ionicons name={icon} size={plain ? 24 : 15} color={plain ? colors.textMuted : active ? colors.primary : colors.text} />
+            {label && <Text style={[s.menuBtnText, active && { color: colors.primary }]}>{label}</Text>}
+          </>
+        )}
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)}>
