@@ -23,7 +23,6 @@ const TP = parts(T);
 // Range of each endless list (items either side of today).
 const YR = 100; // years
 const MR = 600; // months
-const DR = 3650; // days
 const WR = 520; // weeks
 
 // Fixed row heights (must match styles below) so getItemLayout is exact.
@@ -31,12 +30,13 @@ const YEAR_HEAD = 56;
 const MINI_NAME = 24;
 const MINI_ROW = 17;
 const MINI_GAP = 14;
-const YEAR_H = YEAR_HEAD + 6 * (MINI_NAME + 6 * MINI_ROW + MINI_GAP);
+const MINI_H = MINI_NAME + 6 * MINI_ROW + MINI_GAP;
+const YEAR_H = YEAR_HEAD + 6 * MINI_H;
 const MONTH_HEAD = 48;
 const CELL = 56;
+const MONTH_PAD = spacing.sm + 4; // side padding in month view
 const DAY_HEAD = 36;
 const EVT_H = 64;
-const EMPTY_H = 40;
 const DAY_PAD = 8;
 
 type Level = 'year' | 'month' | 'week';
@@ -44,6 +44,7 @@ type Level = 'year' | 'month' | 'week';
 export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart: number; reduceMotion: boolean }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const cellW = Math.floor((width - 2 * MONTH_PAD) / 7); // exact pixels; % widths can wrap the 7th column
   const [level, setLevel] = useState<Level>('month');
   const [sel, setSel] = useState(T); // selected day (week view) and anchor for other views
   const [visYear, setVisYear] = useState(TP.y);
@@ -84,11 +85,24 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
     () => offsets(Array.from({ length: 2 * MR + 1 }, (_, i) => MONTH_HEAD + weekRows(monthOf(i).y, monthOf(i).m, weekStart) * CELL)),
     [weekStart],
   );
-  const dayH = (n: number) => {
-    const k = byDay.get(n)?.length ?? 0;
-    return DAY_HEAD + (k ? k * EVT_H : EMPTY_H) + DAY_PAD;
+  // Week view list shows only days that have events.
+  const eventDays = useMemo(() => [...byDay.keys()].sort((a, b) => a - b), [byDay]);
+  const dayH = (n: number) => DAY_HEAD + (byDay.get(n)?.length ?? 0) * EVT_H + DAY_PAD;
+  const dayOffsets = useMemo(() => offsets(eventDays.map(dayH)), [eventDays]);
+  // Index of the first event day on or after n (or the last one), for jumping the list.
+  const listIndex = (n: number) => {
+    let lo = 0;
+    let hi = eventDays.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (eventDays[mid] < n) lo = mid + 1;
+      else hi = mid;
+    }
+    return Math.min(lo, eventDays.length - 1);
   };
-  const dayOffsets = useMemo(() => offsets(DAY_IDX.map(dayH)), [byDay]);
+  const scrollList = (n: number, animated: boolean) => {
+    if (eventDays.length) dayList.current?.scrollToIndex({ index: listIndex(n), animated });
+  };
 
   /* ---------- level transitions ---------- */
   const lv = useRef(new Animated.Value(1)).current;
@@ -109,7 +123,8 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
     from.setValue(dir.current > 0 ? 0.9 : 1.1);
     lv.setValue(reduceMotion ? 1 : 0);
     // JS driver: the list re-renders during the transition, which would strand a native-driven value.
-    if (!reduceMotion) Animated.spring(lv, { toValue: 1, useNativeDriver: false, damping: 22, stiffness: 220, mass: 0.8 }).start();
+    // start after the new view's first frame so mounting doesn't eat the animation
+    if (!reduceMotion) requestAnimationFrame(() => Animated.spring(lv, { toValue: 1, useNativeDriver: false, damping: 22, stiffness: 220, mass: 0.8 }).start());
   };
   // Zooming in starts slightly small, zooming out starts slightly large (Apple Calendar feel).
   const levelStyle = useRef({
@@ -138,7 +153,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
       setStripWeek(w);
       strip.current?.scrollToIndex({ index: w, animated: !reduceMotion });
     }
-    dayList.current?.scrollToIndex({ index: n - T + DR, animated: !reduceMotion });
+    scrollList(n, !reduceMotion);
   };
   // Swiping the strip pages a week; keep the same weekday selected and move the list there.
   const onStripEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -149,7 +164,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
     setStripWeek(w);
     hold();
     setSel(n);
-    dayList.current?.scrollToIndex({ index: n - T + DR, animated: false });
+    scrollList(weekOf(w), false); // first event on or after this week
   };
   const onDayViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     if (programmatic.current || !viewableItems.length) return;
@@ -204,8 +219,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
           <Text style={styles.navText}>Today</Text>
         </Pressable>
       </View>
-      {/* Year view has no large title: the in-list year headers act as titles while scrolling (Apple). */}
-      {level !== 'year' && <Text style={[type.largeTitle, styles.title, level === 'month' && { color: colors.primary }]}>{title}</Text>}
+      <Text style={[type.largeTitle, styles.title, level !== 'week' && { color: colors.primary }]}>{title}</Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.filters}>
         {ALL.map((g) => (
@@ -223,6 +237,12 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
             data={YEARS}
             keyExtractor={(i) => `${i}`}
             initialScrollIndex={visYear - TP.y + YR}
+            // then nudge to the row of the month we came from, so zooming out keeps your place
+            onLayout={() => {
+              const offset = YEAR_H * (visYear - TP.y + YR) + YEAR_HEAD + Math.floor(visMonth.m / 2) * MINI_H;
+              setTimeout(() => yearList.current?.scrollToOffset({ offset, animated: false }), 50); // after first render
+            }}
+            initialNumToRender={2}
             getItemLayout={(_, i) => ({ length: YEAR_H, offset: YEAR_H * i, index: i })}
             onViewableItemsChanged={onYearViewable}
             viewabilityConfig={{ itemVisiblePercentThreshold: 40 }}
@@ -230,7 +250,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
             renderItem={({ index }) => {
               const y = yearOf(index);
               return (
-                <View style={{ height: YEAR_H, paddingHorizontal: spacing.md }}>
+                <View style={{ height: YEAR_H, paddingHorizontal: spacing.md + 6 }}>
                   <Text style={styles.yearHead}>{y}</Text>
                   <View style={styles.yearGrid}>
                     {MONTHS.map((name, m) => (
@@ -261,14 +281,15 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
 
         {level === 'month' && (
           <>
-            <View style={styles.dowRow}>
+            <View style={[styles.dowRow, { paddingHorizontal: MONTH_PAD }]}>
               {dows.map((d, i) => (
-                <Text key={i} style={[styles.cellW, styles.dow]}>{d}</Text>
+                <Text key={i} style={[styles.dow, { width: cellW }]}>{d}</Text>
               ))}
             </View>
             <FlatList
               ref={monthList}
               data={MONTH_IDX}
+              contentContainerStyle={{ paddingHorizontal: MONTH_PAD }}
               keyExtractor={(i) => `${i}`}
               initialScrollIndex={monthIndex(visMonth.y, visMonth.m)}
               getItemLayout={(_, i) => ({ length: monthOffsets[i + 1] - monthOffsets[i], offset: monthOffsets[i], index: i })}
@@ -282,16 +303,16 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                 return (
                   <View style={{ height: MONTH_HEAD + rows * CELL }}>
                     {/* month name sits above the column of its 1st, like Apple Calendar */}
-                    <Text style={[styles.monthHead, { marginLeft: `${(lead * 100) / 7}%` }, y === TP.y && m === TP.m && { color: colors.primary }]}>
+                    <Text style={[styles.monthHead, { marginLeft: lead * cellW, width: cellW }, y === TP.y && m === TP.m && { color: colors.primary }]}>
                       {MONTHS[m].slice(0, 3)}
                     </Text>
                     <View style={styles.grid}>
                       {Array.from({ length: rows * 7 }, (_, c) => {
                         const d = c - lead + 1;
-                        if (d < 1 || d > daysIn(y, m)) return <View key={c} style={styles.cell} />;
+                        if (d < 1 || d > daysIn(y, m)) return <View key={c} style={[styles.cell, { width: cellW }]} />;
                         const n = monthStart(y, m) + d - 1;
                         return (
-                          <Pressable key={c} style={[styles.cell, styles.cellLine]} onPress={() => go('week', n)}>
+                          <Pressable key={c} style={[styles.cell, styles.cellLine, { width: cellW }]} onPress={() => go('week', n)}>
                             <View style={[styles.dayCircle, n === T && styles.todayCircle]}>
                               <Text style={[styles.dayText, n === T && { color: colors.surface }]}>{d}</Text>
                             </View>
@@ -358,9 +379,10 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
             {/* Endless day-by-day event list */}
             <FlatList
               ref={dayList}
-              data={DAY_IDX}
+              data={eventDays}
               keyExtractor={(n) => `${n}`}
-              initialScrollIndex={sel - T + DR}
+              initialScrollIndex={eventDays.length ? listIndex(sel) : undefined}
+              ListEmptyComponent={<Text style={[styles.empty, { padding: spacing.md }]}>No events in this Bubble</Text>}
               getItemLayout={(_, i) => ({ length: dayOffsets[i + 1] - dayOffsets[i], offset: dayOffsets[i], index: i })}
               onScroll={(e) => {
                 const y = e.nativeEvent.contentOffset.y;
@@ -381,9 +403,6 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                       {p.y !== TP.y ? `, ${p.y}` : ''}
                       {n === T ? ' · Today' : ''}
                     </Text>
-                    {evs.length === 0 ? (
-                      <Text style={styles.empty}>No events</Text>
-                    ) : (
                       <View style={styles.list}>
                         {evs.map((e, i) => (
                           <View key={i} style={{ height: EVT_H, justifyContent: 'center' }}>
@@ -399,7 +418,6 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                           </View>
                         ))}
                       </View>
-                    )}
                   </View>
                 );
               }}
@@ -416,7 +434,6 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
 // List data is just item indexes (day numbers for the day list); content comes from index math.
 const YEARS = Array.from({ length: 2 * YR + 1 }, (_, i) => i);
 const MONTH_IDX = Array.from({ length: 2 * MR + 1 }, (_, i) => i);
-const DAY_IDX = Array.from({ length: 2 * DR + 1 }, (_, i) => T + i - DR);
 const WEEK_IDX = Array.from({ length: 2 * WR + 1 }, (_, i) => i);
 
 const styles = StyleSheet.create({
@@ -441,7 +458,7 @@ const styles = StyleSheet.create({
 
   yearHead: { height: YEAR_HEAD, fontFamily: fonts.heading, fontSize: 28, color: colors.text, paddingTop: spacing.sm },
   yearGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  mini: { width: '47%', height: MINI_NAME + 6 * MINI_ROW + MINI_GAP },
+  mini: { width: '47%', height: MINI_H },
   miniName: { height: MINI_NAME, fontFamily: fonts.subheading, fontSize: 17, color: colors.text },
   miniGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   miniCell: { width: `${100 / 7}%`, height: MINI_ROW, alignItems: 'center', justifyContent: 'center', borderRadius: 99 },
@@ -467,7 +484,7 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: 'row', paddingVertical: spacing.sm },
   weekCell: { flex: 1, alignItems: 'center' },
   dayHead: { height: DAY_HEAD, paddingTop: spacing.sm + 4, fontFamily: fonts.bodyBold, fontSize: 14, color: colors.textMuted },
-  empty: { height: EMPTY_H, ...type.caption, paddingTop: spacing.sm, paddingLeft: spacing.xs },
+  empty: { ...type.caption, textAlign: 'center' },
   list: { backgroundColor: colors.surface, borderRadius: radius.md, overflow: 'hidden' },
   sep: { position: 'absolute', top: 0, left: spacing.md + 16, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
 });
