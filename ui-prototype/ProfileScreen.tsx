@@ -1,6 +1,6 @@
 // Profile (report Task 9): customizable header, about, photos, and app Settings.
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Bubble, Button, IconName, MenuButton } from './components';
@@ -21,9 +21,13 @@ export default function ProfileScreen({
 }) {
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(PROFILE.name);
-  const [bio, setBio] = useState(PROFILE.bio);
-  const [color, setColor] = useState(1); // teal by default
+  // Edits are written back to PROFILE so they survive leaving the tab.
+  const [name, setNameState] = useState(PROFILE.name);
+  const [bio, setBioState] = useState(PROFILE.bio);
+  const [color, setColorState] = useState(PROFILE.color);
+  const setName = (v: string) => setNameState((PROFILE.name = v));
+  const setBio = (v: string) => setBioState((PROFILE.bio = v));
+  const setColor = (i: number) => setColorState((PROFILE.color = i));
   const [isPublic, setIsPublic] = useState(true);
   const [sharing, setSharing] = useState(true);
   const [alerts, setAlerts] = useState(true);
@@ -78,10 +82,11 @@ export default function ProfileScreen({
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.group}>
-          <View style={styles.settingRow}>
+          <Pressable style={styles.settingRow} onPress={() => Linking.openURL(`https://${PROFILE.instagram}`)}>
             <Ionicons name="logo-instagram" size={20} color={colors.primary} />
             <Text style={[type.body, { flex: 1, color: colors.primary }]}>{PROFILE.instagram}</Text>
-          </View>
+            <Ionicons name="open-outline" size={16} color={colors.textMuted} />
+          </Pressable>
           <View style={[styles.settingRow, styles.divider, { flexWrap: 'wrap' }]}>
             {PROFILE.hobbies.map((hb) => (
               <View key={hb} style={styles.hobby}>

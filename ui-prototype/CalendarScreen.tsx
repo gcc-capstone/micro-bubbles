@@ -380,7 +380,8 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
               />
             </View>
 
-            <View style={styles.topBarLine} /> {/* full width, like the tab bar border */}
+            {/* full width, like the tab bar border */}
+            <View style={styles.topBarLine} />
             {/* fixed gap under the strip (padding inside the list would scroll away) */}
             <View style={{ height: spacing.sm + 4 }} />
             {/* Endless day-by-day event list */}

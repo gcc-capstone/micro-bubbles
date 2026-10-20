@@ -17,7 +17,7 @@ import ProfileScreen from './ProfileScreen';
 import StyleReference from './StyleReference';
 
 const TABS: Tab[] = [
-  { icon: 'ellipse', label: 'Bubbles' },
+  { icon: 'ellipse-outline', label: 'Bubbles' },
   { icon: 'mail-outline', label: 'Inbox' },
   { icon: 'calendar-outline', label: 'Calendar' },
   { icon: 'person-outline', label: 'Profile' },

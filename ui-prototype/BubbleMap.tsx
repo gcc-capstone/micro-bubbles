@@ -13,6 +13,7 @@ export type MapEvent = { key: string; title: string; when: string; color: string
 
 // Below this zoom (degrees of latitude on screen) nothing is grouped, so people at the same spot stay tappable.
 const GROUP_UNTIL = 0.003;
+const GROUP_MIN = 5; // smaller overlaps stay as individual markers
 const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 type Item = { key: string; lat: number; lng: number; kind: 'member' | 'pin' | 'event'; member?: Member; pin?: Pin; event?: MapEvent };
@@ -50,7 +51,7 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
     x: ((it.lng - (region!.longitude - region!.longitudeDelta / 2)) / region!.longitudeDelta) * size.w,
     y: ((region!.latitude + region!.latitudeDelta / 2 - it.lat) / region!.latitudeDelta) * size.h,
   });
-  const multi = grouping ? groupNearby(items.filter((it) => !(it.member && it.member.name === focus?.name)), toPx).filter((g) => g.length > 1) : [];
+  const multi = grouping ? groupNearby(items.filter((it) => !(it.member && it.member.name === focus?.name)), toPx).filter((g) => g.length >= GROUP_MIN) : [];
   const hidden = new Set(multi.flat().map((it) => it.key));
   // ponytail: iOS react-native-maps can leave markers on screen after they unmount, so every marker
   // stays mounted: grouped ones turn invisible, and group bubbles come from a fixed pool.

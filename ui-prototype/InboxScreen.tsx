@@ -13,7 +13,13 @@ const SEARCH_H = 52;
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
-  const [items, setItems] = useState<InboxItem[]>(INBOX);
+  // INBOX is the store (module-level), so read state survives leaving the tab; tick re-renders.
+  const [, setTick] = useState(0);
+  const items = INBOX;
+  const setItems = (next: InboxItem[]) => {
+    INBOX.splice(0, INBOX.length, ...next);
+    setTick((t) => t + 1);
+  };
   const [query, setQuery] = useState('');
   const [listH, setListH] = useState(0);
   const list = useRef<ScrollView>(null);

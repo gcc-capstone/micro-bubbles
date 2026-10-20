@@ -341,6 +341,7 @@ export const INBOX: InboxItem[] = [
 
 // "You" in the prototype (report Task 9).
 export const PROFILE = {
+  color: 1, // index into bubbleColors; teal by default
   name: 'Ashlea Morgan',
   handle: '@ashlea.hikes',
   bio: 'New to Grove City from Colorado. Always looking for the next trail.',

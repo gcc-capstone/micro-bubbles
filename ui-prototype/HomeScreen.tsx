@@ -15,6 +15,7 @@ import BubbleMap, { Focus } from './BubbleMap';
 const RS = 44; // row bubble size
 const ROW_ITEM_MIN = 68; // narrowest slot per bubble; slots stretch so each page shows whole bubbles
 const ROW_H = 8 + RS + 4 + 16 + 8; // padding + bubble + gap + one-line label + padding
+const NAV_H = 44; // nav row above the large title
 const ROW_GROW = 1.3; // bubbles scale up while the row has focus
 const ROW_H_FOCUS = ROW_H + RS * (ROW_GROW - 1) + 2;
 const SHEET_MIN = 66;
@@ -147,7 +148,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [listH, setListH] = useState(0);
 
   const { w, h } = size;
-  const fieldTop = insets.top + 64;
+  const fieldTop = insets.top + NAV_H + 56; // below nav row + large title
   const watch = ALL.length > CENTERS.length;
 
   // Drag the honeycomb around (field mode only); taps still reach the bubbles.
@@ -224,7 +225,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
       v.setValue(to);
       done?.();
     } else {
-      Animated.timing(v, { toValue: to, duration, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start(() => done?.());
+      // springs feel smoother than timed easing (iOS-style); duration only picks how firm the spring is
+      Animated.spring(v, { toValue: to, useNativeDriver: false, damping: 24, stiffness: duration > 400 ? 120 : 260, mass: 1, overshootClamping: true }).start(() => done?.());
     }
   };
 
@@ -256,6 +258,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     setFocus(null);
     setMode('animating');
     animate(p, 0, 600, () => {
+      console.log('DBGB done');
       setMode('field');
       setSelected(null);
     });
@@ -697,13 +700,13 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         </View>
       )}
       {mode !== 'row' && (
-        <Animated.Text style={[type.largeTitle, styles.title, { top: insets.top + spacing.sm, opacity: p.interpolate({ inputRange: [0, 0.4], outputRange: [1, 0] }) }]}>
+        <Animated.Text style={[type.largeTitle, styles.title, { top: insets.top + NAV_H, opacity: p.interpolate({ inputRange: [0, 0.4], outputRange: [1, 0] }) }]}>
           All Bubbles
         </Animated.Text>
       )}
       {mode === 'field' && (
-        // Edit (leave Bubbles) and + (new Bubble), top right like iOS
-        <View style={[styles.fieldActions, { top: insets.top + spacing.sm }]}>
+        // Edit (leave Bubbles) and + (new Bubble) in a nav row above the large title, like iOS
+        <View style={[styles.fieldActions, { top: insets.top }]}>
           <Pressable onPress={() => setEditing(!editing)} hitSlop={10}>
             <Text style={[styles.fieldAction, editing && { fontFamily: fonts.bodyBold }]}>{editing ? 'Done' : 'Edit'}</Text>
           </Pressable>
@@ -734,8 +737,13 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   <Bubble size={RS} tint={groupColor(g.id)}>
                     {g.id === 'everyone' && <Ionicons name="people" size={18} color={groupColor(g.id)} />}
                   </Bubble>
-                  {g.unread > 0 && <Badge count={g.unread} style={styles.rowBadge} />}
                 </Animated.View>
+                {/* outside the scaled view so it stays crisp; slides out with the bubble's edge */}
+                {g.unread > 0 && (
+                  <Animated.View style={[styles.rowBadge, { transform: [{ translateX: Animated.multiply(Animated.add(grow.scale, -1), RS / 2) }, { scale: 0.8 }] }]}>
+                    <Badge count={g.unread} />
+                  </Animated.View>
+                )}
                 <Animated.Text
                   numberOfLines={1}
                   style={[styles.rowLabel, { marginTop: grow.gap }, i === selected && { color: colors.primary, fontFamily: fonts.bodyBold }]}
@@ -815,7 +823,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
 }
 
 const styles = StyleSheet.create({
-  fieldActions: { position: 'absolute', right: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md, height: 41 },
+  fieldActions: { position: 'absolute', right: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md, height: NAV_H },
   fieldAction: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
   removeBadge: {
     position: 'absolute',
@@ -867,7 +875,7 @@ const styles = StyleSheet.create({
   rowWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 1, borderTopColor: colors.border },
   rowContent: { paddingTop: spacing.sm },
   rowItem: { alignItems: 'center' },
-  rowBadge: { position: 'absolute', right: -8, top: -6, transform: [{ scale: 0.8 }] },
+  rowBadge: { position: 'absolute', top: -4, left: '50%', marginLeft: RS / 2 - 16 },
   rowLabel: { ...type.caption, fontSize: 11, lineHeight: 16, width: '92%', textAlign: 'center' },
   toast: {
     position: 'absolute',

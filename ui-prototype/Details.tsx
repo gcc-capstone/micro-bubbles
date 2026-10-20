@@ -206,7 +206,7 @@ export function LinkedText({ text, style, numberOfLines }: { text: string; style
           typeof p === 'string' ? (
             p
           ) : (
-            <Text key={i} style={styles.link} onPress={() => setOpen(p)} suppressHighlighting={false}>
+            <Text key={i} style={styles.link} onPress={() => setOpen(p)} suppressHighlighting>
               {p.name}
             </Text>
           ),
