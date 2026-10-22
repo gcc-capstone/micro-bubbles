@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "SafePath Prototype",
+    "name": "Bubbles",
     "slug": "safepath-ui-prototype",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false
     },
     "android": {
       "adaptiveIcon": {

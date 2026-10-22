@@ -50,6 +50,8 @@ export type Group = {
   icon?: IconName; // shown inside the bubble
   about?: string;
   isPublic?: boolean;
+  muted?: boolean; // no notifications from this Bubble
+  paused?: boolean; // you stopped sharing your location with this Bubble
 };
 
 // Where "You" are: Grove City College campus. Prototype "today" is Oct 2, 2026.
@@ -102,8 +104,8 @@ export const GROUPS: Group[] = [
     unread: 1,
     hotspots: [TLC],
     activity: [
-      { icon: 'chatbubble-outline', text: 'Sam Mayfield: "On my way!"', time: 'Now' },
-      { icon: 'chatbubble-outline', text: 'Sydney Goettel sent Sam Mayfield "?"', time: '1m' },
+      { icon: 'enter-outline', text: 'Sam Mayfield arrived at TLC', time: 'Now' },
+      { icon: 'exit-outline', text: 'Sydney Goettel left TLC', time: '1m' },
       { icon: 'enter-outline', text: 'Sydney Goettel arrived at TLC', time: '2m' },
       { icon: 'calendar-outline', text: 'Team meeting today at 4:00 PM', time: '3h' },
     ],
@@ -130,7 +132,6 @@ export const GROUPS: Group[] = [
       { icon: 'enter-outline', text: 'Ina Tang arrived at Waffle House', time: '4m' },
       { icon: 'enter-outline', text: 'Sam Mayfield arrived at Waffle House', time: '5m' },
       { icon: 'pin-outline', text: 'Sydney Goettel pinned Sunken Garden Trail', time: '1d' },
-      { icon: 'images-outline', text: 'Sam Mayfield added fall break photos to Highlights', time: '3d' },
     ],
     members: [
       { name: 'Sam Mayfield', place: 'Waffle House', updated: '5m ago', battery: 71, lat: 40.6966, lng: -80.1082 },
@@ -199,7 +200,7 @@ export const GROUPS: Group[] = [
       { name: 'Grove City', icon: 'business', lat: 41.158, lng: -80.088, radius: 3000, alerts: { 'Tim Shin': { arrive: true, leave: false } } },
     ],
     activity: [
-      { icon: 'enter-outline', text: 'Tim Shin entered Grove City', time: '3m' },
+      { icon: 'enter-outline', text: 'Tim Shin arrived at Grove City', time: '3m' },
       { icon: 'exit-outline', text: 'David Shin left Home', time: '1h' },
       { icon: 'notifications-outline', text: 'Jennifer Shin turned on alerts for Grove City', time: '2h' },
     ],
@@ -265,7 +266,7 @@ export const GROUPS: Group[] = [
     unread: 0,
     hotspots: [{ name: 'Wolf Creek Course', icon: 'disc', lat: 41.17, lng: -80.07, radius: 200 }],
     activity: [
-      { icon: 'lock-closed-outline', text: 'Ani Kapoor limited photo and pin sharing', time: '1d' },
+      { icon: 'lock-closed-outline', text: 'Ani Kapoor paused location sharing', time: '1d' },
       { icon: 'enter-outline', text: 'Ben Ortiz arrived at Wolf Creek Course', time: '2d' },
     ],
     members: [
@@ -283,7 +284,7 @@ export const GROUPS: Group[] = [
     icon: 'basketball',
     name: 'GCC IM Sports',
     isPublic: true,
-    about: 'Public Bubble for Grove City College intramural players. No code needed.',
+    about: 'Public Bubble for Grove City College intramural players. Anyone can find it.',
     unread: 0,
     hotspots: [{ name: 'IM Fields', icon: 'football', lat: 41.153, lng: -80.081, radius: 150 }],
     activity: [
@@ -377,14 +378,19 @@ export type InboxItem = {
 // Inbox, newest first (report Tasks 2, 4, 6, 10, 12, 14, 15).
 export const INBOX: InboxItem[] = [
   { id: 'acm', icon: 'mail-unread-outline', title: 'Priya Shah invited you to ACM', body: 'Public Bubble · 48 members you may not know', time: '5m', read: false, invite: 'pending', open: { bubble: 'ACM' } },
-  { id: 'onmyway', icon: 'chatbubble-outline', title: 'Sam Mayfield · Senior Project', body: '"On my way!"', time: '8m', read: false, open: { person: 'Sam Mayfield' } },
-  { id: 'timhome', icon: 'enter-outline', title: 'Tim Shin entered Grove City', body: 'Shin Family · Hotspot alert', time: '12m', read: false, open: { hotspot: 'Grove City' } },
+  { id: 'onmyway', icon: 'enter-outline', title: 'Sam Mayfield arrived at TLC', body: 'Senior Project · Hotspot alert', time: '8m', read: false, open: { person: 'Sam Mayfield' } },
+  { id: 'timhome', icon: 'enter-outline', title: 'Tim Shin arrived at Grove City', body: 'Shin Family · Hotspot alert', time: '12m', read: false, open: { hotspot: 'Grove City' } },
   { id: 'hike', icon: 'calendar-outline', title: 'Nia Johnson added an event', body: 'Beginner hike · Sat, Oct 17 at 9:00 AM', time: '20m', read: true, open: { event: 'Beginner hike' } },
   { id: 'canawaugus', icon: 'pin-outline', title: 'Megan Ross pinned Canawaugus Park', body: 'Rochester Nature Lovers · 5 stars', time: '2h', read: true, open: { pin: 'Canawaugus Park' } },
   { id: 'theatre', icon: 'mail-open-outline', title: 'Venture Hale invited you to Theatre Crew', body: 'Private Bubble · 6 members', time: '2d', read: true, invite: 'accepted', open: { bubble: 'Theatre Crew' } },
   { id: 'krav', icon: 'mail-open-outline', title: 'Marcus Reed invited you to Krav Maga Club', body: 'Private Bubble · 3 members', time: '3d', read: true, invite: 'accepted', open: { bubble: 'Krav Maga Club' } },
   { id: 'sos', icon: 'warning-outline', title: 'Ina Tang sent an SOS', body: 'Fall Break Crew · Resolved by Sam Mayfield', time: '1w', read: true, open: { person: 'Ina Tang' } },
 ];
+
+// App-wide switches (Profile > Settings). Off overrides each Bubble's own setting.
+export const SETTINGS = { sharing: true, notifications: true };
+export const notifiesFrom = (g: Group) => SETTINGS.notifications && !g.muted;
+export const sharesWith = (g: Group) => SETTINGS.sharing && !g.paused;
 
 // "You" in the prototype (report Task 9).
 export const PROFILE = {

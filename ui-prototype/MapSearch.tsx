@@ -14,23 +14,25 @@ type Result =
   | { kind: 'pin'; key: string; pin: Pin; groupName: string }
   | { kind: 'place'; key: string; loc: Loc };
 
-export default function MapSearch({ top, onOpen, onPerson, onPin, onPlace }: {
-  top: number; onOpen: () => void; onPerson: (m: Member) => void; onPin: (p: Pin) => void; onPlace: (l: Loc) => void;
+export default function MapSearch({ top, reduceMotion, onOpenChange, onPerson, onPin, onPlace }: {
+  top: number; reduceMotion: boolean; onOpenChange: (open: boolean) => void; onPerson: (m: Member) => void; onPin: (p: Pin) => void; onPlace: (l: Loc) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<PinCategory | null>(null);
   const q = query.trim().toLowerCase();
 
+  const animate = () => !reduceMotion && LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   const expand = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    animate();
     setOpen(true);
-    onOpen();
+    onOpenChange(true);
   };
   const close = () => {
     Keyboard.dismiss();
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    animate();
     setOpen(false);
+    onOpenChange(false);
     setQuery('');
     setCategory(null);
   };
@@ -58,19 +60,22 @@ export default function MapSearch({ top, onOpen, onPerson, onPin, onPlace }: {
     <View style={[styles.wrap, { top }]} pointerEvents="box-none">
       {open ? (
         // Same row and height as the button, so the text sits on the icon's line
-        <View style={styles.bar}>
-          <Ionicons name="search" size={17} color={colors.textMuted} />
-          <TextInput
-            autoFocus
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search places, pins, people"
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-          <Pressable onPress={close} hitSlop={10}>
+        // Cancel sits outside the field, as in iOS search bars
+        <View style={styles.barRow}>
+          <View style={styles.bar}>
+            <Ionicons name="search" size={17} color={colors.textMuted} />
+            <TextInput
+              autoFocus
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search places, pins, people"
+              placeholderTextColor={colors.textMuted}
+              style={styles.input}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+          </View>
+          <Pressable onPress={close} hitSlop={10} style={styles.cancelBtn}>
             <Text style={styles.cancel}>Cancel</Text>
           </Pressable>
         </View>
@@ -88,8 +93,8 @@ export default function MapSearch({ top, onOpen, onPerson, onPin, onPlace }: {
               const on = c.name === category;
               return (
                 <Pressable key={c.name} onPress={() => setCategory(on ? null : c.name)} style={[styles.chip, on && styles.chipOn]}>
-                  <Ionicons name={c.icon} size={14} color={on ? colors.surface : colors.primary} />
-                  <Text style={[styles.chipText, on && { color: colors.surface }]}>{c.name}</Text>
+                  <Ionicons name={c.icon} size={14} color={on ? colors.onPrimary : colors.primary} />
+                  <Text style={[styles.chipText, on && { color: colors.onPrimary }]}>{c.name}</Text>
                 </Pressable>
               );
             })}
@@ -133,7 +138,9 @@ export default function MapSearch({ top, onOpen, onPerson, onPin, onPlace }: {
 
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4, gap: spacing.sm },
-  bar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 44, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  cancelBtn: { height: 44, paddingHorizontal: spacing.sm + 4, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: colors.surface, ...shadow },
+  bar: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 44, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow },
   button: { alignSelf: 'flex-end', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...shadow },
   input: { ...type.body, flex: 1, padding: 0 },
   cancel: { fontFamily: fonts.body, fontSize: 16, color: colors.primary },

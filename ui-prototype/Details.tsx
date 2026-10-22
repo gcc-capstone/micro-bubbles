@@ -4,10 +4,10 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Alert, Linking, Platform, Pressable, ScrollView, Share, StyleProp, StyleSheet, Switch, Text, TextInput, TextStyle, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Bubble, Button, IconName, MapPin, MenuButton, PageSheet, Segmented, Separator } from './components';
-import { bubbleColors, colors, fonts, radius, shadow, spacing, type } from './theme';
+import { bubbleColors, colors, FIXED_TEXT, fonts, radius, shadow, spacing, type } from './theme';
 import {
   avgRating, BubbleEvent, distanceFromMe, EVENTS, formatMiles, Group, groupColor, GROUPS, initials, Loc, LOCATIONS, ME, Member, memberColor, meters,
-  Pin, PIN_CATEGORIES, PinCategory, phoneOf, ratingCount, Hotspot, HotspotAlert, canInvite, ownerName,
+  notifiesFrom, Pin, PIN_CATEGORIES, PinCategory, phoneOf, sharesWith, SETTINGS, ratingCount, Hotspot, HotspotAlert, canInvite, ownerName,
 } from './data';
 import BubbleMap, { Focus } from './BubbleMap';
 import { addMonths, dayNum, daysIn, isoOf, leadBlanks, monthStart, parts } from './calendarMath';
@@ -172,7 +172,7 @@ export function LocationView({ loc }: { loc: Loc }) {
 export function LocationDetail({ loc, onClose }: { loc: Loc | null; onClose: () => void }) {
   if (!loc) return null;
   return (
-    <PageSheet visible title="Location" onClose={onClose}>
+    <PageSheet visible title="Place" onClose={onClose}>
       <LocationView loc={loc} />
     </PageSheet>
   );
@@ -250,9 +250,9 @@ export function HotspotAlerts({ hotspot, group }: { hotspot: Hotspot; group: Gro
               <Avatar size={32} initials={initials(m.name)} color={memberColor(m.name)} />
               <Text numberOfLines={1} style={[type.body, { flex: 1 }]}>{m.name}</Text>
               {(['arrive', 'leave'] as const).map((k) => (
-                <Pressable key={k} onPress={() => flip(m.name, k)} style={[styles.alertChip, a?.[k] && styles.alertChipOn]} hitSlop={4}>
-                  <Ionicons name={k === 'arrive' ? 'enter-outline' : 'exit-outline'} size={13} color={a?.[k] ? colors.surface : colors.primary} />
-                  <Text style={[styles.alertChipText, a?.[k] && { color: colors.surface }]}>{k === 'arrive' ? 'Arrives' : 'Leaves'}</Text>
+                <Pressable key={k} onPress={() => flip(m.name, k)} style={[styles.alertChip, a?.[k] && styles.alertChipOn]} hitSlop={10}>
+                  <Ionicons name={k === 'arrive' ? 'enter-outline' : 'exit-outline'} size={13} color={a?.[k] ? colors.onPrimary : colors.primary} />
+                  <Text style={[styles.alertChipText, a?.[k] && { color: colors.onPrimary }]}>{k === 'arrive' ? 'Arrives' : 'Leaves'}</Text>
                 </Pressable>
               ))}
             </View>
@@ -310,6 +310,8 @@ export function NewHotspot({ visible, groups, initialGroupId, onClose, onCreate 
       visible={visible}
       title="New Hotspot"
       onClose={onClose}
+      cancel
+      dirty={!!name.trim()}
       right={
         <Pressable disabled={!name.trim()} onPress={create} hitSlop={10}>
           <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }, !name.trim() && { color: colors.textMuted }]}>Create</Text>
@@ -379,7 +381,7 @@ export function NewHotspot({ visible, groups, initialGroupId, onClose, onCreate 
               const on = who.includes(m.name);
               return (
                 <Pressable key={m.name} onPress={() => setWho(on ? who.filter((x) => x !== m.name) : [...who, m.name])} style={[styles.timeChip, on && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
-                  <Text style={[styles.timeText, on && { color: colors.surface }]}>{m.name.split(' ')[0]}</Text>
+                  <Text style={[styles.timeText, on && { color: colors.onPrimary }]}>{m.name.split(' ')[0]}</Text>
                 </Pressable>
               );
             })}
@@ -425,8 +427,8 @@ export function AddMembers({ group, onClose }: { group: Group | null; onClose: (
               <View style={styles.row}>
                 <Avatar size={32} initials={initials(m.name)} color={memberColor(m.name)} />
                 <Text style={[type.body, { flex: 1 }]}>{m.name}</Text>
-                <Pressable disabled={done} onPress={() => setInvited([...invited, m.name])} style={[styles.alertChip, !done && styles.alertChipOn]}>
-                  <Text style={[styles.alertChipText, !done && { color: colors.surface }]}>{done ? 'Invited' : 'Invite'}</Text>
+                <Pressable disabled={done} onPress={() => setInvited([...invited, m.name])} style={[styles.alertChip, !done && styles.alertChipOn]} hitSlop={10}>
+                  <Text style={[styles.alertChipText, !done && { color: colors.onPrimary }]}>{done ? 'Invited' : 'Invite'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -447,7 +449,7 @@ const QUICK_NOTES = ['👋', '?', 'On my way!', 'Call me', 'Running late', 'Here
 // has no chat of its own.
 export const textPerson = (m: Member, body?: string) =>
   Linking.openURL(`sms:${phoneOf(m.name)}${body ? `&body=${encodeURIComponent(body)}` : ''}`).catch(() =>
-    Alert.alert('Messages unavailable', `This device can't send texts.${body ? ` Your message: "${body}"` : ''}`),
+    Alert.alert('Messages Unavailable', `This device can't send texts.${body ? ` Your message: "${body}"` : ''}`),
   );
 
 // One-tap messages, sent through Messages. floating: white pills over the map, in a row that
@@ -456,7 +458,7 @@ export function QuickMessages({ member, floating }: { member: Member; floating?:
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.notes, floating && { paddingHorizontal: spacing.md }]}>
       {QUICK_NOTES.map((n) => (
-        <Pressable key={n} style={[styles.note, floating && styles.noteFloat]} onPress={() => textPerson(member, n)}>
+        <Pressable key={n} style={[styles.note, floating && styles.noteFloat]} hitSlop={{ top: 8, bottom: 8 }} onPress={() => textPerson(member, n)}>
           <Text style={styles.noteText}>{n}</Text>
         </Pressable>
       ))}
@@ -483,9 +485,9 @@ export function PersonView({ member, onShowOnMap, compact }: { member: Member | 
         <View style={styles.personRow}>
           <Avatar color={memberColor(member.name)} initials={initials(member.name)} size={52} />
           <View style={{ flex: 1 }}>
-            <Text style={type.h2}>{member.name}</Text>
+            <Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={1} style={type.h2}>{member.name}</Text>
             {where}
-            <Text numberOfLines={1} style={type.caption}>{status}</Text>
+            <Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={1} style={type.caption}>{status}</Text>
           </View>
         </View>
       ) : (
@@ -509,9 +511,9 @@ export function PersonView({ member, onShowOnMap, compact }: { member: Member | 
       </View>
 
       <Section title="Alerts">
-        <Toggle icon="enter-outline" label={`When ${first} arrives at a place`} initial={false} />
+        <Toggle icon="enter-outline" label={`When ${first} arrives at a Hotspot`} initial={false} />
         <Separator inset={48} />
-        <Toggle icon="exit-outline" label={`When ${first} leaves a place`} initial={false} />
+        <Toggle icon="exit-outline" label={`When ${first} leaves a Hotspot`} initial={false} />
       </Section>
 
       <Section title="Shared Bubbles">
@@ -654,8 +656,8 @@ export function EventView({ event }: { event: BubbleEvent | null }) {
 
 /* ---------- Bubble profile (view + edit) ---------- */
 
-export function BubbleProfile({ group, startEditing, muted, onMute, onClose, onLeave, onChanged, onInvite }: {
-  group: Group | null; startEditing?: boolean; muted: boolean; onMute: () => void; onClose: () => void; onLeave: () => void; onChanged: () => void; onInvite: () => void;
+export function BubbleProfile({ group, startEditing, onMute, onClose, onLeave, onChanged, onInvite }: {
+  group: Group | null; startEditing?: boolean; onMute: () => void; onClose: () => void; onLeave: () => void; onChanged: () => void; onInvite: () => void;
 }) {
   const [hotspotOpen, setHotspotOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -677,9 +679,20 @@ export function BubbleProfile({ group, startEditing, muted, onMute, onClose, onL
   const everyone = group.id === 'everyone';
   const events = EVENTS.filter((e) => everyone || e.groupId === group.id);
 
+  const reset = () => {
+    setName(group.name);
+    setAbout(group.about ?? `${group.name} on Bubbles.`);
+    setColor(groupColor(group.id));
+    setIcon(group.icon);
+    setPrivacy(group.isPublic ? 'Public' : 'Private');
+  };
+  const cancelEdit = () => {
+    reset();
+    setEditing(false);
+  };
   const save = () => {
     // ponytail: edits mutate the in-memory dummy data; nothing is persisted
-    Object.assign(group, { name, about, color, icon, isPublic: privacy === 'Public' });
+    Object.assign(group, { name: name.trim(), about, color, icon, isPublic: privacy === 'Public' });
     onChanged();
     setEditing(false);
   };
@@ -693,18 +706,21 @@ export function BubbleProfile({ group, startEditing, muted, onMute, onClose, onL
     <PageSheet
       visible
       title={editing ? 'Edit Bubble' : group.name}
-      onClose={onClose}
+      // Cancel in edit mode goes back to the info view (or closes, if the sheet opened for editing)
+      onClose={editing && !startEditing ? cancelEdit : onClose}
+      cancel={editing}
+      dirty={editing && (name !== group.name || about !== (group.about ?? `${group.name} on Bubbles.`) || color !== groupColor(group.id) || icon !== group.icon || privacy !== (group.isPublic ? 'Public' : 'Private'))}
       right={
         editing ? (
-          <Pressable onPress={save} hitSlop={10}>
-            <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }]}>Done</Text>
+          <Pressable onPress={save} disabled={!name.trim()} hitSlop={10}>
+            <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }, !name.trim() && { color: colors.textMuted }]}>Done</Text>
           </Pressable>
         ) : everyone ? null : (
           // ⋯ like the map sheet: edit (creator only), mute, leave
           <MenuButton
             plain
             icon="ellipsis-horizontal-circle-outline"
-            options={[...(canInvite(group) ? ['Edit Bubble'] : []), muted ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble']}
+            options={[...(canInvite(group) ? ['Edit Bubble'] : []), group.muted ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble']}
             icons={{ 'Edit Bubble': 'create-outline', 'Mute Notifications': 'notifications-off-outline', 'Unmute Notifications': 'notifications-outline', 'Leave Bubble': 'exit-outline' }}
             destructive={['Leave Bubble']}
             onSelect={(o) => (o === 'Edit Bubble' ? setEditing(true) : o === 'Leave Bubble' ? leave() : onMute())}
@@ -731,7 +747,7 @@ export function BubbleProfile({ group, startEditing, muted, onMute, onClose, onL
             <View style={[styles.row, { gap: spacing.sm, flexWrap: 'wrap' }]}>
               {BUBBLE_ICONS.map((ic) => (
                 <Pressable key={ic} onPress={() => setIcon(ic)} style={[styles.category, ic === icon && { backgroundColor: color, borderColor: color }]}>
-                  <Ionicons name={ic} size={18} color={ic === icon ? colors.surface : colors.text} />
+                  <Ionicons name={ic} size={18} color={ic === icon ? 'white' : colors.text} />
                 </Pressable>
               ))}
             </View>
@@ -767,10 +783,28 @@ export function BubbleProfile({ group, startEditing, muted, onMute, onClose, onL
           {!everyone && (
             // alerts first: testers looked for them at the top
             <Section title="Notifications & sharing">
-              <Toggle icon="notifications-outline" label="Notifications" initial />
+              {/* one state with ⋯ > Mute and Profile > Settings; the app-wide switch wins when off */}
+              <Row icon="notifications-outline" label="Notifications">
+                <Switch value={notifiesFrom(group)} disabled={!SETTINGS.notifications} onValueChange={onMute} trackColor={{ true: colors.primary }} />
+              </Row>
               <Separator inset={48} />
-              <Toggle icon="location-outline" label="Share my location" initial />
-              <Text style={styles.footnote}>Only members of this Bubble can see your location, pins and photos.</Text>
+              <Row icon="location-outline" label="Share my location">
+                <Switch
+                  value={sharesWith(group)}
+                  disabled={!SETTINGS.sharing}
+                  onValueChange={(v) => {
+                    group.paused = !v;
+                    onChanged();
+                  }}
+                  trackColor={{ true: colors.primary }}
+                />
+              </Row>
+              <Text style={styles.footnote}>
+                {!SETTINGS.sharing || !SETTINGS.notifications
+                  ? `${!SETTINGS.sharing ? 'Location sharing' : 'Notifications'} turned off for all Bubbles in Profile › Settings. `
+                  : ''}
+                Only members of this Bubble can see your location, pins and photos.
+              </Text>
             </Section>
           )}
 
@@ -820,7 +854,7 @@ export function BubbleProfile({ group, startEditing, muted, onMute, onClose, onL
             <>
               <Section>
                 {canInvite(group) ? (
-                  <Row icon="person-add-outline" label="Add members" onPress={onInvite} />
+                  <Row icon="person-add-outline" label="Add Members" onPress={onInvite} />
                 ) : (
                   <Row icon="person-add-outline" label={`Only ${ownerName(group)} can add members`} color={colors.textMuted} />
                 )}
@@ -880,6 +914,8 @@ export function DropPin({ visible, groups, initialGroupId, onClose, onDrop }: {
       visible={visible}
       title="Drop Pin"
       onClose={onClose}
+      cancel
+      dirty={!!(name.trim() || note.trim())}
       right={
         <Pressable
           disabled={!name.trim()}
@@ -941,8 +977,8 @@ export function DropPin({ visible, groups, initialGroupId, onClose, onDrop }: {
             return (
               <Pressable key={c.name} onPress={() => setCategory(c.name)} style={[styles.timeChip, on && { backgroundColor: color, borderColor: color }]}>
                 <View style={[styles.row, { paddingHorizontal: 0, paddingVertical: 0, gap: 6 }]}>
-                  <Ionicons name={c.icon} size={15} color={on ? colors.surface : colors.text} />
-                  <Text style={[styles.timeText, on && { color: colors.surface }]}>{c.name}</Text>
+                  <Ionicons name={c.icon} size={15} color={on ? 'white' : colors.text} />
+                  <Text style={[styles.timeText, on && { color: 'white' }]}>{c.name}</Text>
                 </View>
               </Pressable>
             );
@@ -1016,6 +1052,8 @@ export function NewBubble({ visible, onClose, onCreate }: {
       visible={visible}
       title="New Bubble"
       onClose={onClose}
+      cancel
+      dirty={!!name.trim()}
       right={
         <Pressable disabled={!name.trim()} onPress={create} hitSlop={10}>
           <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }, !name.trim() && { color: colors.textMuted }]}>Create</Text>
@@ -1038,7 +1076,7 @@ export function NewBubble({ visible, onClose, onCreate }: {
         <View style={[styles.row, { gap: spacing.sm, flexWrap: 'wrap' }]}>
           {BUBBLE_ICONS.map((ic) => (
             <Pressable key={ic} onPress={() => setIcon(ic)} style={[styles.category, ic === icon && { backgroundColor: color, borderColor: color }]}>
-              <Ionicons name={ic} size={18} color={ic === icon ? colors.surface : colors.text} />
+              <Ionicons name={ic} size={18} color={ic === icon ? 'white' : colors.text} />
             </Pressable>
           ))}
         </View>
@@ -1056,7 +1094,7 @@ export function NewBubble({ visible, onClose, onCreate }: {
         <View style={{ padding: spacing.md, gap: spacing.sm }}>
           <Segmented options={['Private', 'Public']} value={privacy} onChange={setPrivacy} />
           <Text style={type.caption}>
-            {privacy === 'Private' ? 'People join with an invite code and your approval.' : 'Anyone nearby can find and join without a code.'}
+            {privacy === 'Private' ? 'Hidden from search. Only people you invite can join.' : 'Anyone can find this Bubble, but only you can invite members.'}
           </Text>
         </View>
       </Section>
@@ -1066,7 +1104,13 @@ export function NewBubble({ visible, onClose, onCreate }: {
 
 /* ---------- New Event ---------- */
 
-const TIMES = ['9:00 AM', '12:00 PM', '3:00 PM', '5:30 PM', '7:00 PM', '9:00 PM'];
+// Every half hour, 6:00 AM to 11:30 PM; the row starts scrolled to the chosen time.
+const TIMES = Array.from({ length: 36 }, (_, i) => {
+  const h = 6 + Math.floor(i / 2);
+  return `${((h + 11) % 12) + 1}:${i % 2 ? '30' : '00'} ${h < 12 ? 'AM' : 'PM'}`;
+});
+const DEFAULT_TIME = TIMES.indexOf('7:00 PM');
+const TIME_W = 92; // chip width + gap, for scrolling to a time
 
 // Month grid for picking any day; arrows page through months. Days before today are disabled.
 function DatePicker({ value, today, weekStart, onChange }: { value: string; today: string; weekStart: number; onChange: (iso: string) => void }) {
@@ -1100,7 +1144,7 @@ function DatePicker({ value, today, weekStart, onChange }: { value: string; toda
           ) : (
             <Pressable key={i} style={styles.calCell} disabled={n < T} onPress={() => onChange(isoOf(n))}>
               <View style={[styles.calDay, n === T && n !== v && styles.calToday, n === v && { backgroundColor: colors.primary }]}>
-                <Text style={[styles.calNum, n < T && { color: colors.border }, n === T && { color: colors.primary }, n === v && { color: colors.surface }]}>{parts(n).d}</Text>
+                <Text style={[styles.calNum, n < T && { color: colors.border }, n === T && { color: colors.primary }, n === v && { color: colors.onPrimary }]}>{parts(n).d}</Text>
               </View>
             </Pressable>
           ),
@@ -1115,7 +1159,7 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
 }) {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(today);
-  const [time, setTime] = useState(TIMES[4]);
+  const [time, setTime] = useState(TIMES[DEFAULT_TIME]);
   const [place, setPlace] = useState<Loc | null>(null);
   const [groupId, setGroupId] = useState(groups[0]?.id);
   const [remind, setRemind] = useState(true);
@@ -1123,7 +1167,7 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
     if (!visible) return;
     setTitle('');
     setDate(initialDate < today ? today : initialDate);
-    setTime(TIMES[4]);
+    setTime(TIMES[DEFAULT_TIME]);
     setPlace(null);
     setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
     setRemind(true);
@@ -1136,6 +1180,8 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
       visible={visible}
       title="New Event"
       onClose={onClose}
+      cancel
+      dirty={!!title.trim()}
       right={
         <Pressable
           disabled={!ok}
@@ -1157,13 +1203,18 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
       </Section>
 
       <Section title="Time">
-        <View style={[styles.row, { flexWrap: 'wrap', gap: spacing.sm }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentOffset={{ x: Math.max(0, (DEFAULT_TIME - 1) * TIME_W), y: 0 }}
+          contentContainerStyle={{ padding: spacing.sm + 4, gap: spacing.sm }}
+        >
           {TIMES.map((t) => (
-            <Pressable key={t} onPress={() => setTime(t)} style={[styles.timeChip, t === time && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+            <Pressable key={t} onPress={() => setTime(t)} style={[styles.timeChip, { width: TIME_W - spacing.sm, alignItems: 'center' }, t === time && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
               <Text style={[styles.timeText, t === time && { color: colors.primary }]}>{t}</Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
       </Section>
 
       <Section title="Where">

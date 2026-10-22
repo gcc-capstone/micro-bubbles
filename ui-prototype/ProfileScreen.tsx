@@ -1,12 +1,12 @@
 // Profile (report Task 9): customizable header, about, photos, and app Settings.
-import { useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Animated, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Bubble, Button, IconName, MenuButton, PageSheet, Separator } from './components';
 import { LinkedText, PersonView, PlaceLink } from './Details';
-import { ACCENTS, bubbleColors, colors, fonts, radius, spacing, type } from './theme';
-import { allPins, AVATAR_ICONS, avgRating, friends, GROUPS, groupColor, initials, LINK_KINDS, Member, memberColor, PROFILE, pinCategory } from './data';
+import { ACCENTS, bubbleColors, colors, fonts, radius, shadow, spacing, type } from './theme';
+import { allPins, AVATAR_ICONS, avgRating, friends, GROUPS, groupColor, initials, LINK_KINDS, Member, memberColor, PROFILE, pinCategory, SETTINGS } from './data';
 
 const RADII = [1, 5, 10, 25, 50];
 
@@ -31,8 +31,8 @@ export default function ProfileScreen({
     setTick((t) => t + 1);
   };
   const [isPublic, setIsPublic] = useState(true);
-  const [sharing, setSharing] = useState(true);
-  const [alerts, setAlerts] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
   const [pinsOpen, setPinsOpen] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -44,7 +44,6 @@ export default function ProfileScreen({
   const myPins = GROUPS.flatMap((g) => g.pins.filter((pin) => pin.by === 'You').map((pin) => ({ pin, group: g })));
   const topPins = [...pins].sort((a, b) => avgRating(b.pin) - avgRating(a.pin)).slice(0, 10);
   const tile = (width - spacing.md * 2 - spacing.sm * 2) / 3;
-  const accent = ACCENTS[PROFILE.accent];
 
   const setting = (icon: IconName, label: string, value: boolean, onChange: (v: boolean) => void, divider = true) => (
     <View style={[styles.settingRow, divider && styles.divider]}>
@@ -67,7 +66,12 @@ export default function ProfileScreen({
   };
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
+    <View style={{ flex: 1 }}>
+    <Animated.ScrollView
+      contentContainerStyle={{ paddingBottom: spacing.xl }}
+      scrollEventThrottle={16}
+      onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+    >
       {/* Cover: your photos (Telegram-style); the profile card sits over it like a sheet */}
       <View style={[styles.cover, { height: 190 + insets.top }]}>
         {PROFILE.photos.slice(0, 3).map((ph, i) => (
@@ -100,7 +104,10 @@ export default function ProfileScreen({
             ([label, n, onPress]) => (
               <Pressable key={label} disabled={!onPress} onPress={onPress ?? undefined} style={{ alignItems: 'center' }}>
                 <Text style={[type.h2, { color: colors.primary }]}>{n}</Text>
-                <Text style={[type.caption, onPress && { color: colors.primary }]}>{label}{onPress ? ' ›' : ''}</Text>
+                <View style={[styles.inline, { gap: 2 }]}>
+                  <Text style={[type.caption, onPress && { color: colors.primary }]}>{label}</Text>
+                  {onPress && <Ionicons name="chevron-forward" size={12} color={colors.primary} />}
+                </View>
               </Pressable>
             ),
           )}
@@ -191,13 +198,13 @@ export default function ProfileScreen({
           {ACCENTS.map((a, i) => (
             <Pressable key={a.name} onPress={() => { save({ accent: i }); onAccent(i); }} style={{ alignItems: 'center', gap: 4 }} accessibilityLabel={a.name}>
               <View style={[styles.swatch, { backgroundColor: a.primary }, PROFILE.accent === i && styles.swatchOn]}>
-                {PROFILE.accent === i && <Ionicons name="checkmark" size={18} color={colors.surface} />}
+                {PROFILE.accent === i && <Ionicons name="checkmark" size={18} color={'white'} />}
               </View>
               <Text style={[type.caption, PROFILE.accent === i && { color: a.primary, fontFamily: fonts.bodyBold }]}>{a.name}</Text>
             </Pressable>
           ))}
         </View>
-        <Text style={[type.caption, { paddingHorizontal: spacing.md }]}>Changes buttons, tabs and links everywhere. Now: {accent.name}.</Text>
+        <Text style={[type.caption, { paddingHorizontal: spacing.md }]}>Changes the color of buttons, tabs and links.</Text>
       </View>
 
       <View style={styles.section}>
@@ -219,21 +226,31 @@ export default function ProfileScreen({
         <View style={[styles.section, styles.avatarGrid]}>
           {['initials', ...AVATAR_ICONS].map((a) => (
             <Pressable key={a} onPress={() => save({ avatar: a })} style={[styles.avatarOption, PROFILE.avatar === a && styles.avatarOptionOn]}>
-              {a === 'initials' ? <Text style={styles.avatarInitials}>{initials(PROFILE.name)}</Text> : <Ionicons name={a as IconName} size={28} color={colors.surface} />}
+              {a === 'initials' ? <Text style={styles.avatarInitials}>{initials(PROFILE.name)}</Text> : <Ionicons name={a as IconName} size={28} color={colors.onPrimary} />}
             </Pressable>
           ))}
         </View>
-        <Text style={[type.caption, { textAlign: 'center', marginTop: spacing.md }]}>Photo upload comes later; pick an icon or your initials for now.</Text>
       </PageSheet>
 
       <FriendsSheet visible={friendsOpen} onClose={() => setFriendsOpen(false)} />
 
+      <PageSheet visible={settingsOpen} title="Settings" onClose={() => setSettingsOpen(false)}>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Settings</Text>
+        <Text style={styles.sectionTitle}>Privacy</Text>
         <View style={styles.group}>
           {setting('globe-outline', 'Public profile', isPublic, setIsPublic, false)}
-          {setting('location-outline', 'Share my location', sharing, setSharing)}
-          <View style={[styles.settingRow, styles.divider]}>
+          {setting('location-outline', 'Share my location', SETTINGS.sharing, (v) => { SETTINGS.sharing = v; setTick((t) => t + 1); })}
+          {setting('notifications-outline', 'Notifications', SETTINGS.notifications, (v) => { SETTINGS.notifications = v; setTick((t) => t + 1); })}
+        </View>
+        <Text style={[type.caption, { paddingHorizontal: spacing.md }]}>
+          When location sharing is off, no Bubble can see where you are. When notifications are off, no Bubble sends you alerts. Each
+          Bubble also has its own switches in Bubble Info.
+        </Text>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Map and calendar</Text>
+        <View style={styles.group}>
+          <View style={styles.settingRow}>
             <Ionicons name="radio-outline" size={20} color={colors.primary} />
             <Text style={[type.body, { flex: 1 }]}>Everyone map radius</Text>
             <MenuButton
@@ -269,16 +286,23 @@ export default function ProfileScreen({
               onSelect={(o) => onWeekStartPref(o.startsWith('System') ? 'System' : (o as 'Sunday' | 'Monday'))}
             />
           </View>
-          {setting('notifications-outline', 'Notifications', alerts, setAlerts)}
-          {setting('accessibility-outline', 'Reduce motion', reduceMotion, onReduceMotion)}
-          <Pressable style={[styles.settingRow, styles.divider]} onPress={onStyles}>
-            <Ionicons name="color-palette-outline" size={20} color={colors.primary} />
-            <Text style={[type.body, { flex: 1 }]}>Style reference</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </Pressable>
         </View>
-        <Text style={[type.caption, { paddingHorizontal: spacing.md }]}>Reduce motion stops floating bubbles and replaces animations with instant changes.</Text>
       </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Accessibility</Text>
+        <View style={styles.group}>
+          {setting('accessibility-outline', 'Reduce motion', reduceMotion, onReduceMotion, false)}
+          {__DEV__ && ( // developer-only page
+            <Pressable style={[styles.settingRow, styles.divider]} onPress={() => { setSettingsOpen(false); onStyles(); }}>
+              <Ionicons name="color-palette-outline" size={20} color={colors.primary} />
+              <Text style={[type.body, { flex: 1 }]}>Style Reference</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </Pressable>
+          )}
+        </View>
+        <Text style={[type.caption, { paddingHorizontal: spacing.md }]}>Reduce motion stops floating bubbles and replaces animations with instant changes. It follows the system setting until you change it here.</Text>
+      </View>
+      </PageSheet>
       <PageSheet visible={pinsOpen} title="Your Pins" onClose={() => setPinsOpen(false)}>
         {[['Pinned by you', myPins], ['Top rated in your Bubbles', topPins]].map(([title, list]) => (
           <View key={title as string} style={styles.section}>
@@ -301,7 +325,17 @@ export default function ProfileScreen({
           </View>
         ))}
       </PageSheet>
-    </ScrollView>
+    </Animated.ScrollView>
+      {/* status bar backdrop once the cover scrolls away, so the clock never sits on content */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.statusBack, { height: insets.top, opacity: scrollY.interpolate({ inputRange: [150, 190], outputRange: [0, 1], extrapolate: 'clamp' }) }]}
+      />
+      {/* Settings, at the top right like an iOS bar button */}
+      <Pressable onPress={() => setSettingsOpen(true)} style={[styles.gear, { top: insets.top + 4 }]} hitSlop={6} accessibilityLabel="Settings">
+        <Ionicons name="settings-outline" size={22} color={colors.text} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -311,7 +345,7 @@ function ProfileAvatar({ size }: { size: number }) {
       {PROFILE.avatar === 'initials' ? (
         <Text style={[styles.avatarInitials, { fontSize: size * 0.36 }]}>{initials(PROFILE.name)}</Text>
       ) : (
-        <Ionicons name={PROFILE.avatar as IconName} size={size * 0.45} color={colors.surface} />
+        <Ionicons name={PROFILE.avatar as IconName} size={size * 0.45} color={colors.onPrimary} />
       )}
     </View>
   );
@@ -369,11 +403,14 @@ function FriendsSheet({ visible, onClose }: { visible: boolean; onClose: () => v
 }
 
 const styles = StyleSheet.create({
+  inline: { flexDirection: 'row', alignItems: 'center' },
+  statusBack: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: colors.background },
+  gear: { position: 'absolute', right: spacing.md, width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   cover: { flexDirection: 'row', gap: 2, overflow: 'hidden' },
   coverPhoto: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   card: { alignItems: 'center', paddingHorizontal: spacing.md, paddingBottom: spacing.md, marginTop: -28, borderTopLeftRadius: radius.md + 8, borderTopRightRadius: radius.md + 8, backgroundColor: colors.background },
   avatar: { alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: colors.background },
-  avatarInitials: { fontFamily: fonts.heading, fontSize: 22, color: colors.surface },
+  avatarInitials: { fontFamily: fonts.heading, fontSize: 22, color: colors.onPrimary },
   cameraBadge: { position: 'absolute', right: 2, bottom: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.text, borderWidth: 2, borderColor: colors.background, alignItems: 'center', justifyContent: 'center' },
   avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.md },
   avatarOption: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
@@ -397,7 +434,7 @@ const styles = StyleSheet.create({
   hobby: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: spacing.sm + 4, paddingVertical: 6 },
   hobbyText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
   swatch: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  swatchOn: { borderWidth: 3, borderColor: colors.surface },
+  swatchOn: { borderWidth: 3, borderColor: 'white' },
   photos: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   photo: { borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', padding: spacing.xs, gap: 4 },
   photoLabel: { ...type.caption, fontSize: 11, textAlign: 'center', color: colors.text },

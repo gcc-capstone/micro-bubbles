@@ -1,12 +1,12 @@
 // Shared UI building blocks for Bubbles screens. All values come from theme.ts.
 import { ComponentProps, ReactNode, useEffect, useId, useRef, useState } from 'react';
 import {
-  Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, useWindowDimensions, View, ViewStyle,
+  Alert, Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, useWindowDimensions, View, ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, Ellipse, G, Path, RadialGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, shadow, spacing, type } from './theme';
+import { colors, FIXED_TEXT, fonts, radius, shadow, spacing, type } from './theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 type Style = StyleProp<ViewStyle>;
@@ -81,8 +81,8 @@ export function FloatingBubble({ size, tint, label, sublabel, icon, count = 0, d
       <Pressable onPress={onPress} onLongPress={onLongPress}>
         <Bubble size={size} tint={tint}>
           {icon && size > 70 && <Ionicons name={icon} size={size * 0.16} color={tint} style={{ marginBottom: 2 }} />}
-          <Text numberOfLines={2} style={[s.bubbleLabel, { color: colors.text, fontSize: size > 130 ? 17 : size > 105 ? 15 : 13, maxWidth: size * 0.78 }]}>{label}</Text>
-          {sublabel && <Text style={[s.bubbleSub, { color: colors.textMuted }]}>{sublabel}</Text>}
+          <Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={2} style={[s.bubbleLabel, { color: colors.text, fontSize: size > 130 ? 17 : size > 105 ? 15 : 13, maxWidth: size * 0.78 }]}>{label}</Text>
+          {sublabel && <Text maxFontSizeMultiplier={FIXED_TEXT} style={[s.bubbleSub, { color: colors.textMuted }]}>{sublabel}</Text>}
         </Bubble>
         {count > 0 && <Badge count={count} style={{ position: 'absolute', right: size * 0.08, top: size * 0.04 }} />}
       </Pressable>
@@ -95,7 +95,7 @@ export function FloatingBubble({ size, tint, label, sublabel, icon, count = 0, d
 export function Avatar({ initials = 'MN', color = colors.primary, size = 44, ring }: { initials?: string; color?: string; size?: number; ring?: string }) {
   return (
     <View style={[s.center, { width: size, height: size, borderRadius: size / 2, backgroundColor: color }, ring ? { borderWidth: 3, borderColor: ring } : null]}>
-      <Text style={[s.avatarText, { fontSize: size * 0.36 }]}>{initials}</Text>
+      <Text maxFontSizeMultiplier={FIXED_TEXT} style={[s.avatarText, { fontSize: size * 0.36 }]}>{initials}</Text>
     </View>
   );
 }
@@ -103,7 +103,7 @@ export function Avatar({ initials = 'MN', color = colors.primary, size = 44, rin
 export function Badge({ count, style }: { count: number; style?: Style }) {
   return (
     <View style={[s.badge, style]}>
-      <Text style={s.badgeText}>{count}</Text>
+      <Text maxFontSizeMultiplier={FIXED_TEXT} style={s.badgeText}>{count}</Text>
     </View>
   );
 }
@@ -118,14 +118,14 @@ export function MemberPin({ color, initials, status, tag, style }: {
   return (
     <View style={[s.abs, s.centerX, style]}>
       <View style={[s.round, sos && s.sosRing]}>
-        <Avatar color={color} initials={initials} size={36} ring={colors.surface} />
+        <Avatar color={color} initials={initials} size={36} ring={'white'} />
         {status === 'moving' && (
-          <View style={s.movingBadge}><Ionicons name="navigate" size={9} color={colors.surface} /></View>
+          <View style={s.movingBadge}><Ionicons name="navigate" size={9} color={colors.onPrimary} /></View>
         )}
       </View>
       {(tag || sos) && (
         <View style={[s.tag, sos && { backgroundColor: colors.danger }]}>
-          <Text style={[s.tagText, sos && { color: colors.surface }]}>{sos ? 'SOS' : tag}</Text>
+          <Text maxFontSizeMultiplier={FIXED_TEXT} style={[s.tagText, sos && { color: 'white' }]}>{sos ? 'SOS' : tag}</Text>
         </View>
       )}
     </View>
@@ -139,12 +139,12 @@ export function MapPin({ color, icon, rank, label, style }: { color: string; ico
       {(label || rank) && (
         <View style={[s.tag, s.row, { gap: 4, marginBottom: 4 }]}>
           {rank && <Text style={s.rank}>#{rank}</Text>}
-          {label && <Text style={s.tagText}>{label}</Text>}
+          {label && <Text maxFontSizeMultiplier={FIXED_TEXT} style={s.tagText}>{label}</Text>}
         </View>
       )}
       <View style={[s.pinHead, { backgroundColor: color }]}>
         <View style={{ transform: [{ rotate: '-45deg' }] }}>
-          <Ionicons name={icon} size={14} color={colors.surface} />
+          <Ionicons name={icon} size={14} color={'white'} />
         </View>
       </View>
       <View style={[s.pinGround, { borderColor: color }]} />
@@ -176,8 +176,8 @@ export function LocationCircle({ size, color, icon, label, dashed, style }: {
   return (
     <View style={[s.geofence, { width: size, height: size, backgroundColor: color + (dashed ? '1F' : '38') }, style]}>
       <View style={[s.placeTag, { backgroundColor: color }]}>
-        <Ionicons name={icon} size={11} color={colors.surface} />
-        <Text style={s.placeTagText}>{label}</Text>
+        <Ionicons name={icon} size={11} color={'white'} />
+        <Text maxFontSizeMultiplier={FIXED_TEXT} style={s.placeTagText}>{label}</Text>
       </View>
     </View>
   );
@@ -196,18 +196,18 @@ export function Cluster({ count, faces = [], style }: { count: number; faces?: {
   if (faces.length === 0)
     return (
       <View style={[s.abs, s.cluster, style]}>
-        <Text style={s.clusterText}>{count}</Text>
+        <Text maxFontSizeMultiplier={FIXED_TEXT} style={s.clusterText}>{count}</Text>
       </View>
     );
   return (
     <View style={[s.abs, s.row, style]}>
       {faces.map((f, i) => (
         <View key={i} style={[s.cluster, { backgroundColor: f.color, marginLeft: i ? -12 : 0 }]}>
-          <Text style={s.clusterText}>{f.initials}</Text>
+          <Text maxFontSizeMultiplier={FIXED_TEXT} style={s.clusterText}>{f.initials}</Text>
         </View>
       ))}
       <View style={[s.cluster, { marginLeft: -12 }]}>
-        <Text style={s.clusterText}>+{count - faces.length}</Text>
+        <Text maxFontSizeMultiplier={FIXED_TEXT} style={s.clusterText}>+{count - faces.length}</Text>
       </View>
     </View>
   );
@@ -225,7 +225,7 @@ export function EdgeMarker({ initials, color, angle, count = 1, style }: { initi
         </View>
       </View>
       <View style={[s.cluster, { width: 36, height: 36, borderWidth: 3, backgroundColor: color }]}>
-        <Text style={[s.clusterText, { fontSize: 12 }]}>{initials}</Text>
+        <Text maxFontSizeMultiplier={FIXED_TEXT} style={[s.clusterText, { fontSize: 12 }]}>{initials}</Text>
       </View>
       {count > 1 && <Badge count={count} style={{ position: 'absolute', top: EDGE_BOX / 2 - 26, left: EDGE_BOX / 2 - 26, backgroundColor: colors.primary }} />}
     </View>
@@ -251,7 +251,7 @@ export function Chip({ icon, label, color = colors.textMuted, variant = 'soft' }
   return (
     <View style={[s.chip, variant === 'outline' ? s.chipOutline : s.chipSoft]}>
       {icon && <Ionicons name={icon} size={variant === 'soft' ? 11 : 14} color={color} />}
-      <Text style={variant === 'soft' ? s.chipSoftText : s.tagText}>{label}</Text>
+      <Text maxFontSizeMultiplier={FIXED_TEXT} style={variant === 'soft' ? s.chipSoftText : s.tagText}>{label}</Text>
     </View>
   );
 }
@@ -301,7 +301,7 @@ export function MenuButton({ icon, label, options, selected = [], onSelect, mult
     });
   return (
     <>
-      <Pressable ref={ref} onPress={show} hitSlop={plain ? 10 : 0} style={trigger ? triggerStyle : plain ? null : [s.menuBtn, active && s.menuBtnOn]}>
+      <Pressable ref={ref} onPress={show} hitSlop={plain ? 10 : 9} style={trigger ? triggerStyle : plain ? null : [s.menuBtn, active && s.menuBtnOn]}>
         {trigger ?? (
           <>
             <Ionicons name={icon} size={plain ? 24 : 15} color={plain ? colors.textMuted : active ? colors.primary : colors.text} />
@@ -334,19 +334,39 @@ export function MenuButton({ icon, label, options, selected = [], onSelect, mult
 }
 
 // Full-height iOS page sheet (swipe down to close) for details, editing and creating.
-export function PageSheet({ visible, title, onClose, right, children }: {
-  visible: boolean; title: string; onClose: () => void; right?: ReactNode; children: ReactNode;
+// cancel: a create/edit form, with Cancel at the leading edge (asks first when dirty); otherwise a
+// view-only sheet with Done (trailing, or leading when `right` holds the sheet's own actions).
+export function PageSheet({ visible, title, onClose, right, cancel, dirty, children }: {
+  visible: boolean; title: string; onClose: () => void; right?: ReactNode; cancel?: boolean; dirty?: boolean; children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const close = () =>
+    cancel && dirty
+      ? Alert.alert('Discard Changes?', undefined, [
+          { text: 'Keep Editing', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: onClose },
+        ])
+      : onClose();
+  const done = (
+    <Pressable onPress={onClose} hitSlop={10}>
+      <Text style={[s.pageAction, { fontFamily: fonts.bodyBold }]}>Done</Text>
+    </Pressable>
+  );
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
       <View style={[s.page, { paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
         <View style={s.pageHeader}>
-          <Pressable onPress={onClose} hitSlop={10} style={{ minWidth: 60 }}>
-            <Text style={s.pageAction}>Close</Text>
-          </Pressable>
+          <View style={{ minWidth: 60 }}>
+            {cancel ? (
+              <Pressable onPress={close} hitSlop={10}>
+                <Text style={s.pageAction}>Cancel</Text>
+              </Pressable>
+            ) : (
+              right && done
+            )}
+          </View>
           <Text numberOfLines={1} style={s.pageTitle}>{title}</Text>
-          <View style={{ minWidth: 60, alignItems: 'flex-end' }}>{right}</View>
+          <View style={{ minWidth: 60, alignItems: 'flex-end' }}>{right ?? (!cancel && done)}</View>
         </View>
         <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }} keyboardShouldPersistTaps="handled">
           {children}
@@ -378,7 +398,7 @@ export function Button({ title, variant = 'primary', onPress }: { title: string;
       onPress={onPress}
       style={({ pressed }) => [s.button, primary ? s.buttonPrimary : s.buttonSecondary, pressed && (primary ? { backgroundColor: colors.primaryDark } : { opacity: 0.7 })]}
     >
-      <Text style={[type.button, { color: primary ? colors.surface : colors.primary }]}>{title}</Text>
+      <Text style={[type.button, { color: primary ? colors.onPrimary : colors.primary }]}>{title}</Text>
     </Pressable>
   );
 }
@@ -387,7 +407,7 @@ export function Checkbox({ label, value, onChange }: { label: string; value: boo
   return (
     <Pressable style={[s.row, { gap: spacing.sm, paddingVertical: spacing.xs }]} onPress={() => onChange(!value)}>
       <View style={[s.checkbox, value && s.checkboxOn]}>
-        {value && <Ionicons name="checkmark" size={16} color={colors.surface} />}
+        {value && <Ionicons name="checkmark" size={16} color={colors.onPrimary} />}
       </View>
       <Text style={type.body}>{label}</Text>
     </Pressable>
@@ -446,12 +466,13 @@ export function TabBar({ tabs, active, onPress }: { tabs: Tab[]; active: number;
       {tabs.map((tab, i) => (
         <Pressable key={i} style={s.tab} onPress={() => onPress?.(i)}>
           {tab.action ? (
-            <View style={s.tabAction}><Ionicons name={tab.icon} size={28} color={colors.surface} /></View>
+            <View style={s.tabAction}><Ionicons name={tab.icon} size={28} color={colors.onPrimary} /></View>
           ) : (
             <>
-              <Ionicons name={tab.icon} size={24} color={i === active ? colors.primary : colors.textMuted} />
+              {/* filled glyph for the selected tab, outline for the rest (iOS tab bars) */}
+              <Ionicons name={(i === active ? tab.icon.replace('-outline', '') : tab.icon) as IconName} size={24} color={i === active ? colors.primary : colors.textMuted} />
               {!!tab.badge && <Badge count={tab.badge} style={{ position: 'absolute', top: 0, left: '55%' }} />}
-              <Text style={[s.tabLabel, i === active && { color: colors.primary }]}>{tab.label}</Text>
+              <Text maxFontSizeMultiplier={FIXED_TEXT} style={[s.tabLabel, i === active && { color: colors.primary }]}>{tab.label}</Text>
             </>
           )}
         </Pressable>
@@ -479,7 +500,7 @@ const s = StyleSheet.create({
   bubbleLabel: { fontFamily: fonts.bodyBold, textAlign: 'center' },
   bubbleSub: { fontFamily: fonts.body, fontSize: 11, opacity: 0.8 },
 
-  avatarText: { color: colors.surface, fontFamily: fonts.bodyBold },
+  avatarText: { color: 'white', fontFamily: fonts.bodyBold },
   badge: {
     minWidth: 22,
     height: 22,
@@ -491,7 +512,7 @@ const s = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.surface,
   },
-  badgeText: { color: colors.surface, fontFamily: fonts.bodyBold, fontSize: 11 },
+  badgeText: { color: 'white', fontFamily: fonts.bodyBold, fontSize: 11 },
 
   tag: { marginTop: -4, backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2, ...shadow },
   tagText: { ...type.caption, color: colors.text, fontFamily: fonts.bodyBold },
@@ -505,7 +526,7 @@ const s = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.primary,
     borderWidth: 1.5,
-    borderColor: colors.surface,
+    borderColor: 'white',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -521,7 +542,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: colors.surface,
+    borderColor: 'white',
     ...shadow,
   },
   pinGround: { width: 22, height: 7, borderRadius: 4, borderWidth: 2, marginTop: 3 },
@@ -556,23 +577,23 @@ const s = StyleSheet.create({
     transform: [{ rotate: '45deg' }],
   },
   placeTag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
-  placeTagText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.surface },
+  placeTagText: { fontFamily: fonts.bodyBold, fontSize: 11, color: 'white' },
   youPulse: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary + '33', alignItems: 'center', justifyContent: 'center' },
-  youDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.primary, borderWidth: 3, borderColor: colors.surface },
+  youDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.primary, borderWidth: 3, borderColor: 'white' },
   cluster: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: colors.primaryDark,
     borderWidth: 3,
-    borderColor: colors.surface,
+    borderColor: 'white',
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow,
   },
   edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 12, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...shadow },
-  clusterText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.surface },
-  mapButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
+  clusterText: { fontFamily: fonts.bodyBold, fontSize: 12, color: 'white' },
+  mapButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
 
   card: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, ...shadow },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: radius.pill },

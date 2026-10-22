@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Bubble, EventRow } from './components';
 import { EventDetail, LinkedText, NewEvent } from './Details';
-import { colors, fonts, radius, spacing, type } from './theme';
+import { colors, FIXED_TEXT, fonts, radius, spacing, type } from './theme';
 import { ALL, BubbleEvent, EVENTS, GROUPS, groupColor, TODAY } from './data';
 import { addMonths, dayNum, daysIn, isoOf, leadBlanks, monthStart, offsets, parts, startOfWeek, weekRows } from './calendarMath';
 
@@ -228,14 +228,14 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
         {back ? (
           <Pressable onPress={back.to} hitSlop={10} style={styles.navBtn}>
             <Ionicons name="chevron-back" size={22} color={colors.primary} />
-            <Text style={styles.navText}>{back.label}</Text>
+            <Text maxFontSizeMultiplier={FIXED_TEXT} style={styles.navText}>{back.label}</Text>
           </Pressable>
         ) : (
           <View />
         )}
         <View style={[styles.navBtn, { gap: spacing.lg, marginLeft: 0 }]}>
           <Pressable onPress={today} hitSlop={10}>
-            <Text style={styles.navText}>Today</Text>
+            <Text maxFontSizeMultiplier={FIXED_TEXT} style={styles.navText}>Today</Text>
           </Pressable>
           <Pressable onPress={() => setNewOpen(true)} hitSlop={10} accessibilityLabel="New Event">
             <Ionicons name="add" size={28} color={colors.primary} />
@@ -243,13 +243,13 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
         </View>
       </View>
       {/* Only Month has a large title; Year uses its in-list year headings, Week shows the selected day in the list. */}
-      {level === 'month' && <Text style={[type.largeTitle, styles.title, { color: colors.primary }]}>{title}</Text>}
+      {level === 'month' && <Text maxFontSizeMultiplier={FIXED_TEXT} style={[type.largeTitle, styles.title, { color: colors.primary }]}>{title}</Text>}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.filters}>
         {ALL.map((g) => (
           <Pressable key={g.id} onPress={() => setFilter(g.id)} style={[styles.filter, filter === g.id && styles.filterOn]}>
             <Bubble size={14} tint={groupColor(g.id)} />
-            <Text style={[styles.filterText, filter === g.id && { color: colors.primary }]}>{g.name}</Text>
+            <Text maxFontSizeMultiplier={FIXED_TEXT} style={[styles.filterText, filter === g.id && { color: colors.primary }]}>{g.name}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -271,11 +271,11 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
               const y = yearOf(index);
               return (
                 <View style={{ height: YEAR_H, paddingHorizontal: spacing.md }}>
-                  <Text style={[styles.yearHead, y === TP.y && { color: colors.primary }]}>{y}</Text>
+                  <Text maxFontSizeMultiplier={FIXED_TEXT} style={[styles.yearHead, y === TP.y && { color: colors.primary }]}>{y}</Text>
                   <View style={styles.yearGrid}>
                     {MONTHS.map((name, m) => (
                       <Pressable key={name} style={styles.mini} onPress={() => go('month', monthStart(y, m))}>
-                        <Text style={[styles.miniName, y === TP.y && m === TP.m && { color: colors.primary }]}>{name.slice(0, 3)}</Text>
+                        <Text maxFontSizeMultiplier={FIXED_TEXT} style={[styles.miniName, y === TP.y && m === TP.m && { color: colors.primary }]}>{name.slice(0, 3)}</Text>
                         <View style={styles.miniGrid}>
                           {Array.from({ length: 42 }, (_, c) => {
                             const d = c - leadBlanks(y, m, weekStart) + 1;
@@ -283,7 +283,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                             const real = d >= 1 && d <= daysIn(y, m);
                             return (
                               <View key={c} style={[styles.miniCell, real && n === T && styles.miniToday]}>
-                                <Text style={[styles.miniDay, real && byDay.has(n) && styles.miniBusy, real && n === T && { color: colors.surface }]}>
+                                <Text maxFontSizeMultiplier={FIXED_TEXT} style={[styles.miniDay, real && byDay.has(n) && styles.miniBusy, real && n === T && { color: colors.onPrimary }]}>
                                   {real ? d : ''}
                                 </Text>
                               </View>
@@ -303,7 +303,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
           <>
             <View style={[styles.dowRow, { paddingHorizontal: monthSide }]}>
               {dows.map((d, i) => (
-                <Text key={i} style={[styles.dow, { width: cellW }]}>{d}</Text>
+                <Text maxFontSizeMultiplier={FIXED_TEXT} key={i} style={[styles.dow, { width: cellW }]}>{d}</Text>
               ))}
             </View>
             <FlatList
@@ -323,7 +323,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                 return (
                   <View style={{ height: MONTH_HEAD + rows * CELL }}>
                     {/* month name sits above the column of its 1st, like Apple Calendar */}
-                    <Text style={[styles.monthHead, { marginLeft: lead * cellW, width: cellW }, y === TP.y && m === TP.m && { color: colors.primary }]}>
+                    <Text maxFontSizeMultiplier={FIXED_TEXT} style={[styles.monthHead, { marginLeft: lead * cellW, width: cellW }, y === TP.y && m === TP.m && { color: colors.primary }]}>
                       {MONTHS[m].slice(0, 3)}
                     </Text>
                     <View style={styles.grid}>
@@ -334,7 +334,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                         return (
                           <Pressable key={c} style={[styles.cell, styles.cellLine, { width: cellW }]} onPress={() => go('week', n)}>
                             <View style={[styles.dayCircle, n === T && styles.todayCircle]}>
-                              <Text style={[styles.dayText, n === T && { color: colors.surface }]}>{d}</Text>
+                              <Text maxFontSizeMultiplier={FIXED_TEXT} style={[styles.dayText, n === T && { color: colors.onPrimary }]}>{d}</Text>
                             </View>
                             <View style={styles.dots}>
                               {(byDay.get(n) ?? []).slice(0, 3).map((e, k) => (
@@ -359,7 +359,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
             <View style={styles.stripWrap} {...stripPull.panHandlers}>
               <View style={[styles.dowRow, { borderBottomWidth: 0, paddingHorizontal: WEEK_PAD }]}>
                 {dows.map((d, i) => (
-                  <Text key={i} style={[styles.cellW, styles.dow]}>{d}</Text>
+                  <Text maxFontSizeMultiplier={FIXED_TEXT} key={i} style={[styles.cellW, styles.dow]}>{d}</Text>
                 ))}
               </View>
               <FlatList
@@ -382,7 +382,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                       return (
                         <Pressable key={k} style={styles.weekCell} onPress={() => selectDay(n)}>
                           <View style={[styles.dayCircle, n === T && !isSel && styles.todayRing, isSel && styles.todayCircle]}>
-                            <Text style={[styles.dayText, n === T && !isSel && { color: colors.primary }, isSel && { color: colors.surface }]}>{parts(n).d}</Text>
+                            <Text maxFontSizeMultiplier={FIXED_TEXT} style={[styles.dayText, n === T && !isSel && { color: colors.primary }, isSel && { color: colors.onPrimary }]}>{parts(n).d}</Text>
                           </View>
                           <View style={styles.dots}>
                             {(byDay.get(n) ?? []).slice(0, 3).map((e, j) => (
@@ -416,7 +416,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
               }}
               // room after the last event so any day can scroll to the top (otherwise the list stops short)
               ListFooterComponent={<View style={{ height: 600 }} />}
-              ListEmptyComponent={<Text style={[styles.empty, { padding: spacing.md }]}>No events in this Bubble</Text>}
+              ListEmptyComponent={<Text maxFontSizeMultiplier={FIXED_TEXT} style={[styles.empty, { padding: spacing.md }]}>No upcoming events</Text>}
               getItemLayout={(_, i) => ({ length: dayOffsets[i + 1] - dayOffsets[i], offset: dayOffsets[i], index: i })}
               onScroll={(e) => {
                 const y = e.nativeEvent.contentOffset.y;
@@ -432,7 +432,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
                 const evs = byDay.get(n) ?? [];
                 return (
                   <View style={{ height: dayH(n), paddingHorizontal: spacing.md }}>
-                    <Text style={[styles.dayHead, n === T && { color: colors.primary }]}>
+                    <Text maxFontSizeMultiplier={FIXED_TEXT} style={[styles.dayHead, n === T && { color: colors.primary }]}>
                       {DOW_NAMES[p.dow]}, {MONTHS[p.m]} {p.d}
                       {p.y !== TP.y ? `, ${p.y}` : ''}
                       {n === T ? ' · Today' : ''}

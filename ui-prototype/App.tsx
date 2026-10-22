@@ -3,14 +3,14 @@
 // the tab bar paints down behind the home indicator.
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { AccessibilityInfo, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getCalendars } from 'expo-localization';
 import { useFonts, Lato_400Regular, Lato_700Bold } from '@expo-google-fonts/lato';
 import { Montserrat_600SemiBold, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { Tab, TabBar } from './components';
-import { colors, setAccent } from './theme';
-import { EVERYONE, INBOX } from './data';
+import { applyTheme, colors, isDark } from './theme';
+import { EVERYONE, INBOX, PROFILE } from './data';
 import CalendarScreen from './CalendarScreen';
 import HomeScreen from './HomeScreen';
 import InboxScreen from './InboxScreen';
@@ -34,7 +34,18 @@ export default function App() {
   const [eventsOnMap, setEventsOnMap] = useState(false);
   const [eventDays, setEventDays] = useState(7); // how far ahead events show on the map
   const [, setInboxTick] = useState(0); // re-render for the Inbox tab badge
-  const [accentKey, setAccentKey] = useState(0); // bumped after setAccent so every screen redraws with new colors
+  const [themeKey, setThemeKey] = useState(0); // bumped after applyTheme so every screen redraws with new colors
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const retheme = () => {
+    applyTheme(scheme, PROFILE.accent);
+    EVERYONE.color = colors.primary;
+    setThemeKey((k) => k + 1);
+  };
+  // follow Dark Mode, including changes while the app is open
+  if (isDark !== (scheme === 'dark')) {
+    applyTheme(scheme, PROFILE.accent);
+    EVERYONE.color = colors.primary;
+  }
   const [weekStartPref, setWeekStartPref] = useState<'System' | 'Sunday' | 'Monday'>('System');
   // expo-localization: firstWeekday 1 = Sunday, 2 = Monday
   const systemWeekStart = (getCalendars()[0]?.firstWeekday ?? 1) === 2 ? 1 : 0;
@@ -43,17 +54,20 @@ export default function App() {
   // Start from the system setting; Profile > Settings can override it.
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion); // Settings changes while open
+    return () => sub.remove();
   }, []);
+  useEffect(() => setThemeKey((k) => k + 1), [scheme]);
 
   if (!fontsLoaded) return null;
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       {showStyles ? (
         <StyleReference onClose={() => setShowStyles(false)} />
       ) : (
-        <View key={accentKey} style={styles.screen}>
+        <View key={themeKey} style={styles.screen}>
           <View style={{ flex: 1 }}>
             {tab === 0 && (
               <HomeScreen resetKey={homeReset} reduceMotion={reduceMotion} everyoneRadius={everyoneRadius} eventsOnMap={eventsOnMap} eventDays={eventDays} weekStart={weekStart} />
@@ -74,11 +88,7 @@ export default function App() {
                 systemWeekStart={systemWeekStart}
                 onWeekStartPref={setWeekStartPref}
                 onStyles={() => setShowStyles(true)}
-                onAccent={(i) => {
-                  setAccent(i);
-                  EVERYONE.color = colors.primary;
-                  setAccentKey((k) => k + 1);
-                }}
+                onAccent={retheme}
               />
             )}
           </View>

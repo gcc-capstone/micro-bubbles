@@ -1,13 +1,13 @@
 // Home: opens on the map of Everyone within your radius. The Bubble row pages along the bottom;
 // the selected Bubble's sheet sits on top of it, with people and pins as sub-views inside the sheet.
-// Re-tapping the Bubbles tab (resetKey) or "More bubbles..." shows all Bubbles as floating
+// Re-tapping the Bubbles tab (resetKey) or "More Bubbles…" shows all Bubbles as floating
 // bubbles (few) or an Apple Watch-style honeycomb (many).
 import { useEffect, useRef, useState } from 'react';
 import { ActionSheetIOS, Alert, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, IconName, MapButton, MenuButton, Segmented, Separator } from './components';
-import { colors, fonts, radius, shadow, spacing, type } from './theme';
+import { colors, FIXED_TEXT, fonts, radius, shadow, spacing, type } from './theme';
 import { ALL, avgRating, canInvite, ownerName, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, ME, Loc, Member, memberColor, Pin, TODAY } from './data';
 import { AddMembers, BubbleProfile, DropPin, NewHotspot, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView, QuickMessages } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
@@ -15,7 +15,7 @@ import MapSearch from './MapSearch';
 
 const RS = 44; // row bubble size
 const ROW_ITEM_MIN = 68; // narrowest slot per bubble; slots stretch so each page shows whole bubbles
-const ROW_H = 8 + RS + 4 + 16 + 8; // padding + bubble + gap + one-line label + padding
+const ROW_H = 8 + RS + 4 + 28 + 6; // padding + bubble + gap + two-line label + padding
 const NAV_H = 44; // nav row above the large title
 const ROW_GROW = 1.3; // bubbles scale up while the row has focus
 const ROW_H_FOCUS = ROW_H + RS * (ROW_GROW - 1) + 2;
@@ -25,7 +25,7 @@ const NOTES_H = 44; // the floating quick-message row
 const MAX_BUBBLES = 15; // including Everyone; two All Bubbles screens hold them all
 const FIRST_SCREEN = 5; // most recently active Bubbles shown up front, after Everyone
 const SEARCH_H = 52;
-const MAX_ROW = 11; // more than this many Bubbles shows a "More bubbles..." bubble
+const MAX_ROW = 11; // more than this many Bubbles shows a "More Bubbles…" bubble
 const TAB_ICONS: Record<string, IconName> = { Activity: 'pulse', Pins: 'location', Members: 'people' };
 const TABS = ['Activity', 'Pins', 'Members'];
 const SORTS: Record<string, string[]> = {
@@ -44,7 +44,7 @@ const ACTIVITY_KIND: Record<string, string[]> = {
   Events: ['calendar-outline'],
 };
 
-// First screen (Everyone + the most recently active Bubbles, then "More bubbles…"): hand-placed floating layout
+// First screen (Everyone + the most recently active Bubbles, then "More Bubbles…"): hand-placed floating layout
 // on a 375 x 640 canvas, sized by member count.
 const CANVAS = { w: 375, h: 640 };
 const CENTERS = [
@@ -130,7 +130,6 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [filters, setFilters] = useState<Record<string, string[]>>({ Activity: [], Pins: [], Members: [] });
   const [sub, setSub] = useState<{ person?: Member; pin?: Pin; event?: BubbleEvent; place?: Loc } | null>(null); // sheet sub-view
   const [profileOpen, setProfileOpen] = useState<false | 'view' | 'edit'>(false);
-  const [muted, setMuted] = useState<Record<string, boolean>>({});
 
   const [dropOpen, setDropOpen] = useState(false);
   const [newBubbleOpen, setNewBubbleOpen] = useState(false);
@@ -139,6 +138,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editing, setEditing] = useState(false); // All Bubbles edit mode: − leaves
   const [bubbleQuery, setBubbleQuery] = useState<string | null>(null); // All Bubbles search (null = closed)
+  const [searching, setSearching] = useState(false); // map search open
   const [popping, setPopping] = useState<string | null>(null); // Bubble being popped on leave
   const popV = useRef(new Animated.Value(0)).current;
   const [rowHint, setRowHint] = useState(true); // "more →" hint until the row is scrolled
@@ -179,7 +179,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const byRecent = ALL.map((_, i) => i).sort((a, b) => lastActive(ALL[a]) - lastActive(ALL[b]));
   const fieldIdx = byRecent.slice(0, FIRST_SCREEN + 1).sort((a, b) => a - b);
   const shelfIdx = byRecent.slice(FIRST_SCREEN + 1);
-  // Two screens: recent, then the rest. A "More bubbles…" bubble on each switches to the other one.
+  // Two screens: recent, then the rest. A "More Bubbles…" bubble on each switches to the other one.
   const [page, setPage] = useState(0);
   const onPage = shelfIdx.length ? page : 0;
   const pageIdx = onPage === 0 ? fieldIdx : shelfIdx;
@@ -210,7 +210,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     const options =
       g.id === 'everyone'
         ? ['Bubble Info', 'Cancel']
-        : ['Bubble Info', muted[g.id] ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble', 'Cancel'];
+        : ['Bubble Info', g.muted ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble', 'Cancel'];
     ActionSheetIOS.showActionSheetWithOptions(
       { title: g.name, options, cancelButtonIndex: options.length - 1, destructiveButtonIndex: g.id === 'everyone' ? undefined : 2 },
       (k) => {
@@ -219,10 +219,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
           setInfoGroup(g);
           setProfileOpen('view');
         }
-        if (o?.endsWith('Notifications')) {
-          setMuted({ ...muted, [g.id]: !muted[g.id] });
-          showToast(muted[g.id] ? `Notifications on for ${g.name}` : `Muted ${g.name}`);
-        }
+        if (o?.endsWith('Notifications')) toggleMute(g);
         if (o === 'Leave Bubble') confirmRemove(g);
       },
     );
@@ -299,7 +296,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     return { x, y, s: WATCH_S, scale };
   };
 
-  // Row shows up to MAX_ROW - 1 Bubbles (selected one always visible) plus "More bubbles...".
+  // Row shows up to MAX_ROW - 1 Bubbles (selected one always visible) plus "More Bubbles…".
   const perPage = Math.max(4, Math.floor(w / ROW_ITEM_MIN));
   const grow = {
     scale: rowP.interpolate({ inputRange: [0, 1], outputRange: [1, ROW_GROW] }),
@@ -380,8 +377,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         .filter((e, i, all) => all.findIndex((x) => x.place === e.place) === i)
     : [];
   const mapEvents = upcoming.map((e) => ({ key: eventKey(e), title: e.title, when: `${dayLabel(e.date)} · ${e.time}`, color: groupColor(e.groupId), lat: e.lat, lng: e.lng }));
-  const openEvent = (key: string) => {
-    const e = upcoming.find((x) => eventKey(x) === key)!;
+  const openEvent = (key: string) => showEvent(upcoming.find((x) => eventKey(x) === key)!);
+  const showEvent = (e: BubbleEvent) => {
     setFocus({ name: e.title, lat: e.lat, lng: e.lng });
     slideIn(subX, subO, 1);
     setSub({ event: e });
@@ -425,7 +422,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   };
 
   // Bubble "..." menu: info, edit, invite, mute, leave. Everyone only has info.
-  const isMuted = !!(base && muted[base.id]);
+  const isMuted = !!base?.muted;
   const bubbleMenu =
     base?.id === 'everyone'
       ? ['Bubble Info']
@@ -436,6 +433,12 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
           isMuted ? 'Unmute Notifications' : 'Mute Notifications',
           'Leave Bubble',
         ];
+  // Same switch as Bubble Info > Notifications (Group.muted)
+  const toggleMute = (g: Group) => {
+    g.muted = !g.muted;
+    refresh();
+    showToast(g.muted ? `Muted ${g.name}` : `Notifications on for ${g.name}`);
+  };
   const leaveGroup = () => removeGroup(base!);
   const removeGroup = (g: Group) => {
     // The bubble pops first (scale up, fade, droplets), on All Bubbles or in the map's row, then is
@@ -498,10 +501,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     if (o === 'Bubble Info') setProfileOpen('view');
     if (o === 'Edit Bubble') setProfileOpen('edit');
     if (o === 'Add Members') setInviteOpen(true);
-    if (o.endsWith('Notifications')) {
-      setMuted({ ...muted, [g.id]: !isMuted });
-      showToast(isMuted ? `Notifications on for ${g.name}` : `Muted ${g.name}`);
-    }
+    if (o.endsWith('Notifications')) toggleMute(g);
     if (o === 'Leave Bubble')
       Alert.alert(`Leave ${g.name}?`, 'Members will stop seeing your location, pins and photos.', [
         { text: 'Cancel', style: 'cancel' },
@@ -509,6 +509,16 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
       ]);
   };
 
+  // An activity row opens what it's about: the event or pin it names, otherwise the person.
+  const openActivity = (key: string, text: string) => {
+    setRead({ ...read, [key]: true });
+    const event = EVENTS.find((e) => text.includes(e.title));
+    if (event) return showEvent(event);
+    const pin = GROUPS.flatMap((g) => g.pins).find((pn) => text.includes(pn.name));
+    if (pin && text.includes('pinned')) return openPin(pin);
+    const person = GROUPS.flatMap((g) => g.members).find((m) => text.startsWith(m.name));
+    if (person) openPerson(person);
+  };
   const openPerson = (m: Member) => {
     setFocus(m);
     slideIn(subX, subO, 1);
@@ -539,6 +549,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     }),
   ).current;
 
+  // Unfiltered activity count for the chip; Everyone's Activity tab lists every Bubble's activity.
+  const activityTotal = !group ? 0 : group.id === 'everyone' ? GROUPS.reduce((n, g) => n + g.activity.length, 0) : group.activity.length;
   // Sheet rows for the current tab, after sort/filter and search.
   const activity = !group
     ? []
@@ -591,6 +603,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             events={eventsOnMap ? mapEvents : []}
             onPlacePress={(pl) => openPlace({ name: pl.name, lat: pl.lat, lng: pl.lng, icon: pl.icon })}
             onEventPress={openEvent}
+            hideEdges={searching} // the results panel covers the top of the map
           />
           {/* Right-side controls, just above the sheet */}
           <Animated.View
@@ -610,7 +623,17 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
               <Ionicons name="location" size={28} color={colors.primary} />
             </Pressable>
           </Animated.View>
-          <MapSearch top={insets.top + spacing.sm} onOpen={() => toggleSheet(false)} onPerson={openPerson} onPin={openPin} onPlace={openPlace} />
+          <MapSearch
+            top={insets.top + spacing.sm}
+            reduceMotion={reduceMotion}
+            onOpenChange={(o) => {
+              setSearching(o);
+              if (o) toggleSheet(false);
+            }}
+            onPerson={openPerson}
+            onPin={openPin}
+            onPlace={openPlace}
+          />
         </Animated.View>
       )}
 
@@ -666,11 +689,11 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             <View style={[styles.row, { gap: spacing.sm }]}>
               <Bubble size={22} tint={color} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.sheetTitle}>{group.name}</Text>
-                <Text numberOfLines={1} style={type.caption}>
-                  {`${group.members.length} ${group.id === 'everyone' ? 'people' : 'members'} · ${
-                    group.members.filter((m) => distanceFromMe(m.lat, m.lng) <= everyoneRadius).length
-                  } within ${everyoneRadius} mi`}
+                <Text maxFontSizeMultiplier={FIXED_TEXT} style={styles.sheetTitle}>{group.name}</Text>
+                <Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={1} style={type.caption}>
+                  {group.id === 'everyone'
+                    ? `${group.members.length} people · ${group.members.filter((m) => distanceFromMe(m.lat, m.lng) <= everyoneRadius).length} within ${everyoneRadius} mi`
+                    : `${group.members.length} members · ${group.members.filter((m) => distanceFromMe(m.lat, m.lng) <= 1).length} nearby`}
                 </Text>
               </View>
               <MenuButton
@@ -686,9 +709,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             {!sheetOpen && (
               <View style={[styles.row, { gap: spacing.sm, marginTop: spacing.sm }]}>
                 {TABS.map((t) => (
-                  <Pressable key={t} style={styles.sheetChip} onPress={() => { switchTab(t); toggleSheet(true); }}>
+                  <Pressable key={t} style={styles.sheetChip} hitSlop={10} onPress={() => { switchTab(t); toggleSheet(true); }}>
                     <Ionicons name={TAB_ICONS[t]} size={13} color={colors.primary} />
-                    <Text style={styles.sheetChipText}>{t} · {t === 'Members' ? group.members.length : t === 'Pins' ? group.pins.length : group.activity.length}</Text>
+                    <Text maxFontSizeMultiplier={FIXED_TEXT} style={styles.sheetChipText}>{t} · {t === 'Members' ? group.members.length : t === 'Pins' ? group.pins.length : activityTotal}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -740,7 +763,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
 
             {tab === 'Activity' &&
               activity.map((a, i) => (
-                <Pressable key={a.key} onPress={() => setRead({ ...read, [a.key]: true })} style={[styles.listRow, i > 0 && styles.divider, a.unread && styles.unread]}>
+                <Pressable key={a.key} onPress={() => openActivity(a.key, a.text)} style={[styles.listRow, i > 0 && styles.divider, a.unread && styles.unread]}>
                   <View style={[styles.iconCircle, { backgroundColor: color + '1F' }]}>
                     <Ionicons name={a.icon} size={18} color={color} />
                   </View>
@@ -764,7 +787,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={styles.rowTitle}>{pin.name}</Text>
-                    <Text numberOfLines={1} style={type.caption}>{pin.note}</Text>
+                    <Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={1} style={type.caption}>{pin.note}</Text>
                     <Text style={type.caption}>by {pin.by}</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
@@ -784,7 +807,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   <Ionicons name="person-add" size={17} color={canInvite(group) ? colors.primary : colors.textMuted} />
                 </View>
                 <Text style={[type.body, { flex: 1, color: canInvite(group) ? colors.primary : colors.textMuted }]}>
-                  {canInvite(group) ? 'Add member' : `Only ${ownerName(group)} can add members`}
+                  {canInvite(group) ? 'Add Members' : `Only ${ownerName(group)} can add members`}
                 </Text>
               </Pressable>
             )}
@@ -812,7 +835,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
 
             {((tab === 'Activity' && !activity.length) || (tab === 'Pins' && !pins.length) || (tab === 'Members' && !members.length)) && (
               <Text style={[type.caption, { padding: spacing.md }]}>
-                Nothing here.
+                {q ? `No results for “${query.trim()}”` : tab === 'Activity' ? 'No activity yet' : tab === 'Pins' ? 'No pins yet' : 'No members yet'}
               </Text>
             )}
           </ScrollView>
@@ -878,14 +901,14 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                 />
                 {editing && g.id !== 'everyone' && (
                   <Pressable style={[styles.removeBadge, { transform: [{ scale: f.scale }] }]} onPress={() => confirmRemove(g)} hitSlop={8}>
-                    <Ionicons name="remove" size={18} color={colors.surface} />
+                    <Ionicons name="remove" size={18} color={'white'} />
                   </Pressable>
                 )}
               </Animated.View>
             );
           })}
           {otherIdx.length > 0 && (() => {
-            // "More bubbles…": tap (or swipe) to switch screens
+            // "More Bubbles…": tap (or swipe) to switch screens
             const f = fieldSpot(pageIdx.length, null);
             return (
               <Animated.View
@@ -900,7 +923,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                 <FloatingBubble
                   size={f.s}
                   tint={colors.textMuted}
-                  label={onPage === 0 ? 'More bubbles…' : 'Recent'}
+                  label={onPage === 0 ? 'More Bubbles…' : 'Recent'}
                   icon={onPage === 0 ? 'ellipsis-horizontal' : 'arrow-back'}
                   delay={pageIdx.length * 500}
                   still={reduceMotion}
@@ -995,7 +1018,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   </Animated.View>
                 )}
                 <Animated.Text
-                  numberOfLines={1}
+                  maxFontSizeMultiplier={FIXED_TEXT}
+                  numberOfLines={2}
                   style={[styles.rowLabel, { marginTop: grow.gap }, i === selected && { color: colors.primary, fontFamily: fonts.bodyBold }]}
                 >
                   {g.name}
@@ -1010,7 +1034,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   <Ionicons name="ellipsis-horizontal" size={18} color={colors.textMuted} />
                 </Bubble>
               </Animated.View>
-              <Animated.Text numberOfLines={1} style={[styles.rowLabel, { marginTop: grow.gap }]}>More bubbles...</Animated.Text>
+              <Animated.Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={2} style={[styles.rowLabel, { marginTop: grow.gap }]}>More Bubbles…</Animated.Text>
             </Pressable>
           )}
         </ScrollView>
@@ -1027,12 +1051,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         <BubbleProfile
           group={infoGroup ?? group}
           startEditing={profileOpen === 'edit'}
-          muted={!!muted[(infoGroup ?? group)?.id ?? '']}
-          onMute={() => {
-            const g = (infoGroup ?? group)!;
-            setMuted({ ...muted, [g.id]: !muted[g.id] });
-            showToast(muted[g.id] ? `Notifications on for ${g.name}` : `Muted ${g.name}`);
-          }}
+          onMute={() => toggleMute((infoGroup ?? group)!)}
           onClose={() => {
             setProfileOpen(false);
             setInfoGroup(null);
@@ -1132,7 +1151,7 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     backgroundColor: colors.danger,
     borderWidth: 2,
-    borderColor: colors.surface,
+    borderColor: 'white',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1142,7 +1161,7 @@ const styles = StyleSheet.create({
   mapArea: { position: 'absolute', top: 0, left: 0, right: 0 },
   notesFloat: { position: 'absolute', left: 0, right: 0, height: NOTES_H, justifyContent: 'center' },
   rightStack: { position: 'absolute', right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4, alignItems: 'center', gap: spacing.sm + 4 },
-  smallFab: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
+  smallFab: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   fab: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   panel: { position: 'absolute', left: 0, right: 0, bottom: 0, pointerEvents: 'none' },
   title: { position: 'absolute', left: spacing.md, pointerEvents: 'none' },
@@ -1176,7 +1195,7 @@ const styles = StyleSheet.create({
   rowContent: { paddingTop: spacing.sm },
   rowItem: { alignItems: 'center' },
   rowBadge: { position: 'absolute', top: -4, left: '50%', marginLeft: RS / 2 - 16 },
-  rowLabel: { ...type.caption, fontSize: 11, lineHeight: 16, width: '92%', textAlign: 'center' },
+  rowLabel: { ...type.caption, fontSize: 11, lineHeight: 14, width: '92%', textAlign: 'center' },
   toast: {
     position: 'absolute',
     alignSelf: 'center',

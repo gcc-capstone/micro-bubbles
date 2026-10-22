@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Cluster, EdgeMarker, EventPin, MapPin, MemberPin, YouDot } from './components';
 import { corePoints, edgeSpot, spread, toScreen, visibleLabels } from './mapFit';
 import { groupNearby } from './cluster';
-import { colors, fonts, radius, spacing } from './theme';
+import { FIXED_TEXT, fonts, radius, spacing } from './theme';
 import { initials, Member, memberColor, ME, minutesAgo, Pin, Hotspot } from './data';
 
 export type Focus = { name: string; lat: number; lng: number };
@@ -34,10 +34,11 @@ export type BubbleMapProps = {
   events?: MapEvent[];
   onEventPress?: (key: string) => void;
   radiusMi?: number;
+  hideEdges?: boolean; // hide off-screen markers (e.g. while a panel covers the map)
   onCenterChange?: (c: { lat: number; lng: number }) => void; // after the user pans (Drop Pin) // when set (and nothing is focused), center on you and show this radius
 };
 
-export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange }: BubbleMapProps) {
+export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange, hideEdges }: BubbleMapProps) {
   const map = useRef<MapView>(null);
   const ready = useRef(false);
   const [region, setRegion] = useState<Region | null>(null);
@@ -129,7 +130,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
   // Off-screen people, pinned to the nearest edge; ones landing on the same spot share a marker.
   // Off-screen people: one marker per side of the screen, showing the nearest person that way and
   // how many there are, so a zoomed-in map doesn't get ringed with faces.
-  const edges = region
+  const edges = region && !hideEdges
     ? Object.values(
         members.reduce<Record<number, { m: Member; x: number; y: number; angle: number; d: number }[]>>((acc, m) => {
           const e = edgeSpot(region, size, { top: topInset, bottom: bottomInset }, m, 42); // room for the arrow
@@ -193,8 +194,8 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
         // hidden names stay mounted (see the note on markers below) and just turn invisible
         <Marker key={'tag-' + p.name} coordinate={{ latitude: p.lat, longitude: p.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges onPress={() => tagShown[i] && onPlacePress?.(p)}>
           <View style={[styles.placeTag, { backgroundColor: color, opacity: tagShown[i] ? 1 : 0 }]}>
-            <Ionicons name={p.icon} size={11} color={colors.surface} />
-            <Text style={styles.placeTagText}>{p.name}</Text>
+            <Ionicons name={p.icon} size={11} color={'white'} />
+            <Text maxFontSizeMultiplier={FIXED_TEXT} style={styles.placeTagText}>{p.name}</Text>
           </View>
         </Marker>
       ))}
@@ -241,5 +242,5 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
 
 const styles = StyleSheet.create({
   placeTag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 },
-  placeTagText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.surface },
+  placeTagText: { fontFamily: fonts.bodyBold, fontSize: 11, color: 'white' },
 });

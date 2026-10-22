@@ -2,15 +2,16 @@
 // unread rows are shaded and bold. Pull down at the top to reveal search. Tap opens the item;
 // swipe right (or long-press) toggles read/unread.
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Bubble, PageSheet, Separator } from './components';
-import { EventView, LinkedText, LocationView, PersonView, PinView, textPerson } from './Details';
-import { colors, fonts, radius, shadow, spacing, type } from './theme';
+import { EventView, LinkedText, LocationView, PersonView, PinView } from './Details';
+import { colors, fonts, radius, spacing, type } from './theme';
 import { ALL, allPins, EVENTS, GROUPS, groupColor, INBOX, InboxItem, initials, memberColor } from './data';
 
 const SEARCH_H = 52;
+const HEAD_H = 71; // large title + unread line
 
 export default function InboxScreen({ onChange }: { onChange: () => void }) {
   const insets = useSafeAreaInsets();
@@ -24,6 +25,12 @@ export default function InboxScreen({ onChange }: { onChange: () => void }) {
   };
   const [openId, setOpenId] = useState<string | null>(null);
   const opened = items.find((it) => it.id === openId) ?? null;
+  // Joining starts sharing your location, so the inline Accept asks first (the detail sheet spells it out).
+  const acceptInvite = (it: InboxItem) =>
+    Alert.alert(`Join ${it.open?.bubble ?? 'this Bubble'}?`, `${it.body.split(' · ')[1] ?? 'Its members'} will see your location, pins and photos.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Join', onPress: () => update(it.id, { invite: 'accepted', read: true }) },
+    ]);
   const open = (it: InboxItem) => {
     update(it.id, { read: true });
     setOpenId(it.id);
@@ -31,6 +38,7 @@ export default function InboxScreen({ onChange }: { onChange: () => void }) {
   const [query, setQuery] = useState('');
   const [listH, setListH] = useState(0);
   const list = useRef<ScrollView>(null);
+  const scrollY = useRef(new Animated.Value(SEARCH_H)).current;
   const update = (id: string, change: Partial<InboxItem>) => setItems(items.map((it) => (it.id === id ? { ...it, ...change } : it)));
   const unread = items.filter((it) => !it.read).length;
   const q = query.trim().toLowerCase();
@@ -45,19 +53,33 @@ export default function InboxScreen({ onChange }: { onChange: () => void }) {
     <View style={{ flex: 1, paddingTop: insets.top }}>
       {/* iOS: bar buttons sit in the nav row above the large title */}
       <View style={styles.nav}>
+        {/* the large title collapses into this one as the list scrolls (iOS large titles) */}
+        <Animated.Text pointerEvents="none" style={[styles.navTitle, { opacity: scrollY.interpolate({ inputRange: [SEARCH_H + 40, SEARCH_H + 70], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
+          Inbox
+        </Animated.Text>
         {unread > 0 && (
           <Pressable onPress={() => setItems(items.map((it) => ({ ...it, read: true })))} hitSlop={8}>
-            <Text style={styles.link}>Mark all read</Text>
+            <Text style={styles.link}>Mark All as Read</Text>
           </Pressable>
         )}
       </View>
-      <View style={styles.head}>
+      <Animated.View
+        style={[
+          styles.head,
+          {
+            height: scrollY.interpolate({ inputRange: [SEARCH_H, SEARCH_H + 70], outputRange: [HEAD_H, 0], extrapolate: 'clamp' }),
+            opacity: scrollY.interpolate({ inputRange: [SEARCH_H, SEARCH_H + 40], outputRange: [1, 0], extrapolate: 'clamp' }),
+          },
+        ]}
+      >
         <Text style={type.largeTitle}>Inbox</Text>
         <Text style={type.caption}>{unread ? `${unread} unread` : 'All caught up'}</Text>
-      </View>
+      </Animated.View>
 
       <ScrollView
         ref={list}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
         onLayout={(e) => setListH(e.nativeEvent.layout.height)}
         contentContainerStyle={{ minHeight: listH + SEARCH_H, paddingBottom: spacing.xl }}
         keyboardShouldPersistTaps="handled"
@@ -83,10 +105,10 @@ export default function InboxScreen({ onChange }: { onChange: () => void }) {
                   <Text style={type.caption}>{it.body}</Text>
                   {it.invite === 'pending' && (
                     <View style={styles.actions}>
-                      <Pressable style={[styles.action, styles.accept]} onPress={() => update(it.id, { invite: 'accepted', read: true })}>
-                        <Text style={[styles.actionText, { color: colors.surface }]}>Accept</Text>
+                      <Pressable style={[styles.action, styles.accept]} hitSlop={8} onPress={() => acceptInvite(it)}>
+                        <Text style={[styles.actionText, { color: colors.onPrimary }]}>Accept</Text>
                       </Pressable>
-                      <Pressable style={styles.action} onPress={() => update(it.id, { invite: 'declined', read: true })}>
+                      <Pressable style={styles.action} hitSlop={8} onPress={() => update(it.id, { invite: 'declined', read: true })}>
                         <Text style={styles.actionText}>Decline</Text>
                       </Pressable>
                     </View>
@@ -99,7 +121,7 @@ export default function InboxScreen({ onChange }: { onChange: () => void }) {
               </SwipeRow>
             </View>
           ))}
-          {shown.length === 0 && <Text style={[type.caption, { padding: spacing.md }]}>No messages match "{query}".</Text>}
+          {shown.length === 0 && <Text style={[type.caption, { padding: spacing.md }]}>No results for “{query}”</Text>}
         </View>
         <Text style={[type.caption, { textAlign: 'center', marginTop: spacing.md }]}>Swipe right on a message to mark it read or unread</Text>
       </ScrollView>
@@ -130,7 +152,7 @@ function SwipeRow({ read, onToggle, children }: { read: boolean; onToggle: () =>
   return (
     <View>
       <View style={styles.swipeBack}>
-        <Ionicons name={read ? 'mail-unread' : 'mail-open'} size={20} color={colors.surface} />
+        <Ionicons name={read ? 'mail-unread' : 'mail-open'} size={20} color={colors.onPrimary} />
         <Text style={styles.swipeText}>{read ? 'Unread' : 'Read'}</Text>
       </View>
       <Animated.View style={{ transform: [{ translateX: x }], backgroundColor: colors.surface }} {...pan.panHandlers}>
@@ -178,7 +200,7 @@ function ItemDetail({ item, onInvite, onClose }: { item: InboxItem; onInvite: (i
         {item.invite === 'pending' ? (
           <View style={[styles.actions, { justifyContent: 'center', marginTop: spacing.lg }]}>
             <Pressable style={[styles.action, styles.accept, styles.bigAction]} onPress={() => { onInvite('accepted'); onClose(); }}>
-              <Text style={[styles.actionText, { color: colors.surface }]}>Accept</Text>
+              <Text style={[styles.actionText, { color: colors.onPrimary }]}>Accept</Text>
             </Pressable>
             <Pressable style={[styles.action, styles.bigAction]} onPress={() => { onInvite('declined'); onClose(); }}>
               <Text style={styles.actionText}>Decline</Text>
@@ -192,23 +214,7 @@ function ItemDetail({ item, onInvite, onClose }: { item: InboxItem; onInvite: (i
       </View>
     );
   }
-  if (person)
-    return (
-      <View>
-        <View style={[styles.detail, { paddingBottom: 0 }]}>
-          <View style={styles.bubbleMsg}>
-            <Text style={type.body}>{item.body}</Text>
-            <Text style={type.caption}>{item.time} ago</Text>
-          </View>
-          {/* replies go through the phone's Messages app; Bubbles has no chat */}
-          <Pressable style={styles.replyRow} onPress={() => textPerson(person)}>
-            <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
-            <Text style={[styles.actionText, { color: colors.primary }]}>Reply in Messages</Text>
-          </Pressable>
-        </View>
-        <PersonView member={person} onShowOnMap={onClose} />
-      </View>
-    );
+  if (person) return <PersonView member={person} onShowOnMap={onClose} />;
   if (o.event) return <EventView event={EVENTS.find((e) => e.title === o.event) ?? null} />;
   if (o.pin) {
     const hit = allPins().find((p) => p.pin.name === o.pin);
@@ -226,7 +232,8 @@ function ItemDetail({ item, onInvite, onClose }: { item: InboxItem; onInvite: (i
 }
 
 const styles = StyleSheet.create({
-  head: { paddingHorizontal: spacing.md, gap: spacing.xs, paddingBottom: spacing.sm },
+  head: { paddingHorizontal: spacing.md, gap: spacing.xs, paddingBottom: spacing.sm, overflow: 'hidden' },
+  navTitle: { position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: fonts.bodyBold, fontSize: 17, color: colors.text },
   nav: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: spacing.md },
   link: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
   searchWrap: { height: SEARCH_H, justifyContent: 'center', paddingHorizontal: spacing.md },
@@ -243,10 +250,8 @@ const styles = StyleSheet.create({
   actionText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.text },
   bigAction: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm + 2 },
   swipeBack: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: spacing.md, backgroundColor: colors.primary },
-  swipeText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.surface },
+  swipeText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.onPrimary },
   detail: { padding: spacing.md, gap: spacing.sm },
   card: { backgroundColor: colors.surface, borderRadius: radius.sm + 4, overflow: 'hidden' },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  bubbleMsg: { alignSelf: 'flex-start', maxWidth: '80%', gap: 2, backgroundColor: colors.surface, borderRadius: radius.md, borderBottomLeftRadius: 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, ...shadow },
-  replyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: colors.primarySoft, borderRadius: radius.pill, height: 40 },
 });
