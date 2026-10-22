@@ -449,6 +449,9 @@ export const groupColor = (id: string) => {
   const i = ALL.findIndex((g) => g.id === id);
   return ALL[i]?.color ?? bubbleColors[Math.max(0, i) % bubbleColors.length];
 };
+// Dummy phone number per person, stable across renders (prototype data has none).
+// ponytail: real numbers come from the account/contacts once there's a backend.
+export const phoneOf = (name: string) => `+1724555${String([...name].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) % 10000).padStart(4, '0')}`;
 export const memberColor = (name: string) => bubbleColors[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % bubbleColors.length];
 // 'Now', '6m ago', '1h ago' -> minutes, for sorting by freshest location
 export const minutesAgo = (updated: string) => (updated === 'Now' ? 0 : parseInt(updated) * (updated.includes('h') ? 60 : 1));

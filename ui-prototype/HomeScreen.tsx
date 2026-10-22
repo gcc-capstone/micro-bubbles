@@ -21,7 +21,7 @@ const ROW_GROW = 1.3; // bubbles scale up while the row has focus
 const ROW_H_FOCUS = ROW_H + RS * (ROW_GROW - 1) + 2;
 const SHEET_MIN = 100; // header + Activity/Pins/Members chips
 const PERSON_H = 250; // compact person card; quick messages float above it (like Life360)
-const NOTES_H = 52; // the floating quick-message row
+const NOTES_H = 44; // the floating quick-message row
 const MAX_BUBBLES = 15; // including Everyone; two All Bubbles screens hold them all
 const FIRST_SCREEN = 5; // most recently active Bubbles shown up front, after Everyone
 const SEARCH_H = 52;
@@ -578,8 +578,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         <Animated.View style={[styles.mapArea, { opacity: p, bottom: rowH }]} onTouchStart={() => focusRow(false)}>
           <BubbleMap
             members={group.members}
-            hotspots={group.hotspots}
-            pins={group.pins}
+            // Everyone is about people: pins and hotspots show inside their own Bubble
+            hotspots={group.id === 'everyone' ? [] : group.hotspots}
+            pins={group.id === 'everyone' ? [] : group.pins}
             color={color}
             focus={focus}
             topInset={insets.top + 56} // room for the search bar

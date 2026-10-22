@@ -127,15 +127,18 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
           .map((it) => ({ initials: initials(it.member!.name), color: memberColor(it.member!.name) }));
 
   // Off-screen people, pinned to the nearest edge; ones landing on the same spot share a marker.
+  // Off-screen people: one marker per side of the screen, showing the nearest person that way and
+  // how many there are, so a zoomed-in map doesn't get ringed with faces.
   const edges = region
-    ? groupNearby(
-        members.flatMap((m) => {
+    ? Object.values(
+        members.reduce<Record<number, { m: Member; x: number; y: number; angle: number; d: number }[]>>((acc, m) => {
           const e = edgeSpot(region, size, { top: topInset, bottom: bottomInset }, m, 42); // room for the arrow
-          return e ? [{ m, ...e }] : [];
-        }),
-        (e) => e,
-        44, // markers closer than this share one, with a count
-      )
+          if (!e) return acc;
+          const sector = (Math.round(e.angle / (Math.PI / 2)) + 4) % 4;
+          (acc[sector] ??= []).push({ m, ...e, d: Math.hypot(m.lat - region.latitude, m.lng - region.longitude) });
+          return acc;
+        }, {}),
+      ).map((g) => g.sort((a, b) => a.d - b.d))
     : [];
 
   const fit = () => {
@@ -165,6 +168,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       mapPadding={{ top: topInset, right: 0, bottom: bottomInset, left: 0 }}
       zoomEnabled // pinch to zoom
       rotateEnabled
+      showsPointsOfInterests={false} // Apple's shops and places compete with people; street names stay
       onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
       // ponytail: edge markers update when panning stops; onRegionChange would re-render every frame
       onRegionChangeComplete={(r) => {

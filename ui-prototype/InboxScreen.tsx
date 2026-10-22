@@ -6,7 +6,7 @@ import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextIn
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Bubble, PageSheet, Separator } from './components';
-import { EventView, LinkedText, LocationView, PersonView, PinView } from './Details';
+import { EventView, LinkedText, LocationView, PersonView, PinView, textPerson } from './Details';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
 import { ALL, allPins, EVENTS, GROUPS, groupColor, INBOX, InboxItem, initials, memberColor } from './data';
 
@@ -147,8 +147,6 @@ const sheetTitle = (it: InboxItem) =>
 // alert -> hotspot, event -> event, pin -> pin.
 // ponytail: "Show on map" just closes the sheet; jumping to the Bubbles tab needs app-level routing.
 function ItemDetail({ item, onInvite, onClose }: { item: InboxItem; onInvite: (i: 'accepted' | 'declined') => void; onClose: () => void }) {
-  const [reply, setReply] = useState('');
-  const [sent, setSent] = useState('');
   const o = item.open ?? {};
   const person = o.person ? GROUPS.flatMap((g) => g.members).find((m) => m.name === o.person) : undefined;
   if (o.bubble) {
@@ -202,18 +200,11 @@ function ItemDetail({ item, onInvite, onClose }: { item: InboxItem; onInvite: (i
             <Text style={type.body}>{item.body}</Text>
             <Text style={type.caption}>{item.time} ago</Text>
           </View>
-          <View style={styles.replyRow}>
-            <TextInput value={reply} onChangeText={setReply} placeholder={`Reply to ${person.name.split(' ')[0]}`} placeholderTextColor={colors.textMuted} style={styles.searchInput} />
-            <Pressable
-              disabled={!reply.trim()}
-              onPress={() => { setSent(reply.trim()); setReply(''); }}
-              hitSlop={10}
-              accessibilityLabel="Send reply"
-            >
-              <Ionicons name="arrow-up-circle" size={30} color={reply.trim() ? colors.primary : colors.border} />
-            </Pressable>
-          </View>
-          {sent !== '' && <Text style={[type.caption, { color: colors.secure, alignSelf: 'flex-end' }]}>Sent "{sent}"</Text>}
+          {/* replies go through the phone's Messages app; Bubbles has no chat */}
+          <Pressable style={styles.replyRow} onPress={() => textPerson(person)}>
+            <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
+            <Text style={[styles.actionText, { color: colors.primary }]}>Reply in Messages</Text>
+          </Pressable>
         </View>
         <PersonView member={person} onShowOnMap={onClose} />
       </View>
@@ -257,5 +248,5 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: radius.sm + 4, overflow: 'hidden' },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   bubbleMsg: { alignSelf: 'flex-start', maxWidth: '80%', gap: 2, backgroundColor: colors.surface, borderRadius: radius.md, borderBottomLeftRadius: 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, ...shadow },
-  replyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.pill, paddingLeft: spacing.md, paddingRight: 4, height: 40, borderWidth: 1, borderColor: colors.border },
+  replyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: colors.primarySoft, borderRadius: radius.pill, height: 40 },
 });
