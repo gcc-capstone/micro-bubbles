@@ -4,7 +4,7 @@ import {
   Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, useWindowDimensions, View, ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, Ellipse, G, Path, RadialGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
 
@@ -17,9 +17,8 @@ type Style = StyleProp<ViewStyle>;
 const arc = (c: number, rad: number, a: number, b: number) =>
   `M ${c + rad * Math.cos(a)} ${c + rad * Math.sin(a)} A ${rad} ${rad} 0 0 1 ${c + rad * Math.cos(b)} ${c + rad * Math.sin(b)}`;
 
-// Soap bubble drawn with SVG gradients: a nearly clear center, film that thickens and picks up the
-// tint toward the rim, a thin-film rainbow sheen along the edge, a soft window reflection top-left
-// with a sharp glint, and a faint bounce light along the bottom.
+// Soap bubble drawn with SVG gradients, in one tint: a nearly clear center, film that thickens
+// toward the rim, a soft window reflection top-left with a sharp glint, and rim highlights.
 export function Bubble({ size, tint = colors.primary, children }: { size: number; tint?: string; children?: ReactNode }) {
   const id = useId().replace(/:/g, '');
   const r = size / 2;
@@ -36,13 +35,6 @@ export function Bubble({ size, tint = colors.primary, children }: { size: number
             <Stop offset="0.86" stopColor={tint} stopOpacity={0.12} />
             <Stop offset="1" stopColor={tint} stopOpacity={0.42} />
           </RadialGradient>
-          <LinearGradient id={`sheen${id}`} x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor="#FF5FD2" stopOpacity={0.7} />
-            <Stop offset="0.25" stopColor="#4FD8FF" stopOpacity={0.5} />
-            <Stop offset="0.5" stopColor={tint} stopOpacity={0.1} />
-            <Stop offset="0.75" stopColor="#FFD84F" stopOpacity={0.6} />
-            <Stop offset="1" stopColor="#7F5FFF" stopOpacity={0.7} />
-          </LinearGradient>
           <RadialGradient id={`window${id}`} cx="50%" cy="50%" r="50%">
             <Stop offset="0" stopColor="#FFFFFF" stopOpacity={1} />
             <Stop offset="0.45" stopColor="#FFFFFF" stopOpacity={0.7} />
@@ -50,12 +42,9 @@ export function Bubble({ size, tint = colors.primary, children }: { size: number
           </RadialGradient>
         </Defs>
         <Circle cx={r} cy={r} r={r - rim} fill={`url(#film${id})`} />
-        {/* thin-film sheen: wide soft band, then a crisp edge */}
-        <Circle cx={r} cy={r} r={r - size * 0.045} fill="none" stroke={`url(#sheen${id})`} strokeWidth={size * 0.08} strokeOpacity={0.55} />
         <Circle cx={r} cy={r} r={r - rim / 2} fill="none" stroke={tint} strokeOpacity={0.55} strokeWidth={rim} />
         {/* window reflection and glint */}
         <Ellipse cx={size * 0.33} cy={size * 0.26} rx={size * 0.21} ry={size * 0.12} fill={`url(#window${id})`} transform={`rotate(-38 ${size * 0.33} ${size * 0.26})`} />
-        <Ellipse cx={size * 0.7} cy={size * 0.76} rx={size * 0.09} ry={size * 0.05} fill={`url(#window${id})`} opacity={0.45} transform={`rotate(-38 ${size * 0.7} ${size * 0.76})`} />
         <Circle cx={size * 0.28} cy={size * 0.24} r={Math.max(1, size * 0.035)} fill="#FFFFFF" fillOpacity={0.95} />
         {/* bright curve along the top-left rim, fainter bounce light bottom-right */}
         <Path d={arc(r, r - size * 0.09, 3.55, 4.45)} fill="none" stroke="#FFFFFF" strokeOpacity={0.85} strokeWidth={Math.max(1.5, size * 0.04)} strokeLinecap="round" />
@@ -69,9 +58,9 @@ export function Bubble({ size, tint = colors.primary, children }: { size: number
 
 // Bubble that floats and sways; springs bigger when selected.
 // still: no floating (reduced motion).
-export function FloatingBubble({ size, tint, label, sublabel, icon, count = 0, delay = 0, selected, still, onPress, style }: {
+export function FloatingBubble({ size, tint, label, sublabel, icon, count = 0, delay = 0, selected, still, onPress, onLongPress, style }: {
   size: number; tint: string; label: string; sublabel?: string; icon?: IconName; count?: number; delay?: number; selected?: boolean; still?: boolean;
-  onPress?: () => void; style?: Style;
+  onPress?: () => void; onLongPress?: () => void; style?: Style;
 }) {
   const t = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -89,7 +78,7 @@ export function FloatingBubble({ size, tint, label, sublabel, icon, count = 0, d
 
   return (
     <Animated.View style={[{ position: 'absolute', transform: [{ translateY: wave(-12, 8) }, { translateX: wave(5, -5) }, { scale }] }, style]}>
-      <Pressable onPress={onPress}>
+      <Pressable onPress={onPress} onLongPress={onLongPress}>
         <Bubble size={size} tint={tint}>
           {icon && size > 70 && <Ionicons name={icon} size={size * 0.16} color={tint} style={{ marginBottom: 2 }} />}
           <Text numberOfLines={2} style={[s.bubbleLabel, { color: colors.text, fontSize: size > 130 ? 17 : size > 105 ? 15 : 13, maxWidth: size * 0.78 }]}>{label}</Text>
@@ -224,17 +213,21 @@ export function Cluster({ count, faces = [], style }: { count: number; faces?: {
   );
 }
 
-// Marker on the map's edge for someone off screen, with an arrow pointing their way.
+// Marker on the map's edge for someone off screen: their face, and next to it (never under it) a
+// white chip with a bold accent arrow pointing their way, so it reads on any map.
+const EDGE_BOX = 84;
 export function EdgeMarker({ initials, color, angle, count = 1, style }: { initials: string; color: string; angle: number; count?: number; style?: Style }) {
   return (
-    <View style={[s.abs, s.center, { width: 44, height: 44 }, style]}>
-      <View style={[s.abs, s.center, { width: 44, height: 44, transform: [{ rotate: `${angle}rad` }] }]}>
-        <Ionicons name="caret-forward" size={12} color={color} style={{ position: 'absolute', right: -2 }} />
+    <View style={[s.abs, s.center, { width: EDGE_BOX, height: EDGE_BOX }, style]} pointerEvents="box-none">
+      <View style={[s.abs, s.center, { width: EDGE_BOX, height: EDGE_BOX, transform: [{ rotate: `${angle}rad` }] }]} pointerEvents="none">
+        <View style={[s.edgeArrow, { left: EDGE_BOX / 2 + 18 }]}>
+          <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+        </View>
       </View>
-      <View style={[s.cluster, { width: 30, height: 30, borderWidth: 2, backgroundColor: color }]}>
-        <Text style={[s.clusterText, { fontSize: 11 }]}>{initials}</Text>
+      <View style={[s.cluster, { width: 36, height: 36, borderWidth: 3, backgroundColor: color }]}>
+        <Text style={[s.clusterText, { fontSize: 12 }]}>{initials}</Text>
       </View>
-      {count > 1 && <Badge count={count} style={{ position: 'absolute', top: -2, right: -2, backgroundColor: colors.text }} />}
+      {count > 1 && <Badge count={count} style={{ position: 'absolute', top: EDGE_BOX / 2 - 26, left: EDGE_BOX / 2 - 26, backgroundColor: colors.primary }} />}
     </View>
   );
 }
@@ -577,6 +570,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     ...shadow,
   },
+  edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 12, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...shadow },
   clusterText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.surface },
   mapButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
 

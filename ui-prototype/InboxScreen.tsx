@@ -42,16 +42,17 @@ export default function InboxScreen({ onChange }: { onChange: () => void }) {
   }, [listH]);
 
   return (
-    <View style={{ flex: 1, paddingTop: insets.top + spacing.sm }}>
+    <View style={{ flex: 1, paddingTop: insets.top }}>
+      {/* iOS: bar buttons sit in the nav row above the large title */}
+      <View style={styles.nav}>
+        {unread > 0 && (
+          <Pressable onPress={() => setItems(items.map((it) => ({ ...it, read: true })))} hitSlop={8}>
+            <Text style={styles.link}>Mark all read</Text>
+          </Pressable>
+        )}
+      </View>
       <View style={styles.head}>
-        <View style={styles.titleRow}>
-          <Text style={type.largeTitle}>Inbox</Text>
-          {unread > 0 && (
-            <Pressable onPress={() => setItems(items.map((it) => ({ ...it, read: true })))} hitSlop={8}>
-              <Text style={styles.link}>Mark all read</Text>
-            </Pressable>
-          )}
-        </View>
+        <Text style={type.largeTitle}>Inbox</Text>
         <Text style={type.caption}>{unread ? `${unread} unread` : 'All caught up'}</Text>
       </View>
 
@@ -235,8 +236,8 @@ function ItemDetail({ item, onInvite, onClose }: { item: InboxItem; onInvite: (i
 
 const styles = StyleSheet.create({
   head: { paddingHorizontal: spacing.md, gap: spacing.xs, paddingBottom: spacing.sm },
-  titleRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  link: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.primary, marginBottom: 6 },
+  nav: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: spacing.md },
+  link: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
   searchWrap: { height: SEARCH_H, justifyContent: 'center', paddingHorizontal: spacing.md },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.sm, paddingHorizontal: spacing.sm + 2, height: 36 },
   searchInput: { ...type.body, flex: 1, padding: 0 },

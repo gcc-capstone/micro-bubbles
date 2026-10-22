@@ -48,7 +48,6 @@ export type Group = {
   activity: Activity[]; // newest first
   color?: string; // chosen in Bubble profile > Edit; defaults to the palette
   icon?: IconName; // shown inside the bubble
-  favorite?: boolean; // floats on All Bubbles (max FAVORITES_MAX)
   about?: string;
   isPublic?: boolean;
 };
@@ -70,7 +69,6 @@ export const GROUPS: Group[] = [
     id: 'soccer',
     owner: 'Coach Miller',
     icon: 'football',
-    favorite: true,
     name: 'Home Soccer',
     about: 'U12 team parents and players. Game days at Davis Park.',
     unread: 2,
@@ -100,7 +98,6 @@ export const GROUPS: Group[] = [
     id: 'senior',
     owner: 'Sydney Goettel',
     icon: 'school',
-    favorite: true,
     name: 'Senior Project',
     unread: 1,
     hotspots: [TLC],
@@ -125,7 +122,6 @@ export const GROUPS: Group[] = [
     id: 'fallbreak',
     owner: 'You',
     icon: 'car-sport',
-    favorite: true,
     name: 'Fall Break Crew',
     about: 'Plans, photos and stories from our fall break trips.',
     unread: 0,
@@ -151,7 +147,6 @@ export const GROUPS: Group[] = [
     id: 'theatre',
     owner: 'Venture Hale',
     icon: 'musical-notes',
-    favorite: true,
     name: 'Theatre Crew',
     unread: 3,
     hotspots: [FINE_ARTS, DINING],
@@ -197,7 +192,6 @@ export const GROUPS: Group[] = [
     id: 'family',
     owner: 'Jennifer Shin',
     icon: 'home',
-    favorite: true,
     name: 'Shin Family',
     unread: 1,
     hotspots: [
@@ -368,7 +362,6 @@ export const EVERYONE: Group = {
 export const ALL: Group[] = [EVERYONE, ...GROUPS];
 // Pin each Bubble's color once, so leaving or adding a Bubble doesn't recolor the others.
 ALL.forEach((g, i) => (g.color ??= bubbleColors[i % bubbleColors.length]));
-export const FAVORITES_MAX = 5; // plus Everyone = 6 floating bubbles
 
 export type InboxItem = {
   id: string;

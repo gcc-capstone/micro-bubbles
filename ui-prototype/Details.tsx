@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Platform, Pressable, ScrollView, Share, StyleProp, StyleSheet, Switch, Text, TextInput, TextStyle, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Bubble, Button, IconName, MapPin, PageSheet, Segmented, Separator } from './components';
+import { Avatar, Bubble, Button, IconName, MapPin, MenuButton, PageSheet, Segmented, Separator } from './components';
 import { bubbleColors, colors, fonts, radius, shadow, spacing, type } from './theme';
 import {
   avgRating, BubbleEvent, distanceFromMe, EVENTS, formatMiles, Group, groupColor, GROUPS, initials, Loc, LOCATIONS, ME, Member, memberColor, meters,
@@ -664,8 +664,8 @@ export function EventView({ event }: { event: BubbleEvent | null }) {
 
 /* ---------- Bubble profile (view + edit) ---------- */
 
-export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged, onInvite }: {
-  group: Group | null; startEditing?: boolean; onClose: () => void; onLeave: () => void; onChanged: () => void; onInvite: () => void;
+export function BubbleProfile({ group, startEditing, muted, onMute, onClose, onLeave, onChanged, onInvite }: {
+  group: Group | null; startEditing?: boolean; muted: boolean; onMute: () => void; onClose: () => void; onLeave: () => void; onChanged: () => void; onInvite: () => void;
 }) {
   const [hotspotOpen, setHotspotOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -705,10 +705,20 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
       title={editing ? 'Edit Bubble' : group.name}
       onClose={onClose}
       right={
-        canInvite(group) && (
-          <Pressable onPress={editing ? save : () => setEditing(true)} hitSlop={10}>
-            <Text style={[styles.headerAction, editing && { fontFamily: fonts.bodyBold }]}>{editing ? 'Done' : 'Edit'}</Text>
+        editing ? (
+          <Pressable onPress={save} hitSlop={10}>
+            <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }]}>Done</Text>
           </Pressable>
+        ) : everyone ? null : (
+          // ⋯ like the map sheet: edit (creator only), mute, leave
+          <MenuButton
+            plain
+            icon="ellipsis-horizontal-circle-outline"
+            options={[...(canInvite(group) ? ['Edit Bubble'] : []), muted ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble']}
+            icons={{ 'Edit Bubble': 'create-outline', 'Mute Notifications': 'notifications-off-outline', 'Unmute Notifications': 'notifications-outline', 'Leave Bubble': 'exit-outline' }}
+            destructive={['Leave Bubble']}
+            onSelect={(o) => (o === 'Edit Bubble' ? setEditing(true) : o === 'Leave Bubble' ? leave() : onMute())}
+          />
         )
       }
     >
@@ -1110,8 +1120,8 @@ function DatePicker({ value, today, weekStart, onChange }: { value: string; toda
   );
 }
 
-export function NewEvent({ visible, groups, initialGroupId, today, weekStart = 0, onClose, onCreate }: {
-  visible: boolean; groups: Group[]; initialGroupId?: string; today: string; weekStart?: number; onClose: () => void; onCreate: (e: BubbleEvent) => void;
+export function NewEvent({ visible, groups, initialGroupId, today, initialDate = today, weekStart = 0, onClose, onCreate }: {
+  visible: boolean; groups: Group[]; initialGroupId?: string; today: string; initialDate?: string; weekStart?: number; onClose: () => void; onCreate: (e: BubbleEvent) => void;
 }) {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(today);
@@ -1122,7 +1132,7 @@ export function NewEvent({ visible, groups, initialGroupId, today, weekStart = 0
   useEffect(() => {
     if (!visible) return;
     setTitle('');
-    setDate(today);
+    setDate(initialDate < today ? today : initialDate);
     setTime(TIMES[4]);
     setPlace(null);
     setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);

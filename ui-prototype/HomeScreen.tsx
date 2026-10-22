@@ -3,12 +3,12 @@
 // Re-tapping the Bubbles tab (resetKey) or "More bubbles..." shows all Bubbles as floating
 // bubbles (few) or an Apple Watch-style honeycomb (many).
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActionSheetIOS, Alert, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, IconName, MapButton, MenuButton, Segmented, Separator } from './components';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
-import { ALL, avgRating, canInvite, ownerName, FAVORITES_MAX, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, ME, Loc, Member, memberColor, Pin, TODAY } from './data';
+import { ALL, avgRating, canInvite, ownerName, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, ME, Loc, Member, memberColor, Pin, TODAY } from './data';
 import { AddMembers, BubbleProfile, DropPin, NewHotspot, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView, QuickMessages } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
 import MapSearch from './MapSearch';
@@ -22,7 +22,8 @@ const ROW_H_FOCUS = ROW_H + RS * (ROW_GROW - 1) + 2;
 const SHEET_MIN = 100; // header + Activity/Pins/Members chips
 const PERSON_H = 250; // compact person card; quick messages float above it (like Life360)
 const NOTES_H = 52; // the floating quick-message row
-const SHELF_H = 112; // "More Bubbles" shelf at the bottom of All Bubbles
+const MAX_BUBBLES = 15; // including Everyone; two All Bubbles screens hold them all
+const FIRST_SCREEN = 5; // most recently active Bubbles shown up front, after Everyone
 const SEARCH_H = 52;
 const MAX_ROW = 11; // more than this many Bubbles shows a "More bubbles..." bubble
 const TAB_ICONS: Record<string, IconName> = { Activity: 'pulse', Pins: 'location', Members: 'people' };
@@ -43,16 +44,19 @@ const ACTIVITY_KIND: Record<string, string[]> = {
   Events: ['calendar-outline'],
 };
 
-// Few Bubbles: hand-placed floating layout on a 375 x 560 canvas, sized by member count.
-const CANVAS = { w: 375, h: 560 };
+// First screen (Everyone + the most recently active Bubbles, then "More bubbles…"): hand-placed floating layout
+// on a 375 x 640 canvas, sized by member count.
+const CANVAS = { w: 375, h: 640 };
 const CENTERS = [
-  { x: 120, y: 115 },
-  { x: 295, y: 110 },
-  { x: 290, y: 270 },
-  { x: 250, y: 420 },
-  { x: 115, y: 315 },
-  { x: 95, y: 470 },
+  { x: 120, y: 110 },
+  { x: 290, y: 105 },
+  { x: 285, y: 265 },
+  { x: 110, y: 300 },
+  { x: 260, y: 430 },
+  { x: 95, y: 480 },
+  { x: 275, y: 575 },
 ];
+const FOLDER_S = 110; // folder bubble size on the first screen (canvas units)
 const bubbleSize = (members: number) => Math.min(175, 40 + 30 * Math.sqrt(members));
 
 // Many Bubbles: honeycomb rings around the center, bubbles shrink toward the edges.
@@ -133,7 +137,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [newEventOpen, setNewEventOpen] = useState(false);
   const [hotspotOpen, setHotspotOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [editing, setEditing] = useState(false); // All Bubbles edit mode: − leaves, ★ favorites
+  const [editing, setEditing] = useState(false); // All Bubbles edit mode: − leaves
   const [bubbleQuery, setBubbleQuery] = useState<string | null>(null); // All Bubbles search (null = closed)
   const [popping, setPopping] = useState<string | null>(null); // Bubble being popped on leave
   const popV = useRef(new Animated.Value(0)).current;
@@ -167,16 +171,61 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
 
   const { w, h } = size;
   const fieldTop = insets.top + NAV_H + 56; // below nav row + large title
-  // ponytail: favorites cap the field at 6, so the stream/honeycomb layouts below are parked (MANY_LAYOUT).
+  // ponytail: the first screen holds at most 6, so the stream/honeycomb layouts below are parked (MANY_LAYOUT).
   const watch = false;
-  // Everyone + favorites float; the rest sit on the "More Bubbles" shelf.
-  const fieldIdx = ALL.map((_, i) => i).filter((i) => ALL[i].id === 'everyone' || ALL[i].favorite).slice(0, FAVORITES_MAX + 1);
-  const shelfIdx = ALL.map((_, i) => i).filter((i) => !fieldIdx.includes(i));
-  const favCount = ALL.filter((g) => g.favorite).length;
-  const toggleFavorite = (g: Group) => {
-    if (!g.favorite && favCount >= FAVORITES_MAX) return showToast(`You can float up to ${FAVORITES_MAX} favorites`);
-    g.favorite = !g.favorite;
-    refresh();
+  // Everyone, then Bubbles by latest activity: the first FIRST_SCREEN float up front, the rest
+  // go on the second screen. Order is ALL's order within each screen so bubbles don't reshuffle.
+  const lastActive = (g: Group) => (g.id === 'everyone' ? -1 : Math.min(Infinity, ...g.activity.map((a) => minutesAgo(a.time))));
+  const byRecent = ALL.map((_, i) => i).sort((a, b) => lastActive(ALL[a]) - lastActive(ALL[b]));
+  const fieldIdx = byRecent.slice(0, FIRST_SCREEN + 1).sort((a, b) => a - b);
+  const shelfIdx = byRecent.slice(FIRST_SCREEN + 1);
+  // Two screens: recent, then the rest. A "More bubbles…" bubble on each switches to the other one.
+  const [page, setPage] = useState(0);
+  const onPage = shelfIdx.length ? page : 0;
+  const pageIdx = onPage === 0 ? fieldIdx : shelfIdx;
+  const otherIdx = onPage === 0 ? shelfIdx : fieldIdx;
+  const pageX = useRef(new Animated.Value(0)).current;
+  const goPage = (next: number) => {
+    if (next === onPage || !shelfIdx.length) return;
+    setPage(next);
+    pageX.setValue(reduceMotion ? 0 : (next > onPage ? 1 : -1) * w * 0.5);
+    Animated.spring(pageX, { toValue: 0, useNativeDriver: false, damping: 22, stiffness: 200 }).start();
+  };
+  const goPageRef = useRef(goPage);
+  goPageRef.current = goPage;
+  const swipe = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+      onPanResponderRelease: (_, g) => {
+        if (g.dx < -50) goPageRef.current(1);
+        if (g.dx > 50) goPageRef.current(0);
+      },
+    }),
+  ).current;
+  const newBubble = () =>
+    ALL.length >= MAX_BUBBLES ? showToast(`You can be in up to ${MAX_BUBBLES} Bubbles. Leave one to make room.`) : setNewBubbleOpen(true);
+  // Bubble Info opened from a floating bubble (no Bubble selected yet)
+  const [infoGroup, setInfoGroup] = useState<Group | null>(null);
+  const bubbleActions = (g: Group) => {
+    const options =
+      g.id === 'everyone'
+        ? ['Bubble Info', 'Cancel']
+        : ['Bubble Info', muted[g.id] ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble', 'Cancel'];
+    ActionSheetIOS.showActionSheetWithOptions(
+      { title: g.name, options, cancelButtonIndex: options.length - 1, destructiveButtonIndex: g.id === 'everyone' ? undefined : 2 },
+      (k) => {
+        const o = options[k];
+        if (o === 'Bubble Info') {
+          setInfoGroup(g);
+          setProfileOpen('view');
+        }
+        if (o?.endsWith('Notifications')) {
+          setMuted({ ...muted, [g.id]: !muted[g.id] });
+          showToast(muted[g.id] ? `Notifications on for ${g.name}` : `Muted ${g.name}`);
+        }
+        if (o === 'Leave Bubble') confirmRemove(g);
+      },
+    );
   };
 
   // Drag the honeycomb around (field mode only); taps still reach the bubbles.
@@ -199,15 +248,28 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   ).current;
 
   // Where bubble i sits in the bubble view: center, size, and edge shrink.
-  const fieldSpot = (i: number, g: Group) => {
+  const fieldSpot = (i: number, g: Group | null) => {
     if (!watch) {
-      const room = h - fieldTop - SHELF_H - 8;
+      const room = h - fieldTop - 8;
+      if (onPage === 1) {
+        // Second screen: up to 14 bubbles on a loose 3-column grid, nudged so it doesn't look ruled
+        const n = pageIdx.length + 1;
+        const rows = Math.ceil(n / 3);
+        const cell = Math.min(w / 3, room / rows);
+        const top = fieldTop + (room - cell * rows) / 2;
+        return {
+          x: ((i % 3) + 0.5) * (w / 3) + (jitter(i, 3) - 0.5) * cell * 0.1,
+          y: top + (Math.floor(i / 3) + 0.5) * cell + (jitter(i, 4) - 0.5) * cell * 0.1,
+          s: cell * 0.76, // leaves room to sway without touching the screen edge
+          scale: 1,
+        };
+      }
       const k = Math.min(w / CANVAS.w, room / CANVAS.h);
       const c = CENTERS[i];
       return {
         x: (w - CANVAS.w * k) / 2 + c.x * k,
         y: fieldTop + (room - CANVAS.h * k) / 2 + c.y * k,
-        s: bubbleSize(g.members.length) * k,
+        s: (g ? bubbleSize(g.members.length) : FOLDER_S) * k,
         scale: 1,
       };
     }
@@ -222,7 +284,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
       // Bubbles grow toward the middle and shrink as they leave either side.
       const edge = Math.min(x, w - x);
       const scale = Math.max(0.25, Math.min(1, (edge + 20) / (w * 0.22)));
-      return { x, y, s: Math.min(140, bubbleSize(g.members.length) * 0.85), scale };
+      return { x, y, s: Math.min(140, bubbleSize(g?.members.length ?? 4) * 0.85), scale };
     }
     const cx = w / 2;
     const cy = fieldTop + (h - fieldTop) / 2;
@@ -538,7 +600,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
               icon="add"
               options={['New Bubble', 'New Event', 'New Hotspot']}
               icons={{ 'New Bubble': 'ellipse-outline', 'New Event': 'calendar-outline', 'New Hotspot': 'radio-outline' }}
-              onSelect={(o) => (o === 'New Bubble' ? setNewBubbleOpen(true) : o === 'New Event' ? setNewEventOpen(true) : setHotspotOpen(true))}
+              onSelect={(o) => (o === 'New Bubble' ? newBubble() : o === 'New Event' ? setNewEventOpen(true) : setHotspotOpen(true))}
               triggerStyle={styles.smallFab}
               trigger={<Ionicons name="add" size={22} color={colors.text} />}
             />
@@ -773,8 +835,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
 
       {/* Bubbles that fly into the row */}
       {mode !== 'row' && w > 0 && (
-        <View style={StyleSheet.absoluteFill} {...(watch && mode === 'field' ? pan.panHandlers : {})}>
-          {fieldIdx.map((i, pos) => {
+        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX: pageX }] }]} {...(mode === 'field' ? (watch ? pan : swipe).panHandlers : {})}>
+          {pageIdx.map((i, pos) => {
             const g = ALL[i];
             const f = fieldSpot(pos, g);
             // stagger: later bubbles leave the row a little after earlier ones (rise one by one)
@@ -810,6 +872,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   delay={i * 500}
                   still={reduceMotion}
                   onPress={() => (editing ? g.id !== 'everyone' && confirmRemove(g) : select(i))}
+                  onLongPress={editing ? undefined : () => bubbleActions(g)} // Bubble Info, mute, leave
                   style={{ left: 0, top: 0 }}
                 />
                 {editing && g.id !== 'everyone' && (
@@ -817,15 +880,36 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                     <Ionicons name="remove" size={18} color={colors.surface} />
                   </Pressable>
                 )}
-                {editing && g.id !== 'everyone' && (
-                  <Pressable style={[styles.starBadge, { transform: [{ scale: f.scale }] }]} onPress={() => toggleFavorite(g)} hitSlop={8}>
-                    <Ionicons name="star" size={15} color={colors.surface} />
-                  </Pressable>
-                )}
               </Animated.View>
             );
           })}
-        </View>
+          {otherIdx.length > 0 && (() => {
+            // "More bubbles…": tap (or swipe) to switch screens
+            const f = fieldSpot(pageIdx.length, null);
+            return (
+              <Animated.View
+                style={{
+                  position: 'absolute',
+                  width: f.s,
+                  height: f.s,
+                  transform: [{ translateX: f.x - f.s / 2 }, { translateY: f.y - f.s / 2 }],
+                  opacity: p.interpolate({ inputRange: [0, 0.3], outputRange: [1, 0], extrapolate: 'clamp' }),
+                }}
+              >
+                <FloatingBubble
+                  size={f.s}
+                  tint={colors.textMuted}
+                  label={onPage === 0 ? 'More bubbles…' : 'Recent'}
+                  icon={onPage === 0 ? 'ellipsis-horizontal' : 'arrow-back'}
+                  delay={pageIdx.length * 500}
+                  still={reduceMotion}
+                  onPress={() => goPage(onPage === 0 ? 1 : 0)}
+                  style={{ left: 0, top: 0 }}
+                />
+              </Animated.View>
+            );
+          })()}
+        </Animated.View>
       )}
       {mode !== 'row' && (
         <Animated.Text style={[type.largeTitle, styles.title, { top: insets.top + NAV_H, opacity: p.interpolate({ inputRange: [0, 0.4], outputRange: [1, 0] }) }]}>
@@ -844,14 +928,14 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             </Pressable>
           )}
           {!editing && (
-            <Pressable onPress={() => setNewBubbleOpen(true)} hitSlop={10}>
+            <Pressable onPress={newBubble} hitSlop={10}>
               <Ionicons name="add" size={28} color={colors.primary} />
             </Pressable>
           )}
         </View>
       )}
       {mode === 'field' && bubbleQuery !== null && (
-        // Search every Bubble, not just favorites
+        // Search every Bubble, on either screen
         <View style={[styles.searchPanel, { top: insets.top + NAV_H + 52 }]}>
           <View style={styles.search}>
             <Ionicons name="search" size={16} color={colors.textMuted} />
@@ -867,39 +951,11 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                     <Text style={styles.rowTitle}>{g.name}</Text>
                     <Text style={type.caption}>{g.members.length} {g.id === 'everyone' ? 'people' : 'members'}</Text>
                   </View>
-                  {g.favorite && <Ionicons name="star" size={14} color={colors.primary} />}
                 </Pressable>
               ))}
           </ScrollView>
         </View>
       )}
-      {mode === 'field' && shelfIdx.length > 0 && (
-        // Non-favorite Bubbles: scrollable shelf with a "more →" hint
-        <View style={styles.shelf}>
-          <View style={[styles.row, { justifyContent: 'space-between', paddingHorizontal: spacing.md }]}>
-            <Text style={styles.shelfTitle}>More Bubbles</Text>
-            <Text style={type.caption}>{editing ? 'Tap ★ to float' : `${shelfIdx.length} ›`}</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shelfContent}>
-            {shelfIdx.map((i) => {
-              const g = ALL[i];
-              return (
-                <Pressable key={g.id} style={styles.shelfItem} onPress={() => (editing ? toggleFavorite(g) : select(i))}>
-                  <Bubble size={RS} tint={groupColor(g.id)}>{g.icon && <Ionicons name={g.icon} size={18} color={groupColor(g.id)} />}</Bubble>
-                  {g.unread > 0 && !editing && <Badge count={g.unread} style={styles.shelfBadge} />}
-                  {editing && (
-                    <View style={[styles.starBadge, styles.shelfStar]}>
-                      <Ionicons name="star-outline" size={13} color={colors.surface} />
-                    </View>
-                  )}
-                  <Text numberOfLines={1} style={styles.rowLabel}>{g.name}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-
       {/* Compact scrollable row once collapsed */}
       {mode === 'row' && (
         <Animated.View style={[styles.rowWrap, { height: rowH }]}>
@@ -967,7 +1023,23 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
       )}
 
       {profileOpen && (
-        <BubbleProfile group={group} startEditing={profileOpen === 'edit'} onClose={() => setProfileOpen(false)} onChanged={refresh} onLeave={leaveGroup} onInvite={() => setInviteOpen(true)} />
+        <BubbleProfile
+          group={infoGroup ?? group}
+          startEditing={profileOpen === 'edit'}
+          muted={!!muted[(infoGroup ?? group)?.id ?? '']}
+          onMute={() => {
+            const g = (infoGroup ?? group)!;
+            setMuted({ ...muted, [g.id]: !muted[g.id] });
+            showToast(muted[g.id] ? `Notifications on for ${g.name}` : `Muted ${g.name}`);
+          }}
+          onClose={() => {
+            setProfileOpen(false);
+            setInfoGroup(null);
+          }}
+          onChanged={refresh}
+          onLeave={() => removeGroup((infoGroup ?? group)!)}
+          onInvite={() => setInviteOpen(true)}
+        />
       )}
       <DropPin
         visible={dropOpen}
@@ -1007,6 +1079,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         visible={newBubbleOpen}
         onClose={() => setNewBubbleOpen(false)}
         onCreate={(g) => {
+          g.activity.unshift({ icon: 'add-circle-outline', text: `You created ${g.name}`, time: 'Now' }); // counts as recent
           GROUPS.push(g);
           ALL.push(g);
           setNewBubbleOpen(false);
@@ -1042,28 +1115,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
 const styles = StyleSheet.create({
   rowHint: { position: 'absolute', right: 4, top: 18, width: 26, height: 26, borderRadius: 13, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', ...shadow },
   droplet: { position: 'absolute', width: 8, height: 8, borderRadius: 4, opacity: 0.6 },
-  starBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.primary,
-    borderWidth: 2,
-    borderColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchPanel: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: SHELF_H, gap: spacing.sm },
+  searchPanel: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: spacing.md, gap: spacing.sm },
   results: { flexGrow: 0, backgroundColor: colors.surface, borderRadius: radius.md },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2 },
-  shelf: { position: 'absolute', left: 0, right: 0, bottom: 0, height: SHELF_H, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background },
-  shelfTitle: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
-  shelfContent: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, gap: spacing.xs },
-  shelfItem: { width: 72, alignItems: 'center' },
-  shelfBadge: { position: 'absolute', top: -4, right: 6, transform: [{ scale: 0.8 }] },
-  shelfStar: { right: 6, top: -4, width: 22, height: 22 },
   sheetChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm + 2, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
   sheetChipText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
   fieldActions: { position: 'absolute', right: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md, height: NAV_H },

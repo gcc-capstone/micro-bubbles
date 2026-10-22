@@ -60,3 +60,62 @@ export function edgeSpot(
   const t = Math.min(dx ? hw / Math.abs(dx) : Infinity, dy ? hh / Math.abs(dy) : Infinity);
   return { x: cx + dx * t, y: cy + dy * t, angle: Math.atan2(dy, dx) };
 }
+
+// Nudge overlapping markers apart. Each marker is a circle (screen points); fixed ones (your dot,
+// group counts, the focused person) never move. Pairs that overlap push each other apart along the
+// line between them, a little per pass, until nothing overlaps or the passes run out. Returns each
+// marker's offset from where it really is, capped at maxShift so nothing wanders from its spot.
+// ponytail: O(n²) per pass, fine for the few dozen visible markers; a grid index if that grows.
+export function spread(items: { x: number; y: number; r: number; fixed?: boolean }[], maxShift = 30, passes = 40) {
+  const pos = items.map((it) => ({ x: it.x, y: it.y }));
+  for (let k = 0; k < passes; k++) {
+    let moved = false;
+    for (let i = 0; i < items.length; i++)
+      for (let j = i + 1; j < items.length; j++) {
+        const a = items[i];
+        const b = items[j];
+        if (a.fixed && b.fixed) continue;
+        let dx = pos[j].x - pos[i].x;
+        let dy = pos[j].y - pos[i].y;
+        let d = Math.hypot(dx, dy);
+        const need = a.r + b.r;
+        if (d >= need) continue;
+        if (d < 0.01) {
+          // same spot: fan out in a stable direction per pair
+          const ang = (i * 7 + j * 13) % 360 * (Math.PI / 180);
+          [dx, dy, d] = [Math.cos(ang), Math.sin(ang), 1];
+        }
+        const push = (need - d) / 2 + 0.5;
+        const ux = dx / d;
+        const uy = dy / d;
+        const wa = a.fixed ? 0 : b.fixed ? 2 : 1;
+        const wb = b.fixed ? 0 : a.fixed ? 2 : 1;
+        pos[i].x -= ux * push * wa;
+        pos[i].y -= uy * push * wa;
+        pos[j].x += ux * push * wb;
+        pos[j].y += uy * push * wb;
+        moved = true;
+      }
+    if (!moved) break;
+  }
+  return pos.map((p, i) => {
+    const dx = p.x - items[i].x;
+    const dy = p.y - items[i].y;
+    const k = Math.min(1, maxShift / (Math.hypot(dx, dy) || 1));
+    return { dx: dx * k, dy: dy * k };
+  });
+}
+
+type Box = { x: number; y: number; w: number; h: number }; // centered box, screen points
+const hit = (a: Box, b: Box) => Math.abs(a.x - b.x) * 2 < a.w + b.w && Math.abs(a.y - b.y) * 2 < a.h + b.h;
+
+// Text labels (hotspot names) don't move; like Apple Maps, one that collides with a marker or an
+// earlier label is hidden instead. Returns which labels to show, in the order given (priority).
+export function visibleLabels(labels: Box[], markers: Box[]) {
+  const shown: Box[] = [];
+  return labels.map((l) => {
+    const ok = !markers.some((m) => hit(l, m)) && !shown.some((s) => hit(l, s));
+    if (ok) shown.push(l);
+    return ok;
+  });
+}

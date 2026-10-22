@@ -9,10 +9,10 @@ import { Animated, FlatList, NativeScrollEvent, NativeSyntheticEvent, PanRespond
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Bubble, EventRow } from './components';
-import { EventDetail, LinkedText } from './Details';
+import { EventDetail, LinkedText, NewEvent } from './Details';
 import { colors, fonts, radius, spacing, type } from './theme';
-import { ALL, BubbleEvent, EVENTS, groupColor, TODAY } from './data';
-import { addMonths, dayNum, daysIn, leadBlanks, monthStart, offsets, parts, startOfWeek, weekRows } from './calendarMath';
+import { ALL, BubbleEvent, EVENTS, GROUPS, groupColor, TODAY } from './data';
+import { addMonths, dayNum, daysIn, isoOf, leadBlanks, monthStart, offsets, parts, startOfWeek, weekRows } from './calendarMath';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -67,6 +67,8 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
   reduceMotionRef.current = reduceMotion;
 
   // Events by day number for the chosen Bubble.
+  const [newOpen, setNewOpen] = useState(false);
+  const [added, setAdded] = useState(0); // bumps when an event is created, to rebuild byDay
   const byDay = useMemo(() => {
     const map = new Map<number, BubbleEvent[]>();
     EVENTS.filter((e) => filter === 'everyone' || e.groupId === filter).forEach((e) => {
@@ -74,7 +76,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
       map.set(n, [...(map.get(n) ?? []), e]);
     });
     return map;
-  }, [filter]);
+  }, [filter, added]);
 
   /* ---------- index math ---------- */
   const yearOf = (i: number) => TP.y + i - YR;
@@ -231,9 +233,14 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
         ) : (
           <View />
         )}
-        <Pressable onPress={today} hitSlop={10}>
-          <Text style={styles.navText}>Today</Text>
-        </Pressable>
+        <View style={[styles.navBtn, { gap: spacing.lg, marginLeft: 0 }]}>
+          <Pressable onPress={today} hitSlop={10}>
+            <Text style={styles.navText}>Today</Text>
+          </Pressable>
+          <Pressable onPress={() => setNewOpen(true)} hitSlop={10} accessibilityLabel="New Event">
+            <Ionicons name="add" size={28} color={colors.primary} />
+          </Pressable>
+        </View>
       </View>
       {/* Only Month has a large title; Year uses its in-list year headings, Week shows the selected day in the list. */}
       {level === 'month' && <Text style={[type.largeTitle, styles.title, { color: colors.primary }]}>{title}</Text>}
@@ -454,6 +461,22 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
       </Animated.View>
 
       <EventDetail event={open} onClose={() => setOpen(null)} />
+      <NewEvent
+        visible={newOpen}
+        groups={GROUPS}
+        initialGroupId={filter}
+        today={TODAY}
+        initialDate={isoOf(sel)}
+        weekStart={weekStart}
+        onClose={() => setNewOpen(false)}
+        onCreate={(e) => {
+          EVENTS.push(e);
+          GROUPS.find((g) => g.id === e.groupId)?.activity.unshift({ icon: 'calendar-outline', text: `You added ${e.title} to the calendar`, time: 'Now' });
+          setNewOpen(false);
+          setAdded((n) => n + 1);
+          go('week', dayNum(e.date)); // show it
+        }}
+      />
     </View>
   );
 }
