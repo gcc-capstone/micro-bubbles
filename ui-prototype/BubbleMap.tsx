@@ -1,12 +1,13 @@
 // Native map (Apple Maps on iOS, Google Maps on Android). BubbleMap.web.tsx is the browser stand-in.
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Circle, Marker, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { Cluster, EventPin, MapPin, MemberPin, YouDot } from './components';
+import { Cluster, EdgeMarker, EventPin, MapPin, MemberPin, YouDot } from './components';
+import { corePoints, edgeSpot, toScreen } from './mapFit';
 import { groupNearby } from './cluster';
 import { colors, fonts, radius, spacing } from './theme';
-import { initials, Member, memberColor, ME, Pin, Hotspot } from './data';
+import { initials, Member, memberColor, ME, minutesAgo, Pin, Hotspot } from './data';
 
 export type Focus = { name: string; lat: number; lng: number };
 export type MapEvent = { key: string; title: string; when: string; color: string; lat: number; lng: number };
@@ -14,6 +15,7 @@ export type MapEvent = { key: string; title: string; when: string; color: string
 // Below this zoom (degrees of latitude on screen) nothing is grouped, so people at the same spot stay tappable.
 const GROUP_UNTIL = 0.003;
 const GROUP_MIN = 5; // smaller overlaps stay as individual markers
+const FACES_UNTIL = 10; // groups this small show a couple of faces, then +n
 const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 type Item = { key: string; lat: number; lng: number; kind: 'member' | 'pin' | 'event'; member?: Member; pin?: Pin; event?: MapEvent };
@@ -48,10 +50,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
     ...events.map((e) => ({ key: 'e-' + e.key, lat: e.lat, lng: e.lng, kind: 'event' as const, event: e })),
   ];
   const grouping = region && region.latitudeDelta > GROUP_UNTIL;
-  const toPx = (it: Item) => ({
-    x: ((it.lng - (region!.longitude - region!.longitudeDelta / 2)) / region!.longitudeDelta) * size.w,
-    y: ((region!.latitude + region!.latitudeDelta / 2 - it.lat) / region!.latitudeDelta) * size.h,
-  });
+  const toPx = (it: Item) => toScreen(region!, size, { top: topInset, bottom: bottomInset }, it);
   const multi = grouping ? groupNearby(items.filter((it) => !(it.member && it.member.name === focus?.name)), toPx).filter((g) => g.length >= GROUP_MIN) : [];
   const hidden = new Set(multi.flat().map((it) => it.key));
   // ponytail: iOS react-native-maps can leave markers on screen after they unmount, so every marker
@@ -89,6 +88,28 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
     );
   };
 
+  // Two freshest people in a small group, by last location update.
+  const faces = (g: Item[]) =>
+    g.length > FACES_UNTIL
+      ? []
+      : g
+          .filter((it) => it.member)
+          .sort((a, b) => minutesAgo(a.member!.updated) - minutesAgo(b.member!.updated))
+          .slice(0, 2)
+          .map((it) => ({ initials: initials(it.member!.name), color: memberColor(it.member!.name) }));
+
+  // Off-screen people, pinned to the nearest edge; ones landing on the same spot share a marker.
+  const edges = region
+    ? groupNearby(
+        members.flatMap((m) => {
+          const e = edgeSpot(region, size, { top: topInset, bottom: bottomInset }, m);
+          return e ? [{ m, ...e }] : [];
+        }),
+        (e) => e,
+        36,
+      )
+    : [];
+
   const fit = () => {
     if (!ready.current) return;
     if (focus) {
@@ -97,8 +118,9 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       const d = (radiusMi * 2.2) / 69; // degrees of latitude spanning the radius, with a little margin
       map.current?.animateToRegion({ latitude: ME.lat, longitude: ME.lng, latitudeDelta: d, longitudeDelta: d / Math.cos((ME.lat * Math.PI) / 180) }, 500);
     } else {
+      // frame the main crowd; far-off people get edge markers instead of zooming way out
       map.current?.fitToCoordinates(
-        members.map((m) => ({ latitude: m.lat, longitude: m.lng })),
+        corePoints(members).map((m) => ({ latitude: m.lat, longitude: m.lng })),
         { edgePadding: { top: 40, right: 60, bottom: 40, left: 60 }, animated: true },
       );
     }
@@ -108,6 +130,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
   return (
     // Native compass appears only while rotated (platform convention); mapPadding keeps it and the
     // legal label clear of the status bar and sheet.
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
     <MapView
       ref={map}
       style={StyleSheet.absoluteFill}
@@ -115,6 +138,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       zoomEnabled // pinch to zoom
       rotateEnabled
       onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+      // ponytail: edge markers update when panning stops; onRegionChange would re-render every frame
       onRegionChangeComplete={(r) => {
         setRegion(r);
         onCenterChange?.({ lat: r.latitude, lng: r.longitude });
@@ -162,11 +186,22 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
               )
             }
           >
-            <Cluster count={g?.length ?? 0} style={{ position: 'relative', opacity: g ? 1 : 0 }} />
+            <Cluster count={g?.length ?? 0} faces={g ? faces(g) : []} style={{ position: 'relative', opacity: g ? 1 : 0 }} />
           </Marker>
         );
       })}
     </MapView>
+    {edges.map((g) => {
+      const e = g[0];
+      // keep clear of the locate / + / Drop Pin column at the bottom right
+      const x = e.x > size.w - 80 && e.y > size.h - bottomInset - 180 ? size.w - 100 : e.x;
+      return (
+        <Pressable key={e.m.name} onPress={() => onMemberPress(e.m)} style={{ position: 'absolute', left: x - 22, top: e.y - 22 }} hitSlop={6}>
+          <EdgeMarker initials={initials(e.m.name)} color={memberColor(e.m.name)} angle={e.angle} count={g.length} style={{ position: 'relative' }} />
+        </Pressable>
+      );
+    })}
+    </View>
   );
 }
 

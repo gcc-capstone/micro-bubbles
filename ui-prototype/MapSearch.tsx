@@ -1,7 +1,7 @@
-// Search bar that stays at the top of the map. Finds people, pins and places across all your
+// Search button at the top right of the map; tapping it grows a search bar along the same row. Finds people, pins and places across all your
 // Bubbles; category chips list top-rated pins by what you want to do, not which Bubble they're in.
 import { useState } from 'react';
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, IconName, Separator } from './components';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
@@ -14,16 +14,22 @@ type Result =
   | { kind: 'pin'; key: string; pin: Pin; groupName: string }
   | { kind: 'place'; key: string; loc: Loc };
 
-export default function MapSearch({ top, onPerson, onPin, onPlace }: {
-  top: number; onPerson: (m: Member) => void; onPin: (p: Pin) => void; onPlace: (l: Loc) => void;
+export default function MapSearch({ top, onOpen, onPerson, onPin, onPlace }: {
+  top: number; onOpen: () => void; onPerson: (m: Member) => void; onPin: (p: Pin) => void; onPlace: (l: Loc) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<PinCategory | null>(null);
   const q = query.trim().toLowerCase();
 
+  const expand = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpen(true);
+    onOpen();
+  };
   const close = () => {
     Keyboard.dismiss();
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setOpen(false);
     setQuery('');
     setCategory(null);
@@ -50,24 +56,29 @@ export default function MapSearch({ top, onPerson, onPin, onPlace }: {
 
   return (
     <View style={[styles.wrap, { top }]} pointerEvents="box-none">
-      <View style={styles.bar}>
-        <Ionicons name="search" size={17} color={colors.textMuted} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          onFocus={() => setOpen(true)}
-          placeholder="Search places, pins, people"
-          placeholderTextColor={colors.textMuted}
-          style={styles.input}
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-        {open && (
+      {open ? (
+        // Same row and height as the button, so the text sits on the icon's line
+        <View style={styles.bar}>
+          <Ionicons name="search" size={17} color={colors.textMuted} />
+          <TextInput
+            autoFocus
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search places, pins, people"
+            placeholderTextColor={colors.textMuted}
+            style={styles.input}
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
           <Pressable onPress={close} hitSlop={10}>
             <Text style={styles.cancel}>Cancel</Text>
           </Pressable>
-        )}
-      </View>
+        </View>
+      ) : (
+        <Pressable style={styles.button} onPress={expand} accessibilityLabel="Search places, pins, people">
+          <Ionicons name="search" size={20} color={colors.text} />
+        </Pressable>
+      )}
 
       {open && (
         <View style={styles.panel}>
@@ -123,6 +134,7 @@ export default function MapSearch({ top, onPerson, onPin, onPlace }: {
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4, gap: spacing.sm },
   bar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 44, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow },
+  button: { alignSelf: 'flex-end', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...shadow },
   input: { ...type.body, flex: 1, padding: 0 },
   cancel: { fontFamily: fonts.body, fontSize: 16, color: colors.primary },
   panel: { backgroundColor: colors.surface, borderRadius: radius.md, overflow: 'hidden', ...shadow },

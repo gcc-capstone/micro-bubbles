@@ -6,6 +6,7 @@
   "exclude": [
     "node_modules",
     "cluster.check.ts",
-    "calendarMath.check.ts"
+    "calendarMath.check.ts",
+    "mapFit.check.ts"
   ]
 }

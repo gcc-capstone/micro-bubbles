@@ -1,9 +1,10 @@
 // Shared UI building blocks for Bubbles screens. All values come from theme.ts.
-import { ComponentProps, ReactNode, useEffect, useRef, useState } from 'react';
+import { ComponentProps, ReactNode, useEffect, useId, useRef, useState } from 'react';
 import {
   Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, useWindowDimensions, View, ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
 
@@ -12,25 +13,55 @@ type Style = StyleProp<ViewStyle>;
 
 /* ---------- Bubbles ---------- */
 
-// Realistic soap bubble: clear film, slightly darker rim, white reflections.
-// Soap bubble: nearly clear film, thin tinted rim, soft window highlight, sharp glint and a faint
-// reflection at the bottom. Layered translucent shapes stand in for gradients (no extra deps).
+// SVG arc path around (c, c) with radius rad, from angle a to b (radians, clockwise from 3 o'clock).
+const arc = (c: number, rad: number, a: number, b: number) =>
+  `M ${c + rad * Math.cos(a)} ${c + rad * Math.sin(a)} A ${rad} ${rad} 0 0 1 ${c + rad * Math.cos(b)} ${c + rad * Math.sin(b)}`;
+
+// Soap bubble drawn with SVG gradients: a nearly clear center, film that thickens and picks up the
+// tint toward the rim, a thin-film rainbow sheen along the edge, a soft window reflection top-left
+// with a sharp glint, and a faint bounce light along the bottom.
 export function Bubble({ size, tint = colors.primary, children }: { size: number; tint?: string; children?: ReactNode }) {
+  const id = useId().replace(/:/g, '');
   const r = size / 2;
-  const at = (x: number, y: number, w: number, h: number) => ({ left: size * x, top: size * y, width: size * w, height: size * h });
+  const rim = Math.max(1, size * 0.018);
+  const pad = 6;
   return (
-    <View style={[s.bubble, { width: size, height: size, borderRadius: r, backgroundColor: tint + '10', borderColor: tint + '73', shadowColor: tint }]}>
-      {/* film thickens toward the edge */}
-      <View style={[s.fill, s.noTouch, { borderRadius: r, borderWidth: Math.max(2, size * 0.09), borderColor: tint + '14' }]} />
-      {/* soft window highlight, top-left */}
-      <View style={[s.blob, s.noTouch, at(0.16, 0.12, 0.42, 0.24), { borderRadius: size, opacity: 0.38, transform: [{ rotate: '-35deg' }] }]} />
-      {/* sharp glint */}
-      <View style={[s.blob, s.noTouch, at(0.24, 0.2, 0.09, 0.09), { borderRadius: size, opacity: 0.95 }]} />
-      {/* bounce light along the bottom-right rim */}
-      <View
-        style={[s.fill, s.noTouch, { top: size * 0.06, left: size * 0.06, right: size * 0.06, bottom: size * 0.06 }, s.arc,
-          { borderRadius: r, borderWidth: Math.max(1, size * 0.025), borderBottomColor: 'rgba(255,255,255,0.55)', borderRightColor: 'rgba(255,255,255,0.25)' }]}
-      />
+    <View style={[s.bubble, { width: size, height: size, borderRadius: r, shadowColor: tint }]}>
+      {/* ponytail: canvas padded past the bubble; iOS clipped the rim at the canvas edge while it swayed */}
+      <Svg width={size + pad * 2} height={size + pad * 2} style={[s.abs, s.noTouch, { left: -pad, top: -pad }]}>
+        <G transform={`translate(${pad} ${pad})`}>
+        <Defs>
+          <RadialGradient id={`film${id}`} cx="50%" cy="50%" r="50%">
+            <Stop offset="0.55" stopColor={tint} stopOpacity={0.03} />
+            <Stop offset="0.86" stopColor={tint} stopOpacity={0.12} />
+            <Stop offset="1" stopColor={tint} stopOpacity={0.42} />
+          </RadialGradient>
+          <LinearGradient id={`sheen${id}`} x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor="#FF5FD2" stopOpacity={0.7} />
+            <Stop offset="0.25" stopColor="#4FD8FF" stopOpacity={0.5} />
+            <Stop offset="0.5" stopColor={tint} stopOpacity={0.1} />
+            <Stop offset="0.75" stopColor="#FFD84F" stopOpacity={0.6} />
+            <Stop offset="1" stopColor="#7F5FFF" stopOpacity={0.7} />
+          </LinearGradient>
+          <RadialGradient id={`window${id}`} cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor="#FFFFFF" stopOpacity={1} />
+            <Stop offset="0.45" stopColor="#FFFFFF" stopOpacity={0.7} />
+            <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Circle cx={r} cy={r} r={r - rim} fill={`url(#film${id})`} />
+        {/* thin-film sheen: wide soft band, then a crisp edge */}
+        <Circle cx={r} cy={r} r={r - size * 0.045} fill="none" stroke={`url(#sheen${id})`} strokeWidth={size * 0.08} strokeOpacity={0.55} />
+        <Circle cx={r} cy={r} r={r - rim / 2} fill="none" stroke={tint} strokeOpacity={0.55} strokeWidth={rim} />
+        {/* window reflection and glint */}
+        <Ellipse cx={size * 0.33} cy={size * 0.26} rx={size * 0.21} ry={size * 0.12} fill={`url(#window${id})`} transform={`rotate(-38 ${size * 0.33} ${size * 0.26})`} />
+        <Ellipse cx={size * 0.7} cy={size * 0.76} rx={size * 0.09} ry={size * 0.05} fill={`url(#window${id})`} opacity={0.45} transform={`rotate(-38 ${size * 0.7} ${size * 0.76})`} />
+        <Circle cx={size * 0.28} cy={size * 0.24} r={Math.max(1, size * 0.035)} fill="#FFFFFF" fillOpacity={0.95} />
+        {/* bright curve along the top-left rim, fainter bounce light bottom-right */}
+        <Path d={arc(r, r - size * 0.09, 3.55, 4.45)} fill="none" stroke="#FFFFFF" strokeOpacity={0.85} strokeWidth={Math.max(1.5, size * 0.04)} strokeLinecap="round" />
+        <Path d={arc(r, r - size * 0.1, 0.25, 1.6)} fill="none" stroke="#FFFFFF" strokeOpacity={0.55} strokeWidth={Math.max(1, size * 0.025)} strokeLinecap="round" />
+        </G>
+      </Svg>
       {children}
     </View>
   );
@@ -171,10 +202,39 @@ export function YouDot({ style }: { style?: Style }) {
   );
 }
 
-export function Cluster({ count, style }: { count: number; style?: Style }) {
+// Group marker. With faces: a short stack of people, then "+n" for the rest of the group.
+export function Cluster({ count, faces = [], style }: { count: number; faces?: { initials: string; color: string }[]; style?: Style }) {
+  if (faces.length === 0)
+    return (
+      <View style={[s.abs, s.cluster, style]}>
+        <Text style={s.clusterText}>{count}</Text>
+      </View>
+    );
   return (
-    <View style={[s.abs, s.cluster, style]}>
-      <Text style={s.clusterText}>{count}</Text>
+    <View style={[s.abs, s.row, style]}>
+      {faces.map((f, i) => (
+        <View key={i} style={[s.cluster, { backgroundColor: f.color, marginLeft: i ? -12 : 0 }]}>
+          <Text style={s.clusterText}>{f.initials}</Text>
+        </View>
+      ))}
+      <View style={[s.cluster, { marginLeft: -12 }]}>
+        <Text style={s.clusterText}>+{count - faces.length}</Text>
+      </View>
+    </View>
+  );
+}
+
+// Marker on the map's edge for someone off screen, with an arrow pointing their way.
+export function EdgeMarker({ initials, color, angle, count = 1, style }: { initials: string; color: string; angle: number; count?: number; style?: Style }) {
+  return (
+    <View style={[s.abs, s.center, { width: 44, height: 44 }, style]}>
+      <View style={[s.abs, s.center, { width: 44, height: 44, transform: [{ rotate: `${angle}rad` }] }]}>
+        <Ionicons name="caret-forward" size={12} color={color} style={{ position: 'absolute', right: -2 }} />
+      </View>
+      <View style={[s.cluster, { width: 30, height: 30, borderWidth: 2, backgroundColor: color }]}>
+        <Text style={[s.clusterText, { fontSize: 11 }]}>{initials}</Text>
+      </View>
+      {count > 1 && <Badge count={count} style={{ position: 'absolute', top: -2, right: -2, backgroundColor: colors.text }} />}
     </View>
   );
 }
@@ -418,13 +478,10 @@ const s = StyleSheet.create({
   bubble: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.18,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
   },
-  arc: { borderColor: 'transparent', transform: [{ rotate: '-45deg' }] },
-  blob: { position: 'absolute', backgroundColor: colors.surface },
   bubbleLabel: { fontFamily: fonts.bodyBold, textAlign: 'center' },
   bubbleSub: { fontFamily: fonts.body, fontSize: 11, opacity: 0.8 },
 

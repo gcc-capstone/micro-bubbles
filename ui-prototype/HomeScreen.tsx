@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, IconName, MapButton, MenuButton, Segmented, Separator } from './components';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
 import { ALL, avgRating, canInvite, ownerName, FAVORITES_MAX, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, ME, Loc, Member, memberColor, Pin, TODAY } from './data';
-import { AddMembers, BubbleProfile, DropPin, NewHotspot, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView } from './Details';
+import { AddMembers, BubbleProfile, DropPin, NewHotspot, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView, QuickMessages } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
 import MapSearch from './MapSearch';
 
@@ -20,6 +20,8 @@ const NAV_H = 44; // nav row above the large title
 const ROW_GROW = 1.3; // bubbles scale up while the row has focus
 const ROW_H_FOCUS = ROW_H + RS * (ROW_GROW - 1) + 2;
 const SHEET_MIN = 100; // header + Activity/Pins/Members chips
+const PERSON_H = 250; // compact person card; quick messages float above it (like Life360)
+const NOTES_H = 52; // the floating quick-message row
 const SHELF_H = 112; // "More Bubbles" shelf at the bottom of All Bubbles
 const SEARCH_H = 52;
 const MAX_ROW = 11; // more than this many Bubbles shows a "More bubbles..." bubble
@@ -154,6 +156,13 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const rowFocused = useRef(false);
   const rowTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const list = useRef<ScrollView>(null);
+  const subList = useRef<ScrollView>(null);
+  // The person card is short on purpose; flash the scroll bar so people know there's more below.
+  useEffect(() => {
+    if (!sub?.person) return;
+    const t = setTimeout(() => subList.current?.flashScrollIndicators(), 450);
+    return () => clearTimeout(t);
+  }, [sub]);
   const [listH, setListH] = useState(0);
 
   const { w, h } = size;
@@ -318,6 +327,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   };
   const color = group ? groupColor(group.id) : colors.primary;
   const sheetMax = (h - ROW_H - insets.top) * 0.8;
+  const personCard = !!sub?.person && sheetOpen;
   const q = query.trim().toLowerCase();
   const match = (...fields: string[]) => !q || fields.some((f) => f.toLowerCase().includes(q));
   const has = (f: string) => filters[tab].includes(f);
@@ -366,11 +376,16 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         ];
   const leaveGroup = () => removeGroup(base!);
   const removeGroup = (g: Group) => {
-    // On All Bubbles the bubble pops first (scale up, fade, droplets), then is removed.
-    if (mode === 'field' && !reduceMotion) {
+    // The bubble pops first (scale up, fade, droplets), on All Bubbles or in the map's row, then is
+    // removed. Leaving from Bubble Info closes that sheet first so the pop is visible.
+    if (mode !== 'animating' && !reduceMotion) {
+      setProfileOpen(false);
       setPopping(g.id);
       popV.setValue(0);
-      Animated.timing(popV, { toValue: 1, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: false }).start(() => {
+      Animated.sequence([
+        Animated.delay(profileOpen ? 450 : 0),
+        Animated.timing(popV, { toValue: 1, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+      ]).start(() => {
         setPopping(null);
         dropGroup(g);
       });
@@ -378,6 +393,31 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     }
     dropGroup(g);
   };
+  // Droplets flying out of a popping bubble of the given size.
+  const droplets = (size: number, color: string) =>
+    [0, 1, 2, 3, 4, 5, 6, 7].map((d) => {
+      const a = (d / 8) * Math.PI * 2;
+      const dist = popV.interpolate({ inputRange: [0, 1], outputRange: [size * 0.3, size * (0.42 + 0.1 * (d % 3))] }); // uneven spread
+      return (
+        <Animated.View
+          key={d}
+          style={[
+            styles.droplet,
+            {
+              left: size / 2 - 4,
+              top: size / 2 - 4,
+              backgroundColor: color,
+              opacity: popV.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.7, 0.5, 0] }),
+              transform: [
+                { translateX: Animated.multiply(dist, Math.cos(a)) },
+                { translateY: Animated.multiply(dist, Math.sin(a)) },
+                { scale: popV.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] }) },
+              ],
+            },
+          ]}
+        />
+      );
+    });
   const dropGroup = (g: Group) => {
     // ponytail: removes from the in-memory lists only
     GROUPS.splice(GROUPS.indexOf(g), 1);
@@ -481,7 +521,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             color={color}
             focus={focus}
             topInset={insets.top + 56} // room for the search bar
-            bottomInset={SHEET_MIN}
+            bottomInset={personCard ? PERSON_H + NOTES_H : SHEET_MIN}
             onMemberPress={openPerson}
             onPinPress={openPin}
             radiusMi={group.id === 'everyone' ? everyoneRadius : undefined}
@@ -507,7 +547,14 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
               <Ionicons name="location" size={28} color={colors.primary} />
             </Pressable>
           </Animated.View>
-          <MapSearch top={insets.top + spacing.sm} onPerson={openPerson} onPin={openPin} onPlace={openPlace} />
+          <MapSearch top={insets.top + spacing.sm} onOpen={() => toggleSheet(false)} onPerson={openPerson} onPin={openPin} onPlace={openPlace} />
+        </Animated.View>
+      )}
+
+      {/* Quick messages float over the map, just above the compact person card */}
+      {personCard && (
+        <Animated.View style={[styles.notesFloat, { bottom: Animated.add(rowH, PERSON_H) }]} pointerEvents="box-none">
+          <QuickMessages floating member={sub!.person!} />
         </Animated.View>
       )}
 
@@ -516,7 +563,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         <Animated.View
           style={[
             styles.sheet,
-            { opacity: p, bottom: rowH, height: sheetP.interpolate({ inputRange: [0, 1], outputRange: [SHEET_MIN, sheetMax] }) },
+            { opacity: p, bottom: rowH, height: sheetP.interpolate({ inputRange: [0, 1], outputRange: [SHEET_MIN, sub?.person ? PERSON_H : sheetMax] }) },
             sub && { backgroundColor: colors.background }, // grabber area matches the sub-view
           ]}
           onTouchStart={() => focusRow(false)}
@@ -534,8 +581,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   </Pressable>
                 </Pressable>
               </View>
-              <ScrollView contentContainerStyle={{ paddingBottom: spacing.lg }}>
-                {sub.person && <PersonView member={sub.person} onShowOnMap={(m) => { setFocus(m); toggleSheet(false); }} />}
+              <ScrollView ref={subList} contentContainerStyle={{ paddingBottom: spacing.lg }}>
+                {sub.person && <PersonView compact member={sub.person} onShowOnMap={(m) => { setFocus(m); toggleSheet(false); }} />}
                 {sub.event && <EventView event={sub.event} />}
                 {sub.place && <LocationView loc={sub.place} />}
                 {sub.pin && (
@@ -752,17 +799,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   opacity: isPop ? popV.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1, 0.6, 0] }) : 1,
                 }}
               >
-                {isPop &&
-                  [0, 1, 2, 3, 4, 5, 6, 7].map((d) => {
-                    const a = (d / 8) * Math.PI * 2;
-                    const dist = popV.interpolate({ inputRange: [0, 1], outputRange: [0, f.s * 0.45] });
-                    return (
-                      <Animated.View
-                        key={d}
-                        style={[styles.droplet, { left: f.s / 2 - 4, top: f.s / 2 - 4, backgroundColor: groupColor(g.id), transform: [{ translateX: Animated.multiply(dist, Math.cos(a)) }, { translateY: Animated.multiply(dist, Math.sin(a)) }] }]}
-                      />
-                    );
-                  })}
+                {isPop && droplets(f.s, groupColor(g.id))}
                 <FloatingBubble
                   size={f.s}
                   tint={groupColor(g.id)}
@@ -882,9 +919,17 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             return (
               <Pressable key={g.id} onPress={() => select(i)} style={[styles.rowItem, { width: itemW }]}>
                 <Animated.View style={{ transform: [{ translateY: grow.lift }, { scale: grow.scale }] }}>
-                  <Bubble size={RS} tint={groupColor(g.id)}>
-                    {g.icon && <Ionicons name={g.icon} size={18} color={groupColor(g.id)} />}
-                  </Bubble>
+                  {popping === g.id && droplets(RS, groupColor(g.id))}
+                  <Animated.View
+                    style={popping === g.id && {
+                      transform: [{ scale: popV.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }) }],
+                      opacity: popV.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1, 0.6, 0] }),
+                    }}
+                  >
+                    <Bubble size={RS} tint={groupColor(g.id)}>
+                      {g.icon && <Ionicons name={g.icon} size={18} color={groupColor(g.id)} />}
+                    </Bubble>
+                  </Animated.View>
                 </Animated.View>
                 {/* outside the scaled view so it stays crisp; slides out with the bubble's edge */}
                 {g.unread > 0 && (
@@ -1039,6 +1084,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   noTouch: { pointerEvents: 'none' },
   mapArea: { position: 'absolute', top: 0, left: 0, right: 0 },
+  notesFloat: { position: 'absolute', left: 0, right: 0, height: NOTES_H, justifyContent: 'center' },
   rightStack: { position: 'absolute', right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4, alignItems: 'center', gap: spacing.sm + 4 },
   smallFab: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   fab: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },

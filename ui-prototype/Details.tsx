@@ -1,10 +1,10 @@
 // Person and pin views (shown inside the map's bottom sheet) plus event, Bubble profile and
 // drop pin views (shown as page sheets).
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Platform, Pressable, ScrollView, Share, StyleProp, StyleSheet, Switch, Text, TextInput, TextStyle, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Bubble, Button, IconName, MapPin, PageSheet, Segmented, Separator } from './components';
-import { bubbleColors, colors, fonts, radius, spacing, type } from './theme';
+import { bubbleColors, colors, fonts, radius, shadow, spacing, type } from './theme';
 import {
   avgRating, BubbleEvent, distanceFromMe, EVENTS, formatMiles, Group, groupColor, GROUPS, initials, Loc, LOCATIONS, ME, Member, memberColor, meters,
   Pin, PIN_CATEGORIES, PinCategory, ratingCount, Hotspot, HotspotAlert, canInvite, ownerName,
@@ -440,49 +440,81 @@ export function AddMembers({ group, onClose }: { group: Group | null; onClose: (
 
 /* ---------- Person ---------- */
 
-const QUICK_NOTES = ['👋', '?', 'On my way!', 'Call me'];
+const QUICK_NOTES = ['👋', '?', 'On my way!', 'Call me', 'Running late', 'Here!', 'Need a ride?'];
 
-export function PersonView({ member, onShowOnMap }: { member: Member | null; onShowOnMap: (m: Member) => void }) {
+// One-tap messages. floating: white pills over the map, in a row that scrolls sideways; the last
+// pill is cut off at the screen edge, so it reads as scrollable.
+export function QuickMessages({ member, floating }: { member: Member; floating?: boolean }) {
   const [sent, setSent] = useState('');
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => setSent(''), [member]);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const first = member.name.split(' ')[0];
+  const send = (n: string) => {
+    setSent(`Sent "${n}" to ${first}`);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setSent(''), 2500);
+  };
+  if (sent)
+    return (
+      <View style={[styles.inline, styles.sent, floating && styles.noteFloat, { alignSelf: floating ? 'center' : 'flex-start' }]}>
+        <Ionicons name="checkmark-circle" size={18} color={colors.secure} />
+        <Text style={styles.noteText}>{sent}</Text>
+      </View>
+    );
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.notes, floating && { paddingHorizontal: spacing.md }]}>
+      {QUICK_NOTES.map((n) => (
+        <Pressable key={n} style={[styles.note, floating && styles.noteFloat]} onPress={() => send(n)}>
+          <Text style={styles.noteText}>{n}</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
+// compact: a short header row so the map sheet can stay low (quick messages float above it).
+export function PersonView({ member, onShowOnMap, compact }: { member: Member | null; onShowOnMap: (m: Member) => void; compact?: boolean }) {
   if (!member) return null;
   const first = member.name.split(' ')[0];
   const shared = GROUPS.filter((g) => g.members.some((m) => m.name === member.name));
+  const where = (
+    <View style={[styles.inline, { gap: 4 }]}>
+      {member.moving && <Ionicons name="navigate" size={13} color={colors.primary} />}
+      <LinkedText style={type.body} text={member.place} />
+    </View>
+  );
+  const status = `${away(member.lat, member.lng)} · Updated ${member.updated.toLowerCase()} · ${member.battery}% battery`;
 
   return (
     <View>
-      <View style={styles.hero}>
-        <Avatar color={memberColor(member.name)} initials={initials(member.name)} size={88} />
-        <Text style={[type.h1, { marginTop: spacing.sm }]}>{member.name}</Text>
-        <View style={[styles.inline, { gap: 4 }]}>
-          {member.moving && <Ionicons name="navigate" size={13} color={colors.primary} />}
-          <LinkedText style={type.body} text={member.place} />
+      {compact ? (
+        <View style={styles.personRow}>
+          <Avatar color={memberColor(member.name)} initials={initials(member.name)} size={52} />
+          <View style={{ flex: 1 }}>
+            <Text style={type.h2}>{member.name}</Text>
+            {where}
+            <Text numberOfLines={1} style={type.caption}>{status}</Text>
+          </View>
         </View>
-        <Text style={type.caption}>
-          {away(member.lat, member.lng)} · Updated {member.updated.toLowerCase()} · {member.battery}% battery
-        </Text>
-      </View>
-
-      <Section title="Quick message">
-        <View style={[styles.row, { flexWrap: 'wrap' }]}>
-          {QUICK_NOTES.map((n) => (
-            <Pressable key={n} style={styles.note} onPress={() => setSent(`Sent "${n}" to ${first}`)}>
-              <Text style={styles.noteText}>{n}</Text>
-            </Pressable>
-          ))}
-        </View>
-        {sent !== '' && (
-          <>
-            <Separator />
-            <Row icon="checkmark-circle" label={sent} color={colors.secure} />
-          </>
-        )}
-      </Section>
+      ) : (
+        <>
+          <View style={styles.hero}>
+            <Avatar color={memberColor(member.name)} initials={initials(member.name)} size={88} />
+            <Text style={[type.h1, { marginTop: spacing.sm }]}>{member.name}</Text>
+            {where}
+            <Text style={type.caption}>{status}</Text>
+          </View>
+          <Section title="Quick message">
+            <QuickMessages member={member} />
+          </Section>
+        </>
+      )}
 
       <View style={[styles.actions, { marginTop: spacing.sm }]}>
         <ActionButton icon="map-outline" label="Show on map" onPress={() => onShowOnMap(member)} />
         <ActionButton icon="navigate-outline" label="Directions" onPress={() => directions(member.lat, member.lng)} />
-        <ActionButton icon="chatbubble-outline" label="Message" onPress={() => setSent('Messages open in a later flow')} />
+        <ActionButton icon="chatbubble-outline" label="Message" onPress={() => Alert.alert('Messages', 'Full chat comes in a later flow.')} />
       </View>
 
       <Section title="Alerts">
@@ -1154,6 +1186,10 @@ const styles = StyleSheet.create({
   action: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: spacing.sm + 4, backgroundColor: colors.surface, borderRadius: radius.sm + 4 },
   actionText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
   note: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
+  noteFloat: { backgroundColor: colors.surface, ...shadow },
+  notes: { gap: spacing.sm, paddingVertical: 6 },
+  sent: { gap: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.surface },
+  personRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   noteText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.primary },
   bigIcon: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
   photo: { flex: 1, aspectRatio: 1, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },

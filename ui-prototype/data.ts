@@ -456,6 +456,8 @@ export const groupColor = (id: string) => {
   return ALL[i]?.color ?? bubbleColors[Math.max(0, i) % bubbleColors.length];
 };
 export const memberColor = (name: string) => bubbleColors[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % bubbleColors.length];
+// 'Now', '6m ago', '1h ago' -> minutes, for sorting by freshest location
+export const minutesAgo = (updated: string) => (updated === 'Now' ? 0 : parseInt(updated) * (updated.includes('h') ? 60 : 1));
 export const initials = (name: string) => name.split(' ').map((w) => w[0]).join('').slice(0, 2);
 
 // Every named location the UI can link to (Bubble places, pins, event spots, and common spots
