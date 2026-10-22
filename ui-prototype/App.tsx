@@ -9,7 +9,8 @@ import { getCalendars } from 'expo-localization';
 import { useFonts, Lato_400Regular, Lato_700Bold } from '@expo-google-fonts/lato';
 import { Montserrat_600SemiBold, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { Tab, TabBar } from './components';
-import { colors } from './theme';
+import { colors, setAccent } from './theme';
+import { EVERYONE } from './data';
 import CalendarScreen from './CalendarScreen';
 import HomeScreen from './HomeScreen';
 import InboxScreen from './InboxScreen';
@@ -32,6 +33,7 @@ export default function App() {
   const [everyoneRadius, setEveryoneRadius] = useState(10); // miles shown on the default Everyone map
   const [eventsOnMap, setEventsOnMap] = useState(false);
   const [eventDays, setEventDays] = useState(7); // how far ahead events show on the map
+  const [accentKey, setAccentKey] = useState(0); // bumped after setAccent so every screen redraws with new colors
   const [weekStartPref, setWeekStartPref] = useState<'System' | 'Sunday' | 'Monday'>('System');
   // expo-localization: firstWeekday 1 = Sunday, 2 = Monday
   const systemWeekStart = (getCalendars()[0]?.firstWeekday ?? 1) === 2 ? 1 : 0;
@@ -50,7 +52,7 @@ export default function App() {
       {showStyles ? (
         <StyleReference onClose={() => setShowStyles(false)} />
       ) : (
-        <View style={styles.screen}>
+        <View key={accentKey} style={styles.screen}>
           <View style={{ flex: 1 }}>
             {tab === 0 && (
               <HomeScreen resetKey={homeReset} reduceMotion={reduceMotion} everyoneRadius={everyoneRadius} eventsOnMap={eventsOnMap} eventDays={eventDays} />
@@ -71,6 +73,11 @@ export default function App() {
                 systemWeekStart={systemWeekStart}
                 onWeekStartPref={setWeekStartPref}
                 onStyles={() => setShowStyles(true)}
+                onAccent={(i) => {
+                  setAccent(i);
+                  EVERYONE.color = colors.primary;
+                  setAccentKey((k) => k + 1);
+                }}
               />
             )}
           </View>

@@ -394,14 +394,30 @@ export const INBOX: InboxItem[] = [
 
 // "You" in the prototype (report Task 9).
 export const PROFILE = {
-  color: 1, // index into bubbleColors; teal by default
+  accent: 0, // index into ACCENTS (theme.ts); recolors the whole app
   name: 'Ashlea Morgan',
   handle: '@ashlea.hikes',
   bio: 'New to Grove City from Colorado. Always looking for the next trail.',
-  instagram: 'instagram.com/ashlea.hikes',
+  avatar: 'initials' as string, // 'initials' or an AVATAR_ICONS entry
+  links: [
+    { kind: 'Instagram', url: 'instagram.com/ashlea.hikes' },
+    { kind: 'Strava', url: 'strava.com/athletes/ashlea' },
+  ] as { kind: string; url: string }[],
   hobbies: ['Hiking', 'Running', 'Golf'],
   photos: ['Maroon Bells', 'Hanging Lake', 'Sky Pond', 'Sunken Garden Trail', 'Lake Arthur', 'Garden of the Gods'],
 };
+
+export const LINK_KINDS: { kind: string; icon: IconName; prefix: string }[] = [
+  { kind: 'Instagram', icon: 'logo-instagram', prefix: 'instagram.com/' },
+  { kind: 'TikTok', icon: 'logo-tiktok', prefix: 'tiktok.com/@' },
+  { kind: 'Strava', icon: 'bicycle', prefix: 'strava.com/athletes/' },
+  { kind: 'X', icon: 'logo-twitter', prefix: 'x.com/' },
+  { kind: 'Website', icon: 'globe-outline', prefix: '' },
+];
+export const AVATAR_ICONS: IconName[] = ['leaf', 'bicycle', 'paw', 'camera', 'sunny', 'musical-notes', 'basketball', 'cafe'];
+
+// Everyone you share at least one Bubble with, once each.
+export const friends = () => GROUPS.flatMap((g) => g.members).filter((m, i, all) => all.findIndex((x) => x.name === m.name) === i);
 
 // Straight-line distance from you in miles, and a short label like "0.3 mi".
 export const distanceFromMe = (lat: number, lng: number) => {

@@ -463,13 +463,7 @@ export function PersonView({ member, onShowOnMap }: { member: Member | null; onS
         </Text>
       </View>
 
-      <View style={styles.actions}>
-        <ActionButton icon="map-outline" label="Show on map" onPress={() => onShowOnMap(member)} />
-        <ActionButton icon="navigate-outline" label="Directions" onPress={() => directions(member.lat, member.lng)} />
-        <ActionButton icon="chatbubble-outline" label="Message" onPress={() => setSent('Messages open in a later flow')} />
-      </View>
-
-      <Section title="Quick note">
+      <Section title="Quick message">
         <View style={[styles.row, { flexWrap: 'wrap' }]}>
           {QUICK_NOTES.map((n) => (
             <Pressable key={n} style={styles.note} onPress={() => setSent(`Sent "${n}" to ${first}`)}>
@@ -484,6 +478,12 @@ export function PersonView({ member, onShowOnMap }: { member: Member | null; onS
           </>
         )}
       </Section>
+
+      <View style={[styles.actions, { marginTop: spacing.sm }]}>
+        <ActionButton icon="map-outline" label="Show on map" onPress={() => onShowOnMap(member)} />
+        <ActionButton icon="navigate-outline" label="Directions" onPress={() => directions(member.lat, member.lng)} />
+        <ActionButton icon="chatbubble-outline" label="Message" onPress={() => setSent('Messages open in a later flow')} />
+      </View>
 
       <Section title="Alerts">
         <Toggle icon="enter-outline" label={`When ${first} arrives at a place`} initial={false} />
@@ -532,7 +532,7 @@ export function PinView({ pin, groupName, color, onShowOnMap }: {
         <Text style={[type.body, { textAlign: 'center', marginTop: spacing.sm }]}>{pin.note}</Text>
       </View>
 
-      <View style={styles.actions}>
+      <View style={[styles.actions, { marginTop: spacing.sm }]}>
         <ActionButton icon="map-outline" label="Show on map" onPress={() => onShowOnMap(pin)} />
         <ActionButton icon="navigate-outline" label="Directions" onPress={() => directions(pin.lat, pin.lng)} />
       </View>

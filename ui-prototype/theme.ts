@@ -1,3 +1,5 @@
+import { StyleSheet } from 'react-native';
+
 // Design tokens for the Bubbles app. Shared components live in components.tsx.
 // UI uses one teal family (from SafePath's teal); Bubbles get their own playful palette below.
 
@@ -46,3 +48,39 @@ export const shadow = {
   shadowOffset: { width: 0, height: 4 },
   elevation: 3,
 };
+
+// App accent (Profile > Edit > App color). Each option is a readable button color, a pressed
+// shade and a soft tint. Teal is the default brand look.
+export const ACCENTS = [
+  { name: 'Teal', primary: '#1F8592', dark: '#176A75', soft: '#E6F5F6' },
+  { name: 'Blue', primary: '#2F6FB0', dark: '#245A8F', soft: '#E7F0FA' },
+  { name: 'Green', primary: '#2E8058', dark: '#236647', soft: '#E6F3EC' },
+  { name: 'Purple', primary: '#7556B8', dark: '#5E4496', soft: '#F0EBFA' },
+  { name: 'Orange', primary: '#B8661F', dark: '#94511A', soft: '#FBEEE2' },
+  { name: 'Pink', primary: '#B84A72', dark: '#963B5C', soft: '#FAE8EF' },
+];
+
+// ponytail: every StyleSheet registers itself so setAccent can swap colors in place; a real app
+// would read the accent from a theme context instead.
+type Sheet = Record<string, Record<string, unknown>>;
+const sheets: Sheet[] = [];
+// StyleSheet.create is an identity function apart from dev-mode freezing, which would block the swap.
+(StyleSheet as { create: unknown }).create = <T extends object>(s: T): T => {
+  sheets.push(s as unknown as Sheet);
+  return s;
+};
+
+export function setAccent(i: number) {
+  const a = ACCENTS[i] ?? ACCENTS[0];
+  const map: Record<string, string> = { [colors.primary]: a.primary, [colors.primaryDark]: a.dark, [colors.primarySoft]: a.soft };
+  const swap = (v: unknown) => {
+    if (typeof v !== 'string') return v;
+    if (map[v]) return map[v];
+    const base = v.slice(0, 7); // also colors with an alpha suffix, e.g. primary + '33'
+    return v.length === 9 && map[base] ? map[base] + v.slice(7) : v;
+  };
+  // style objects get frozen in dev once sent to native, so replace them rather than edit
+  for (const sheet of sheets)
+    for (const name in sheet) sheet[name] = Object.fromEntries(Object.entries(sheet[name]).map(([k, v]) => [k, swap(v)]));
+  Object.assign(colors, { primary: a.primary, primaryDark: a.dark, primarySoft: a.soft });
+}
