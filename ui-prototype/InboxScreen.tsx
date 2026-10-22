@@ -1,17 +1,18 @@
 // Inbox: invites, quick messages, place alerts, new pins and events. Edge-to-edge list like Mail;
-// unread rows are shaded and bold. Pull down at the top to reveal search.
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+// unread rows are shaded and bold. Pull down at the top to reveal search. Tap opens the item;
+// swipe right (or long-press) toggles read/unread.
+import { ReactNode, useEffect, useRef, useState } from 'react';
+import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Separator } from './components';
-import { LinkedText } from './Details';
-import { colors, fonts, radius, spacing, type } from './theme';
-import { INBOX, InboxItem } from './data';
+import { Avatar, Bubble, PageSheet, Separator } from './components';
+import { EventView, LinkedText, LocationView, PersonView, PinView } from './Details';
+import { colors, fonts, radius, shadow, spacing, type } from './theme';
+import { ALL, allPins, EVENTS, GROUPS, groupColor, INBOX, InboxItem, initials, memberColor } from './data';
 
 const SEARCH_H = 52;
 
-export default function InboxScreen() {
+export default function InboxScreen({ onChange }: { onChange: () => void }) {
   const insets = useSafeAreaInsets();
   // INBOX is the store (module-level), so read state survives leaving the tab; tick re-renders.
   const [, setTick] = useState(0);
@@ -19,6 +20,13 @@ export default function InboxScreen() {
   const setItems = (next: InboxItem[]) => {
     INBOX.splice(0, INBOX.length, ...next);
     setTick((t) => t + 1);
+    onChange(); // tab badge
+  };
+  const [openId, setOpenId] = useState<string | null>(null);
+  const opened = items.find((it) => it.id === openId) ?? null;
+  const open = (it: InboxItem) => {
+    update(it.id, { read: true });
+    setOpenId(it.id);
   };
   const [query, setQuery] = useState('');
   const [listH, setListH] = useState(0);
@@ -64,7 +72,8 @@ export default function InboxScreen() {
           {shown.map((it, i) => (
             <View key={it.id}>
               {i > 0 && <Separator inset={spacing.md + 36 + spacing.sm + 4} />}
-              <Pressable onPress={() => update(it.id, { read: true })} style={[styles.row, !it.read && styles.unread]}>
+              <SwipeRow read={it.read} onToggle={() => update(it.id, { read: !it.read })}>
+              <Pressable onPress={() => open(it)} onLongPress={() => update(it.id, { read: !it.read })} style={[styles.row, !it.read && styles.unread]}>
                 <View style={styles.icon}>
                   <Ionicons name={it.icon} size={18} color={it.id === 'sos' ? colors.danger : colors.primary} />
                 </View>
@@ -86,11 +95,140 @@ export default function InboxScreen() {
                 </View>
                 <Text style={[type.caption, !it.read && { color: colors.primary, fontFamily: fonts.bodyBold }]}>{it.time}</Text>
               </Pressable>
+              </SwipeRow>
             </View>
           ))}
           {shown.length === 0 && <Text style={[type.caption, { padding: spacing.md }]}>No messages match "{query}".</Text>}
         </View>
+        <Text style={[type.caption, { textAlign: 'center', marginTop: spacing.md }]}>Swipe right on a message to mark it read or unread</Text>
       </ScrollView>
+
+      <PageSheet visible={!!opened} title={opened ? sheetTitle(opened) : ''} onClose={() => setOpenId(null)}>
+        {opened && <ItemDetail item={opened} onInvite={(invite) => update(opened.id, { invite })} onClose={() => setOpenId(null)} />}
+      </PageSheet>
+    </View>
+  );
+}
+
+// Swipe right past the threshold to toggle read/unread (Mail convention); the row springs back.
+function SwipeRow({ read, onToggle, children }: { read: boolean; onToggle: () => void; children: ReactNode }) {
+  const x = useRef(new Animated.Value(0)).current;
+  const toggle = useRef(onToggle);
+  toggle.current = onToggle;
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dx > 10 && g.dx > Math.abs(g.dy) * 2,
+      onPanResponderMove: (_, g) => x.setValue(Math.max(0, Math.min(g.dx, 120))),
+      onPanResponderRelease: (_, g) => {
+        if (g.dx > 70) toggle.current();
+        Animated.spring(x, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
+      },
+      onPanResponderTerminate: () => Animated.spring(x, { toValue: 0, useNativeDriver: true }).start(),
+    }),
+  ).current;
+  return (
+    <View>
+      <View style={styles.swipeBack}>
+        <Ionicons name={read ? 'mail-unread' : 'mail-open'} size={20} color={colors.surface} />
+        <Text style={styles.swipeText}>{read ? 'Unread' : 'Read'}</Text>
+      </View>
+      <Animated.View style={{ transform: [{ translateX: x }], backgroundColor: colors.surface }} {...pan.panHandlers}>
+        {children}
+      </Animated.View>
+    </View>
+  );
+}
+
+const sheetTitle = (it: InboxItem) =>
+  it.open?.bubble ? 'Invite' : it.open?.person ? it.open.person : it.open?.event ? 'Event' : it.open?.pin ? 'Pin' : it.open?.hotspot ? 'Hotspot' : 'Message';
+
+// What an inbox item opens: invite -> Bubble preview, message -> person with reply,
+// alert -> hotspot, event -> event, pin -> pin.
+// ponytail: "Show on map" just closes the sheet; jumping to the Bubbles tab needs app-level routing.
+function ItemDetail({ item, onInvite, onClose }: { item: InboxItem; onInvite: (i: 'accepted' | 'declined') => void; onClose: () => void }) {
+  const [reply, setReply] = useState('');
+  const [sent, setSent] = useState('');
+  const o = item.open ?? {};
+  const person = o.person ? GROUPS.flatMap((g) => g.members).find((m) => m.name === o.person) : undefined;
+  if (o.bubble) {
+    const g = ALL.find((x) => x.name === o.bubble);
+    return (
+      <View style={styles.detail}>
+        <View style={{ alignItems: 'center', gap: spacing.sm }}>
+          <Bubble size={120} tint={g ? groupColor(g.id) : colors.primary}>
+            <Ionicons name={g?.icon ?? 'people'} size={34} color={g ? groupColor(g.id) : colors.primary} />
+          </Bubble>
+          <Text style={type.h1}>{o.bubble}</Text>
+          <Text style={[type.caption, { textAlign: 'center' }]}>{item.body}</Text>
+          <Text style={[type.body, { textAlign: 'center' }]}>{item.title}</Text>
+        </View>
+        {g && (
+          <View style={[styles.card, { marginTop: spacing.lg }]}>
+            {g.members.slice(0, 6).map((m, i) => (
+              <View key={m.name}>
+                {i > 0 && <Separator inset={56} />}
+                <View style={styles.memberRow}>
+                  <Avatar size={30} initials={initials(m.name)} color={memberColor(m.name)} />
+                  <Text style={type.body}>{m.name}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+        <Text style={[type.caption, { textAlign: 'center', marginTop: spacing.md }]}>Only members of this Bubble can see your location, pins and photos.</Text>
+        {item.invite === 'pending' ? (
+          <View style={[styles.actions, { justifyContent: 'center', marginTop: spacing.lg }]}>
+            <Pressable style={[styles.action, styles.accept, styles.bigAction]} onPress={() => { onInvite('accepted'); onClose(); }}>
+              <Text style={[styles.actionText, { color: colors.surface }]}>Accept</Text>
+            </Pressable>
+            <Pressable style={[styles.action, styles.bigAction]} onPress={() => { onInvite('declined'); onClose(); }}>
+              <Text style={styles.actionText}>Decline</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Text style={[type.caption, { textAlign: 'center', marginTop: spacing.md, color: item.invite === 'accepted' ? colors.secure : colors.textMuted }]}>
+            {item.invite === 'accepted' ? 'You joined this Bubble' : 'You declined this invite'}
+          </Text>
+        )}
+      </View>
+    );
+  }
+  if (person)
+    return (
+      <View>
+        <View style={[styles.detail, { paddingBottom: 0 }]}>
+          <View style={styles.bubbleMsg}>
+            <Text style={type.body}>{item.body}</Text>
+            <Text style={type.caption}>{item.time} ago</Text>
+          </View>
+          <View style={styles.replyRow}>
+            <TextInput value={reply} onChangeText={setReply} placeholder={`Reply to ${person.name.split(' ')[0]}`} placeholderTextColor={colors.textMuted} style={styles.searchInput} />
+            <Pressable
+              disabled={!reply.trim()}
+              onPress={() => { setSent(reply.trim()); setReply(''); }}
+              hitSlop={10}
+              accessibilityLabel="Send reply"
+            >
+              <Ionicons name="arrow-up-circle" size={30} color={reply.trim() ? colors.primary : colors.border} />
+            </Pressable>
+          </View>
+          {sent !== '' && <Text style={[type.caption, { color: colors.secure, alignSelf: 'flex-end' }]}>Sent "{sent}"</Text>}
+        </View>
+        <PersonView member={person} onShowOnMap={onClose} />
+      </View>
+    );
+  if (o.event) return <EventView event={EVENTS.find((e) => e.title === o.event) ?? null} />;
+  if (o.pin) {
+    const hit = allPins().find((p) => p.pin.name === o.pin);
+    return hit ? <PinView pin={hit.pin} groupName={hit.group.name} color={groupColor(hit.group.id)} onShowOnMap={onClose} /> : null;
+  }
+  if (o.hotspot) {
+    const h = GROUPS.flatMap((g) => g.hotspots).find((x) => x.name === o.hotspot);
+    return h ? <LocationView loc={{ name: h.name, lat: h.lat, lng: h.lng, icon: h.icon }} /> : null;
+  }
+  return (
+    <View style={styles.detail}>
+      <Text style={type.body}>{item.body}</Text>
     </View>
   );
 }
@@ -111,4 +249,12 @@ const styles = StyleSheet.create({
   action: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   accept: { backgroundColor: colors.primary, borderColor: colors.primary },
   actionText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.text },
+  bigAction: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm + 2 },
+  swipeBack: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: spacing.md, backgroundColor: colors.primary },
+  swipeText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.surface },
+  detail: { padding: spacing.md, gap: spacing.sm },
+  card: { backgroundColor: colors.surface, borderRadius: radius.sm + 4, overflow: 'hidden' },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  bubbleMsg: { alignSelf: 'flex-start', maxWidth: '80%', gap: 2, backgroundColor: colors.surface, borderRadius: radius.md, borderBottomLeftRadius: 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, ...shadow },
+  replyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.pill, paddingLeft: spacing.md, paddingRight: 4, height: 40, borderWidth: 1, borderColor: colors.border },
 });

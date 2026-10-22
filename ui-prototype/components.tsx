@@ -443,7 +443,7 @@ export function Dropdown({ label, icon, options, value, onChange }: {
 /* ---------- Navigation ---------- */
 
 // A tab with `action: true` renders as the raised center button.
-export type Tab = { icon: IconName; label: string; action?: boolean };
+export type Tab = { icon: IconName; label: string; action?: boolean; badge?: number };
 
 // Paints down behind the home indicator; content stays above it.
 export function TabBar({ tabs, active, onPress }: { tabs: Tab[]; active: number; onPress?: (i: number) => void }) {
@@ -457,6 +457,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: Tab[]; active: number;
           ) : (
             <>
               <Ionicons name={tab.icon} size={24} color={i === active ? colors.primary : colors.textMuted} />
+              {!!tab.badge && <Badge count={tab.badge} style={{ position: 'absolute', top: 0, left: '55%' }} />}
               <Text style={[s.tabLabel, i === active && { color: colors.primary }]}>{tab.label}</Text>
             </>
           )}

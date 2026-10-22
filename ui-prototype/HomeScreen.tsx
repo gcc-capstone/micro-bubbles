@@ -112,8 +112,8 @@ const dayLabel = (iso: string) => (iso === TODAY ? 'Today' : iso === isoPlus(TOD
 const minutesAgo = (s: string) =>
   s === 'Now' ? 0 : parseInt(s, 10) * (s.includes('h') ? 60 : s.includes('d') ? 1440 : s.includes('w') ? 10080 : 1);
 
-export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eventsOnMap, eventDays }: {
-  resetKey: number; reduceMotion: boolean; everyoneRadius: number; eventsOnMap: boolean; eventDays: number;
+export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eventsOnMap, eventDays, weekStart }: {
+  resetKey: number; reduceMotion: boolean; everyoneRadius: number; eventsOnMap: boolean; eventDays: number; weekStart: number;
 }) {
   const insets = useSafeAreaInsets();
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -1019,6 +1019,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         groups={GROUPS}
         initialGroupId={group?.id}
         today={TODAY}
+        weekStart={weekStart}
         onClose={() => setNewEventOpen(false)}
         onCreate={(e) => {
           EVENTS.push(e);

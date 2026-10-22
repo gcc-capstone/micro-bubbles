@@ -5,7 +5,7 @@
 //           follows the list (top day when scrolling down, bottom day when scrolling up).
 // Lists are virtualized over a wide but fixed range with known row heights, so jumps are instant.
 import { useMemo, useRef, useState } from 'react';
-import { Animated, FlatList, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, ViewToken } from 'react-native';
+import { Animated, FlatList, NativeScrollEvent, NativeSyntheticEvent, PanResponder, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Bubble, EventRow } from './components';
@@ -56,7 +56,6 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
   const [filter, setFilter] = useState('everyone');
   const [open, setOpen] = useState<BubbleEvent | null>(null);
 
-  const yearList = useRef<FlatList<number>>(null);
   const monthList = useRef<FlatList<number>>(null);
   const dayList = useRef<FlatList<number>>(null);
   const strip = useRef<FlatList<number>>(null);
@@ -193,10 +192,22 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
   }).current;
 
   const today = () => {
-    if (level === 'year') yearList.current?.scrollToIndex({ index: YR, animated: !reduceMotion });
+    if (level === 'year') go('month', T); // Year > Today opens this month, like Apple Calendar
     if (level === 'month') monthList.current?.scrollToIndex({ index: MR, animated: !reduceMotion });
     if (level === 'week') selectDay(T);
   };
+
+  // Pulling down on the week strip opens the month (the strip "unfolds" into the full grid).
+  const stripPull = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 12 && g.dy > Math.abs(g.dx) * 1.5,
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 40) goRef.current('month', selRef.current);
+      },
+    }),
+  ).current;
+  const goRef = useRef(go);
+  goRef.current = go;
 
   /* ---------- nav ---------- */
   const selP = parts(sel);
@@ -241,7 +252,6 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
         {level === 'year' && <View style={styles.topBarLine} />}
         {level === 'year' && (
           <FlatList
-            ref={yearList}
             data={YEARS}
             keyExtractor={(i) => `${i}`}
             initialScrollIndex={visYear - TP.y + YR}
@@ -339,7 +349,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
           <>
             {/* Week strip: pages one week at a time */}
             <View style={styles.divider} />
-            <View style={styles.stripWrap}>
+            <View style={styles.stripWrap} {...stripPull.panHandlers}>
               <View style={[styles.dowRow, { borderBottomWidth: 0, paddingHorizontal: WEEK_PAD }]}>
                 {dows.map((d, i) => (
                   <Text key={i} style={[styles.cellW, styles.dow]}>{d}</Text>

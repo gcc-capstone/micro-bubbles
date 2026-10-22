@@ -378,18 +378,19 @@ export type InboxItem = {
   time: string;
   read: boolean;
   invite?: 'pending' | 'accepted' | 'declined';
+  open?: { person?: string; event?: string; pin?: string; hotspot?: string; bubble?: string }; // what tapping shows
 };
 
 // Inbox, newest first (report Tasks 2, 4, 6, 10, 12, 14, 15).
 export const INBOX: InboxItem[] = [
-  { id: 'acm', icon: 'mail-unread-outline', title: 'Priya Shah invited you to ACM', body: 'Public Bubble · 48 members you may not know', time: '5m', read: false, invite: 'pending' },
-  { id: 'onmyway', icon: 'chatbubble-outline', title: 'Sam Mayfield · Senior Project', body: '"On my way!"', time: '8m', read: false },
-  { id: 'timhome', icon: 'enter-outline', title: 'Tim Shin entered Grove City', body: 'Shin Family · Hotspot alert', time: '12m', read: false },
-  { id: 'hike', icon: 'calendar-outline', title: 'Nia Johnson added an event', body: 'Beginner hike · Sat, Oct 17 at 9:00 AM', time: '20m', read: true },
-  { id: 'canawaugus', icon: 'pin-outline', title: 'Megan Ross pinned Canawaugus Park', body: 'Rochester Nature Lovers · 5 stars', time: '2h', read: true },
-  { id: 'theatre', icon: 'mail-open-outline', title: 'Venture Hale invited you to Theatre Crew', body: 'Private Bubble · 6 members', time: '2d', read: true, invite: 'accepted' },
-  { id: 'krav', icon: 'mail-open-outline', title: 'Marcus Reed invited you to Krav Maga Club', body: 'Private Bubble · 3 members', time: '3d', read: true, invite: 'accepted' },
-  { id: 'sos', icon: 'warning-outline', title: 'Ina Tang sent an SOS', body: 'Fall Break Crew · Resolved by Sam Mayfield', time: '1w', read: true },
+  { id: 'acm', icon: 'mail-unread-outline', title: 'Priya Shah invited you to ACM', body: 'Public Bubble · 48 members you may not know', time: '5m', read: false, invite: 'pending', open: { bubble: 'ACM' } },
+  { id: 'onmyway', icon: 'chatbubble-outline', title: 'Sam Mayfield · Senior Project', body: '"On my way!"', time: '8m', read: false, open: { person: 'Sam Mayfield' } },
+  { id: 'timhome', icon: 'enter-outline', title: 'Tim Shin entered Grove City', body: 'Shin Family · Hotspot alert', time: '12m', read: false, open: { hotspot: 'Grove City' } },
+  { id: 'hike', icon: 'calendar-outline', title: 'Nia Johnson added an event', body: 'Beginner hike · Sat, Oct 17 at 9:00 AM', time: '20m', read: true, open: { event: 'Beginner hike' } },
+  { id: 'canawaugus', icon: 'pin-outline', title: 'Megan Ross pinned Canawaugus Park', body: 'Rochester Nature Lovers · 5 stars', time: '2h', read: true, open: { pin: 'Canawaugus Park' } },
+  { id: 'theatre', icon: 'mail-open-outline', title: 'Venture Hale invited you to Theatre Crew', body: 'Private Bubble · 6 members', time: '2d', read: true, invite: 'accepted', open: { bubble: 'Theatre Crew' } },
+  { id: 'krav', icon: 'mail-open-outline', title: 'Marcus Reed invited you to Krav Maga Club', body: 'Private Bubble · 3 members', time: '3d', read: true, invite: 'accepted', open: { bubble: 'Krav Maga Club' } },
+  { id: 'sos', icon: 'warning-outline', title: 'Ina Tang sent an SOS', body: 'Fall Break Crew · Resolved by Sam Mayfield', time: '1w', read: true, open: { person: 'Ina Tang' } },
 ];
 
 // "You" in the prototype (report Task 9).

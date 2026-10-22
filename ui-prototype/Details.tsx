@@ -10,6 +10,7 @@ import {
   Pin, PIN_CATEGORIES, PinCategory, ratingCount, Hotspot, HotspotAlert, canInvite, ownerName,
 } from './data';
 import BubbleMap, { Focus } from './BubbleMap';
+import { addMonths, dayNum, daysIn, isoOf, leadBlanks, monthStart, parts } from './calendarMath';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -1067,16 +1068,53 @@ export function NewBubble({ visible, onClose, onCreate }: {
 
 const TIMES = ['9:00 AM', '12:00 PM', '3:00 PM', '5:30 PM', '7:00 PM', '9:00 PM'];
 
-export function NewEvent({ visible, groups, initialGroupId, today, onClose, onCreate }: {
-  visible: boolean; groups: Group[]; initialGroupId?: string; today: string; onClose: () => void; onCreate: (e: BubbleEvent) => void;
+// Month grid for picking any day; arrows page through months. Days before today are disabled.
+function DatePicker({ value, today, weekStart, onChange }: { value: string; today: string; weekStart: number; onChange: (iso: string) => void }) {
+  const T = dayNum(today);
+  const v = dayNum(value);
+  const [ym, setYm] = useState(() => ({ y: parts(v).y, m: parts(v).m }));
+  const start = monthStart(ym.y, ym.m);
+  const cells = [...Array<null>(leadBlanks(ym.y, ym.m, weekStart)).fill(null), ...Array.from({ length: daysIn(ym.y, ym.m) }, (_, i) => start + i)];
+  const page = (i: number) => setYm(addMonths(ym.y, ym.m, i));
+  const canBack = start > T;
+  return (
+    <View style={{ padding: spacing.sm + 4 }}>
+      <View style={[styles.inline, { justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: spacing.sm }]}>
+        <Text style={type.h2}>{MONTHS[ym.m]} {ym.y}</Text>
+        <View style={[styles.inline, { gap: spacing.lg }]}>
+          <Pressable onPress={() => page(-1)} disabled={!canBack} hitSlop={10} accessibilityLabel="Previous month">
+            <Ionicons name="chevron-back" size={22} color={canBack ? colors.primary : colors.border} />
+          </Pressable>
+          <Pressable onPress={() => page(1)} hitSlop={10} accessibilityLabel="Next month">
+            <Ionicons name="chevron-forward" size={22} color={colors.primary} />
+          </Pressable>
+        </View>
+      </View>
+      <View style={styles.calGrid}>
+        {Array.from({ length: 7 }, (_, i) => (
+          <Text key={'d' + i} style={[styles.calCell, styles.calDow]}>{WEEKDAYS[(i + weekStart) % 7].slice(0, 1)}</Text>
+        ))}
+        {cells.map((n, i) =>
+          n === null ? (
+            <View key={i} style={styles.calCell} />
+          ) : (
+            <Pressable key={i} style={styles.calCell} disabled={n < T} onPress={() => onChange(isoOf(n))}>
+              <View style={[styles.calDay, n === T && n !== v && styles.calToday, n === v && { backgroundColor: colors.primary }]}>
+                <Text style={[styles.calNum, n < T && { color: colors.border }, n === T && { color: colors.primary }, n === v && { color: colors.surface }]}>{parts(n).d}</Text>
+              </View>
+            </Pressable>
+          ),
+        )}
+      </View>
+    </View>
+  );
+}
+
+export function NewEvent({ visible, groups, initialGroupId, today, weekStart = 0, onClose, onCreate }: {
+  visible: boolean; groups: Group[]; initialGroupId?: string; today: string; weekStart?: number; onClose: () => void; onCreate: (e: BubbleEvent) => void;
 }) {
-  const days = Array.from({ length: 14 }, (_, i) => {
-    const [y, m, d] = today.split('-').map(Number);
-    const t = new Date(y, m - 1, d + i);
-    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-  });
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState(days[0]);
+  const [date, setDate] = useState(today);
   const [time, setTime] = useState(TIMES[4]);
   const [place, setPlace] = useState<Loc | null>(null);
   const [groupId, setGroupId] = useState(groups[0]?.id);
@@ -1084,7 +1122,7 @@ export function NewEvent({ visible, groups, initialGroupId, today, onClose, onCr
   useEffect(() => {
     if (!visible) return;
     setTitle('');
-    setDate(days[0]);
+    setDate(today);
     setTime(TIMES[4]);
     setPlace(null);
     setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
@@ -1112,19 +1150,10 @@ export function NewEvent({ visible, groups, initialGroupId, today, onClose, onCr
         <TextInput value={title} onChangeText={setTitle} placeholder="e.g. Beginner hike" placeholderTextColor={colors.textMuted} style={styles.input} autoFocus />
       </Section>
 
-      <Section title="Day">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: spacing.sm + 4, gap: spacing.sm }}>
-          {days.map((d, i) => {
-            const [y, m, dd] = d.split('-').map(Number);
-            const on = d === date;
-            return (
-              <Pressable key={d} onPress={() => setDate(d)} style={[styles.dayChip, on && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
-                <Text style={[styles.dayChipTop, on && { color: colors.surface }]}>{i === 0 ? 'Today' : WEEKDAYS[new Date(y, m - 1, dd).getDay()].slice(0, 3)}</Text>
-                <Text style={[styles.dayChipNum, on && { color: colors.surface }]}>{dd}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+      <Section title={`Day · ${longDate(date)}`}>
+        <View style={styles.group}>
+          <DatePicker value={date} today={today} weekStart={weekStart} onChange={setDate} />
+        </View>
       </Section>
 
       <Section title="Time">
@@ -1211,9 +1240,12 @@ const styles = StyleSheet.create({
   areaRing: { position: 'absolute', left: '50%', top: '50%', width: 110, height: 110, marginLeft: -55, marginTop: -55, borderRadius: 55, borderWidth: 2 },
   mapPreview: { height: 180, marginHorizontal: spacing.md, borderRadius: radius.md, overflow: 'hidden' },
   category: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  dayChip: { width: 52, paddingVertical: 6, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
-  dayChipTop: { ...type.caption, fontSize: 11, fontFamily: fonts.bodyBold },
-  dayChipNum: { fontFamily: fonts.heading, fontSize: 18, color: colors.text },
+  calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 2 },
+  calDow: { ...type.caption, fontFamily: fonts.bodyBold, paddingBottom: 4 },
+  calDay: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  calToday: { borderWidth: 2, borderColor: colors.primary },
+  calNum: { fontFamily: fonts.body, fontSize: 16, color: colors.text },
   timeChip: { paddingHorizontal: spacing.sm + 4, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   timeText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
   shareLabel: { ...type.caption, fontSize: 11, marginTop: 4, textAlign: 'center', width: 64 },

@@ -10,7 +10,7 @@ import { useFonts, Lato_400Regular, Lato_700Bold } from '@expo-google-fonts/lato
 import { Montserrat_600SemiBold, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { Tab, TabBar } from './components';
 import { colors, setAccent } from './theme';
-import { EVERYONE } from './data';
+import { EVERYONE, INBOX } from './data';
 import CalendarScreen from './CalendarScreen';
 import HomeScreen from './HomeScreen';
 import InboxScreen from './InboxScreen';
@@ -33,6 +33,7 @@ export default function App() {
   const [everyoneRadius, setEveryoneRadius] = useState(10); // miles shown on the default Everyone map
   const [eventsOnMap, setEventsOnMap] = useState(false);
   const [eventDays, setEventDays] = useState(7); // how far ahead events show on the map
+  const [, setInboxTick] = useState(0); // re-render for the Inbox tab badge
   const [accentKey, setAccentKey] = useState(0); // bumped after setAccent so every screen redraws with new colors
   const [weekStartPref, setWeekStartPref] = useState<'System' | 'Sunday' | 'Monday'>('System');
   // expo-localization: firstWeekday 1 = Sunday, 2 = Monday
@@ -55,9 +56,9 @@ export default function App() {
         <View key={accentKey} style={styles.screen}>
           <View style={{ flex: 1 }}>
             {tab === 0 && (
-              <HomeScreen resetKey={homeReset} reduceMotion={reduceMotion} everyoneRadius={everyoneRadius} eventsOnMap={eventsOnMap} eventDays={eventDays} />
+              <HomeScreen resetKey={homeReset} reduceMotion={reduceMotion} everyoneRadius={everyoneRadius} eventsOnMap={eventsOnMap} eventDays={eventDays} weekStart={weekStart} />
             )}
-            {tab === 1 && <InboxScreen />}
+            {tab === 1 && <InboxScreen onChange={() => setInboxTick((t) => t + 1)} />}
             {tab === 2 && <CalendarScreen weekStart={weekStart} reduceMotion={reduceMotion} />}
             {tab === 3 && (
               <ProfileScreen
@@ -81,7 +82,7 @@ export default function App() {
               />
             )}
           </View>
-          <TabBar tabs={TABS} active={tab} onPress={(i) => (i === 0 && tab === 0 ? setHomeReset(homeReset + 1) : setTab(i))} />
+          <TabBar tabs={TABS.map((t) => (t.label === 'Inbox' ? { ...t, badge: INBOX.filter((it) => !it.read).length } : t))} active={tab} onPress={(i) => (i === 0 && tab === 0 ? setHomeReset(homeReset + 1) : setTab(i))} />
         </View>
       )}
     </SafeAreaProvider>
