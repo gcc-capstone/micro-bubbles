@@ -9,7 +9,7 @@ import type { BubbleMapProps } from './BubbleMap';
 
 const SIDE = 50;
 
-export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi }: BubbleMapProps) {
+export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi }: BubbleMapProps) {
   const [size, setSize] = useState({ w: 0, h: 0 });
   // Browser zoom/pan: trackpad pinch (ctrl+wheel) or two-finger touch pinch zooms, wheel/drag pans.
   const [zoom, setZoom] = useState(1);
@@ -75,7 +75,7 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
       <View style={[styles.road, { top: '62%', left: -20, right: -20, height: 8, transform: [{ rotate: '3deg' }] }]} />
       {size.w > 0 && (
         <>
-          {places.map((p) => {
+          {hotspots.map((p) => {
             const d = Math.min(Math.max(((p.radius * 2) / 111000) * scale, 60), 600);
             return (
               <Pressable key={p.name} onPress={() => onPlacePress?.(p)} style={{ position: 'absolute', left: x(p.lng) - d / 2, top: y(p.lat) - d / 2 }}>

@@ -6,8 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Bubble, Button, IconName, MapPin, PageSheet, Segmented, Separator } from './components';
 import { bubbleColors, colors, fonts, radius, spacing, type } from './theme';
 import {
-  avgRating, BubbleEvent, distanceFromMe, EVENTS, formatMiles, Group, groupColor, GROUPS, initials, joinCode, Loc, LOCATIONS, ME, Member, memberColor, meters,
-  Pin, PIN_CATEGORIES, PinCategory, ratingCount,
+  avgRating, BubbleEvent, distanceFromMe, EVENTS, formatMiles, Group, groupColor, GROUPS, initials, Loc, LOCATIONS, ME, Member, memberColor, meters,
+  Pin, PIN_CATEGORIES, PinCategory, ratingCount, Hotspot, HotspotAlert, canInvite, ownerName,
 } from './data';
 import BubbleMap, { Focus } from './BubbleMap';
 
@@ -102,10 +102,11 @@ function CoverBubbles({ color }: { color: string }) {
 // Location details: where it is, who's there, pins and upcoming events nearby.
 export function LocationView({ loc }: { loc: Loc }) {
   const here = (x: { lat: number; lng: number }, m = 250) => meters(loc, x) < m;
-  const people = GROUPS.flatMap((g) => g.members).filter((m, i, all) => all.findIndex((x) => x.name === m.name) === i && here(m));
+  // check who's here before de-duplicating: the same person can have a different spot per Bubble
+  const people = GROUPS.flatMap((g) => g.members).filter(here).filter((m, i, all) => all.findIndex((x) => x.name === m.name) === i);
   const pins = GROUPS.flatMap((g) => g.pins).filter((p) => here(p) && p.name !== loc.name);
   const events = EVENTS.filter((e) => here(e));
-  const places = GROUPS.flatMap((g) => g.places.map((p) => ({ ...p, group: g }))).filter((p) => p.name === loc.name);
+  const spots = GROUPS.flatMap((g) => g.hotspots.map((h) => ({ h, group: g }))).filter(({ h }) => h.name === loc.name);
   return (
     <View>
       <View style={styles.hero}>
@@ -115,24 +116,18 @@ export function LocationView({ loc }: { loc: Loc }) {
         <Text style={[type.h1, { marginTop: spacing.sm, textAlign: 'center' }]}>{loc.name}</Text>
         <Text style={type.caption}>{away(loc.lat, loc.lng)}</Text>
       </View>
-      <View style={styles.mapPreview}>
-        <BubbleMap members={people} places={[]} pins={[]} color={colors.primary} focus={{ name: loc.name, lat: loc.lat, lng: loc.lng }} topInset={0} bottomInset={0} onMemberPress={() => {}} />
+      {/* static preview: scrolling the page shouldn't get stuck panning a map */}
+      <View style={[styles.mapPreview, styles.noTouch]}>
+        <BubbleMap members={people} hotspots={[]} pins={[]} color={colors.primary} focus={{ name: loc.name, lat: loc.lat, lng: loc.lng }} topInset={0} bottomInset={0} onMemberPress={() => {}} />
       </View>
       <View style={[styles.actions, { marginTop: spacing.md }]}>
         <ActionButton icon="navigate-outline" label="Directions" onPress={() => directions(loc.lat, loc.lng)} />
         <ActionButton icon="share-outline" label="Share" onPress={() => Share.share({ message: `${loc.name} — shared from Bubbles` })} />
       </View>
 
-      {places.length > 0 && (
-        <Section title="Place alerts">
-          {places.map((p, i) => (
-            <View key={p.group.id}>
-              {i > 0 && <Separator inset={48} />}
-              <Toggle icon="notifications-outline" label={`Arrivals & departures · ${p.group.name}`} initial={p.name === 'Davis Park'} />
-            </View>
-          ))}
-        </Section>
-      )}
+      {spots.map(({ h, group }) => (
+        <HotspotAlerts key={group.id} hotspot={h} group={group} />
+      ))}
 
       <Section title={`Here now · ${people.length}`}>
         {people.length === 0 && <Row icon="people-outline" label="Nobody from your Bubbles" color={colors.textMuted} />}
@@ -227,6 +222,219 @@ export function LinkedText({ text, style, numberOfLines }: { text: string; style
       </Text>
       {open && <LocationDetail loc={open} onClose={() => setOpen(null)} />}
     </>
+  );
+}
+
+/* ---------- Hotspots ---------- */
+
+const radiusLabel = (m: number) => (m >= 1000 ? `${m / 1000} km` : `${m} m`);
+
+// Per-member alerts for one hotspot: tap Arrives / Leaves to get notified.
+export function HotspotAlerts({ hotspot, group }: { hotspot: Hotspot; group: Group }) {
+  const [, setTick] = useState(0);
+  const flip = (name: string, key: keyof HotspotAlert) => {
+    const a = (hotspot.alerts ??= {})[name] ?? { arrive: false, leave: false };
+    hotspot.alerts[name] = { ...a, [key]: !a[key] };
+    setTick((t) => t + 1);
+  };
+  return (
+    <Section title={`Hotspot alerts · ${group.name}`}>
+      <Row icon="radio-outline" label={`${radiusLabel(hotspot.radius)} around ${hotspot.name}`} />
+      {group.members.map((m) => {
+        const a = hotspot.alerts?.[m.name];
+        return (
+          <View key={m.name}>
+            <Separator inset={60} />
+            <View style={styles.row}>
+              <Avatar size={32} initials={initials(m.name)} color={memberColor(m.name)} />
+              <Text numberOfLines={1} style={[type.body, { flex: 1 }]}>{m.name}</Text>
+              {(['arrive', 'leave'] as const).map((k) => (
+                <Pressable key={k} onPress={() => flip(m.name, k)} style={[styles.alertChip, a?.[k] && styles.alertChipOn]} hitSlop={4}>
+                  <Ionicons name={k === 'arrive' ? 'enter-outline' : 'exit-outline'} size={13} color={a?.[k] ? colors.surface : colors.primary} />
+                  <Text style={[styles.alertChipText, a?.[k] && { color: colors.surface }]}>{k === 'arrive' ? 'Arrives' : 'Leaves'}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        );
+      })}
+    </Section>
+  );
+}
+
+const RADII_M = [100, 250, 500, 1000, 3000];
+
+// Create a hotspot: name, where (search or drag), size, Bubble, and who you want alerts for.
+export function NewHotspot({ visible, groups, initialGroupId, onClose, onCreate }: {
+  visible: boolean; groups: Group[]; initialGroupId?: string; onClose: () => void; onCreate: (h: Hotspot, groupId: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [radius, setRadius] = useState(250);
+  const [groupId, setGroupId] = useState(groups[0]?.id);
+  const [start, setStart] = useState<Focus>({ name: 'You', lat: ME.lat, lng: ME.lng });
+  const [center, setCenter] = useState({ lat: ME.lat, lng: ME.lng });
+  const [search, setSearch] = useState('');
+  const [who, setWho] = useState<string[]>([]);
+  const [when, setWhen] = useState('Both');
+  useEffect(() => {
+    if (!visible) return;
+    setName('');
+    setRadius(250);
+    setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
+    setStart({ name: 'You', lat: ME.lat, lng: ME.lng });
+    setCenter({ lat: ME.lat, lng: ME.lng });
+    setSearch('');
+    setWho([]);
+    setWhen('Both');
+  }, [visible]);
+  const group = groups.find((g) => g.id === groupId);
+  const color = groupColor(groupId);
+  const q = search.trim().toLowerCase();
+  const matches = q ? LOCATIONS.filter((l) => l.name.toLowerCase().includes(q)).slice(0, 5) : [];
+  const create = () =>
+    onCreate(
+      {
+        name: name.trim(),
+        icon: 'radio-outline',
+        lat: center.lat,
+        lng: center.lng,
+        radius,
+        alerts: Object.fromEntries(who.map((n) => [n, { arrive: when !== 'Leaves', leave: when !== 'Arrives' }])),
+      },
+      groupId,
+    );
+
+  return (
+    <PageSheet
+      visible={visible}
+      title="New Hotspot"
+      onClose={onClose}
+      right={
+        <Pressable disabled={!name.trim()} onPress={create} hitSlop={10}>
+          <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }, !name.trim() && { color: colors.textMuted }]}>Create</Text>
+        </Pressable>
+      }
+    >
+      <View style={[styles.searchRow, { marginHorizontal: spacing.md }]}>
+        <Ionicons name="search" size={16} color={colors.textMuted} />
+        <TextInput value={search} onChangeText={setSearch} placeholder="Search a place" placeholderTextColor={colors.textMuted} style={styles.searchInput} autoCorrect={false} />
+      </View>
+      {matches.length > 0 && (
+        <View style={[styles.group, { marginHorizontal: spacing.md, marginTop: spacing.xs }]}>
+          {matches.map((l, i) => (
+            <Pressable
+              key={l.name}
+              onPress={() => {
+                setStart({ name: l.name, lat: l.lat, lng: l.lng });
+                setCenter({ lat: l.lat, lng: l.lng });
+                if (!name.trim()) setName(l.name);
+                setSearch('');
+              }}
+            >
+              {i > 0 && <Separator inset={48} />}
+              <Row icon={l.icon} label={l.name} value={formatMiles(distanceFromMe(l.lat, l.lng))} />
+            </Pressable>
+          ))}
+        </View>
+      )}
+      <View style={[styles.mapPreview, { marginTop: spacing.sm }]}>
+        <BubbleMap members={NO_MEMBERS} hotspots={[]} pins={[]} color={color} focus={start} topInset={0} bottomInset={0} onMemberPress={() => {}} onCenterChange={setCenter} />
+        {/* ponytail: circle drawn at a fixed screen size, not to the map's scale */}
+        <View style={[styles.areaRing, { borderColor: color, backgroundColor: color + '30' }, styles.noTouch]} />
+      </View>
+      <Text style={[type.caption, { textAlign: 'center' }]}>Drag the map to place the center</Text>
+
+      <Section title="Name">
+        <TextInput value={name} onChangeText={setName} placeholder="e.g. Home, Davis Park, Campus" placeholderTextColor={colors.textMuted} style={styles.input} />
+      </Section>
+
+      <Section title="Size">
+        <View style={[styles.row, { flexWrap: 'wrap', gap: spacing.sm }]}>
+          {RADII_M.map((m) => (
+            <Pressable key={m} onPress={() => setRadius(m)} style={[styles.timeChip, m === radius && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+              <Text style={[styles.timeText, m === radius && { color: colors.primary }]}>{radiusLabel(m)}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Section>
+
+      <Section title="Bubble">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}>
+          {groups.map((g) => (
+            <Pressable key={g.id} onPress={() => { setGroupId(g.id); setWho([]); }} style={{ alignItems: 'center', width: 64 }}>
+              <Bubble size={44} tint={groupColor(g.id)}>
+                {g.id === groupId && <Ionicons name="checkmark" size={20} color={groupColor(g.id)} />}
+              </Bubble>
+              <Text numberOfLines={1} style={[styles.shareLabel, g.id === groupId && { color: colors.primary, fontFamily: fonts.bodyBold }]}>{g.name}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </Section>
+
+      <Section title="Alert me when">
+        <View style={{ padding: spacing.md, gap: spacing.sm }}>
+          <View style={[styles.row, { flexWrap: 'wrap', gap: spacing.sm, paddingHorizontal: 0, paddingVertical: 0 }]}>
+            {group?.members.map((m) => {
+              const on = who.includes(m.name);
+              return (
+                <Pressable key={m.name} onPress={() => setWho(on ? who.filter((x) => x !== m.name) : [...who, m.name])} style={[styles.timeChip, on && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                  <Text style={[styles.timeText, on && { color: colors.surface }]}>{m.name.split(' ')[0]}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Segmented options={['Arrives', 'Leaves', 'Both']} value={when} onChange={setWhen} />
+          <Text style={type.caption}>{who.length ? `You'll be notified when ${who.length === 1 ? who[0].split(' ')[0] : `any of ${who.length} people`} ${when === 'Arrives' ? 'arrives' : when === 'Leaves' ? 'leaves' : 'arrives or leaves'}.` : 'Pick people to get alerts for.'}</Text>
+        </View>
+      </Section>
+    </PageSheet>
+  );
+}
+
+/* ---------- Add members (Bubble creator only) ---------- */
+
+export function AddMembers({ group, onClose }: { group: Group | null; onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const [invited, setInvited] = useState<string[]>([]);
+  useEffect(() => {
+    setQuery('');
+    setInvited([]);
+  }, [group]);
+  if (!group) return null;
+  const q = query.trim().toLowerCase();
+  // People you share another Bubble with, who aren't in this one yet
+  const people = GROUPS.flatMap((g) => g.members)
+    .filter((m, i, all) => all.findIndex((x) => x.name === m.name) === i)
+    .filter((m) => !group.members.some((x) => x.name === m.name) && (!q || m.name.toLowerCase().includes(q)));
+  return (
+    <PageSheet visible title="Add Members" onClose={onClose}>
+      <View style={[styles.searchRow, { marginHorizontal: spacing.md }]}>
+        <Ionicons name="search" size={16} color={colors.textMuted} />
+        <TextInput value={query} onChangeText={setQuery} placeholder="Search people" placeholderTextColor={colors.textMuted} style={styles.searchInput} autoCorrect={false} />
+      </View>
+      <Section>
+        <Row icon="share-outline" label="Share invite link" onPress={() => Share.share({ message: `Join ${group.name} on Bubbles: https://bubbles.app/join/${group.id}` })} />
+      </Section>
+      <Section title="People you know">
+        {people.map((m, i) => {
+          const done = invited.includes(m.name);
+          return (
+            <View key={m.name}>
+              {i > 0 && <Separator inset={60} />}
+              <View style={styles.row}>
+                <Avatar size={32} initials={initials(m.name)} color={memberColor(m.name)} />
+                <Text style={[type.body, { flex: 1 }]}>{m.name}</Text>
+                <Pressable disabled={done} onPress={() => setInvited([...invited, m.name])} style={[styles.alertChip, !done && styles.alertChipOn]}>
+                  <Text style={[styles.alertChipText, !done && { color: colors.surface }]}>{done ? 'Invited' : 'Invite'}</Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        })}
+        {people.length === 0 && <Row icon="people-outline" label="No one to add" color={colors.textMuted} />}
+      </Section>
+      <Text style={[styles.footnote, { paddingHorizontal: spacing.lg, paddingTop: spacing.sm }]}>Invites arrive in their Inbox. They join only if they accept.</Text>
+    </PageSheet>
   );
 }
 
@@ -423,9 +631,10 @@ export function EventView({ event }: { event: BubbleEvent | null }) {
 
 /* ---------- Bubble profile (view + edit) ---------- */
 
-export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged }: {
-  group: Group | null; startEditing?: boolean; onClose: () => void; onLeave: () => void; onChanged: () => void;
+export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged, onInvite }: {
+  group: Group | null; startEditing?: boolean; onClose: () => void; onLeave: () => void; onChanged: () => void; onInvite: () => void;
 }) {
+  const [hotspotOpen, setHotspotOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [about, setAbout] = useState('');
@@ -463,7 +672,7 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
       title={editing ? 'Edit Bubble' : group.name}
       onClose={onClose}
       right={
-        !everyone && (
+        canInvite(group) && (
           <Pressable onPress={editing ? save : () => setEditing(true)} hitSlop={10}>
             <Text style={[styles.headerAction, editing && { fontFamily: fonts.bodyBold }]}>{editing ? 'Done' : 'Edit'}</Text>
           </Pressable>
@@ -507,7 +716,7 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
             <View style={{ padding: spacing.md, gap: spacing.sm }}>
               <Segmented options={['Private', 'Public']} value={privacy} onChange={setPrivacy} />
               <Text style={type.caption}>
-                {privacy === 'Private' ? `People join with code ${joinCode(group.id)} and your approval.` : 'Anyone nearby can find and join without a code.'}
+                {privacy === 'Private' ? 'Hidden from search. Only people you invite can join.' : 'Anyone can find this Bubble, but only you can invite members.'}
               </Text>
             </View>
           </Section>
@@ -522,16 +731,15 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
             <Text style={[type.body, { textAlign: 'center', marginTop: spacing.sm }]}>{about}</Text>
           </View>
 
-          <Section title="Highlights">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}>
-              {[...group.pins.map((pn) => pn.name), 'Group photo'].map((hl) => (
-                <View key={hl} style={[styles.highlight, { backgroundColor: color + '22' }]}>
-                  <Ionicons name="images-outline" size={22} color={color} />
-                  <Text numberOfLines={2} style={styles.highlightText}>{hl}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          </Section>
+          {!everyone && (
+            // alerts first: testers looked for them at the top
+            <Section title="Notifications & sharing">
+              <Toggle icon="notifications-outline" label="Notifications" initial />
+              <Separator inset={48} />
+              <Toggle icon="location-outline" label="Share my location" initial />
+              <Text style={styles.footnote}>Only members of this Bubble can see your location, pins and photos.</Text>
+            </Section>
+          )}
 
           {events.length > 0 && (
             <Section title="Upcoming">
@@ -544,36 +752,45 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
             </Section>
           )}
 
-          <Section title="Places">
-            {group.places.map((pl, i) => (
+          <Section title="Hotspots">
+            {group.hotspots.map((pl, i) => (
               <View key={pl.name}>
                 {i > 0 && <Separator inset={48} />}
                 <PlaceLink loc={pl}>
-                  <Row icon={pl.icon} label={pl.name} value={`${pl.radius} m`}>
+                  <Row icon={pl.icon} label={pl.name} value={`${radiusLabel(pl.radius)}${Object.values(pl.alerts ?? {}).some((a) => a.arrive || a.leave) ? ' · alerts on' : ''}`}>
                     <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
                   </Row>
                 </PlaceLink>
               </View>
             ))}
+            {!everyone && (
+              <>
+                {group.hotspots.length > 0 && <Separator inset={48} />}
+                <Row icon="add-circle-outline" label="New Hotspot" onPress={() => setHotspotOpen(true)} />
+              </>
+            )}
           </Section>
+          <NewHotspot
+            visible={hotspotOpen}
+            groups={[group]}
+            initialGroupId={group.id}
+            onClose={() => setHotspotOpen(false)}
+            onCreate={(h) => {
+              group.hotspots.push(h);
+              group.activity.unshift({ icon: 'radio-outline', text: `You added the hotspot ${h.name}`, time: 'Now' });
+              setHotspotOpen(false);
+              onChanged();
+            }}
+          />
 
           {!everyone && (
             <>
-              <Section title="Your sharing in this Bubble">
-                <Toggle icon="location-outline" label="Share my location" initial />
-                <Separator inset={48} />
-                <Toggle icon="images-outline" label="Show my photos and pins" initial={group.id !== 'discgolf'} />
-                <Separator inset={48} />
-                <Toggle icon="notifications-outline" label="Notifications" initial />
-              </Section>
-
               <Section>
-                <Row
-                  icon="person-add-outline"
-                  label="Invite people"
-                  value={group.isPublic ? 'Public' : joinCode(group.id)}
-                  onPress={() => Share.share({ message: `Join ${group.name} on Bubbles with code ${joinCode(group.id)}` })}
-                />
+                {canInvite(group) ? (
+                  <Row icon="person-add-outline" label="Add members" onPress={onInvite} />
+                ) : (
+                  <Row icon="person-add-outline" label={`Only ${ownerName(group)} can add members`} color={colors.textMuted} />
+                )}
                 <Separator inset={48} />
                 <Row icon="exit-outline" label="Leave Bubble" color={colors.danger} onPress={leave} />
               </Section>
@@ -664,7 +881,7 @@ export function DropPin({ visible, groups, initialGroupId, onClose, onDrop }: {
         </View>
       )}
       <View style={[styles.mapPreview, { marginTop: spacing.sm }]}>
-        <BubbleMap members={NO_MEMBERS} places={[]} pins={[]} color={color} focus={start} topInset={0} bottomInset={0} onMemberPress={() => {}} onCenterChange={setCenter} />
+        <BubbleMap members={NO_MEMBERS} hotspots={[]} pins={[]} color={color} focus={start} topInset={0} bottomInset={0} onMemberPress={() => {}} onCenterChange={setCenter} />
         <View style={styles.centerPin} pointerEvents="none">
           <MapPin color={color} icon={icon} style={{ position: 'relative' }} />
         </View>
@@ -756,7 +973,7 @@ export function NewBubble({ visible, onClose, onCreate }: {
       unread: 0,
       // you're the first member, at your current location
       members: [{ name: 'Ashlea Morgan', place: 'Grove City College', updated: 'Now', battery: 80, lat: ME.lat, lng: ME.lng }],
-      places: [],
+      hotspots: [],
       pins: [],
       activity: [{ icon: 'sparkles-outline', text: `You created ${name.trim()}`, time: 'Now' }],
     });
@@ -950,6 +1167,12 @@ const styles = StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.sm, paddingHorizontal: spacing.sm + 2, height: 38 },
   searchInput: { ...type.body, flex: 1, padding: 0 },
   centerPin: { position: 'absolute', left: '50%', top: '50%', marginLeft: -15, marginTop: -44 },
+  noTouch: { pointerEvents: 'none' },
+  footnote: { ...type.caption, paddingHorizontal: spacing.md, paddingBottom: spacing.sm + 2 },
+  alertChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
+  alertChipOn: { backgroundColor: colors.primary },
+  alertChipText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
+  areaRing: { position: 'absolute', left: '50%', top: '50%', width: 110, height: 110, marginLeft: -55, marginTop: -55, borderRadius: 55, borderWidth: 2 },
   mapPreview: { height: 180, marginHorizontal: spacing.md, borderRadius: radius.md, overflow: 'hidden' },
   category: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   dayChip: { width: 52, paddingVertical: 6, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },

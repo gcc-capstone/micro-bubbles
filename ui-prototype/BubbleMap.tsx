@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Cluster, EventPin, MapPin, MemberPin, YouDot } from './components';
 import { groupNearby } from './cluster';
 import { colors, fonts, radius, spacing } from './theme';
-import { initials, Member, memberColor, ME, Pin, Place } from './data';
+import { initials, Member, memberColor, ME, Pin, Hotspot } from './data';
 
 export type Focus = { name: string; lat: number; lng: number };
 export type MapEvent = { key: string; title: string; when: string; color: string; lat: number; lng: number };
@@ -20,7 +20,7 @@ type Item = { key: string; lat: number; lng: number; kind: 'member' | 'pin' | 'e
 
 export type BubbleMapProps = {
   members: Member[];
-  places: Place[];
+  hotspots: Hotspot[];
   pins: Pin[];
   color: string;
   focus: Focus | null; // a member or "You" to zoom to; null fits everyone
@@ -28,14 +28,14 @@ export type BubbleMapProps = {
   bottomInset: number; // space covered by the sheet/row, kept clear when fitting
   onMemberPress: (m: Member) => void;
   onPinPress?: (p: Pin) => void;
-  onPlacePress?: (p: Place) => void;
+  onPlacePress?: (p: Hotspot) => void;
   events?: MapEvent[];
   onEventPress?: (key: string) => void;
   radiusMi?: number;
   onCenterChange?: (c: { lat: number; lng: number }) => void; // after the user pans (Drop Pin) // when set (and nothing is focused), center on you and show this radius
 };
 
-export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange }: BubbleMapProps) {
+export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange }: BubbleMapProps) {
   const map = useRef<MapView>(null);
   const ready = useRef(false);
   const [region, setRegion] = useState<Region | null>(null);
@@ -123,7 +123,7 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
         ready.current = true;
         fit();
       }}>
-      {places.map((p) => (
+      {hotspots.map((p) => (
         <Circle
           key={p.name}
           center={{ latitude: p.lat, longitude: p.lng }}
@@ -133,7 +133,7 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
           fillColor={color + '38'} // shaded area only, no outline
         />
       ))}
-      {places.map((p) => (
+      {hotspots.map((p) => (
         <Marker key={'tag-' + p.name} coordinate={{ latitude: p.lat, longitude: p.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false} onPress={() => onPlacePress?.(p)}>
           <View style={[styles.placeTag, { backgroundColor: color }]}>
             <Ionicons name={p.icon} size={11} color={colors.surface} />

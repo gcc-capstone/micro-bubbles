@@ -3,13 +3,13 @@
 // Re-tapping the Bubbles tab (resetKey) or "More bubbles..." shows all Bubbles as floating
 // bubbles (few) or an Apple Watch-style honeycomb (many).
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, PanResponder, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, IconName, MapButton, MenuButton, Segmented, Separator } from './components';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
-import { ALL, avgRating, FAVORITES_MAX, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Loc, Member, memberColor, Pin, TODAY } from './data';
-import { BubbleProfile, DropPin, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView } from './Details';
+import { ALL, avgRating, canInvite, ownerName, FAVORITES_MAX, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, ME, Loc, Member, memberColor, Pin, TODAY } from './data';
+import { AddMembers, BubbleProfile, DropPin, NewHotspot, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
 import MapSearch from './MapSearch';
 
@@ -129,6 +129,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [dropOpen, setDropOpen] = useState(false);
   const [newBubbleOpen, setNewBubbleOpen] = useState(false);
   const [newEventOpen, setNewEventOpen] = useState(false);
+  const [hotspotOpen, setHotspotOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [editing, setEditing] = useState(false); // All Bubbles edit mode: − leaves, ★ favorites
   const [bubbleQuery, setBubbleQuery] = useState<string | null>(null); // All Bubbles search (null = closed)
   const [popping, setPopping] = useState<string | null>(null); // Bubble being popped on leave
@@ -355,7 +357,13 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const bubbleMenu =
     base?.id === 'everyone'
       ? ['Bubble Info']
-      : ['Bubble Info', 'Edit Bubble', 'Add Members', isMuted ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble'];
+      : [
+          'Bubble Info',
+          // only the creator edits and invites
+          ...(base && canInvite(base) ? ['Edit Bubble', 'Add Members'] : []),
+          isMuted ? 'Unmute Notifications' : 'Mute Notifications',
+          'Leave Bubble',
+        ];
   const leaveGroup = () => removeGroup(base!);
   const removeGroup = (g: Group) => {
     // On All Bubbles the bubble pops first (scale up, fade, droplets), then is removed.
@@ -387,7 +395,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     const g = base!;
     if (o === 'Bubble Info') setProfileOpen('view');
     if (o === 'Edit Bubble') setProfileOpen('edit');
-    if (o === 'Add Members') Share.share({ message: `Join ${g.name} on Bubbles with code ${joinCode(g.id)}` });
+    if (o === 'Add Members') setInviteOpen(true);
     if (o.endsWith('Notifications')) {
       setMuted({ ...muted, [g.id]: !isMuted });
       showToast(isMuted ? `Notifications on for ${g.name}` : `Muted ${g.name}`);
@@ -468,7 +476,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         <Animated.View style={[styles.mapArea, { opacity: p, bottom: rowH }]} onTouchStart={() => focusRow(false)}>
           <BubbleMap
             members={group.members}
-            places={group.places}
+            hotspots={group.hotspots}
             pins={group.pins}
             color={color}
             focus={focus}
@@ -488,9 +496,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             <MapButton icon="locate" onPress={() => setFocus({ name: 'You', lat: ME.lat, lng: ME.lng })} />
             <MenuButton
               icon="add"
-              options={['New Bubble', 'New Event']}
-              icons={{ 'New Bubble': 'ellipse-outline', 'New Event': 'calendar-outline' }}
-              onSelect={(o) => (o === 'New Bubble' ? setNewBubbleOpen(true) : setNewEventOpen(true))}
+              options={['New Bubble', 'New Event', 'New Hotspot']}
+              icons={{ 'New Bubble': 'ellipse-outline', 'New Event': 'calendar-outline', 'New Hotspot': 'radio-outline' }}
+              onSelect={(o) => (o === 'New Bubble' ? setNewBubbleOpen(true) : o === 'New Event' ? setNewEventOpen(true) : setHotspotOpen(true))}
               triggerStyle={styles.smallFab}
               trigger={<Ionicons name="add" size={22} color={colors.text} />}
             />
@@ -659,6 +667,17 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                 </Pressable>
               ))}
 
+            {tab === 'Members' && group.id !== 'everyone' && (
+              // invite lives where people look for it: the top of the member list
+              <Pressable style={styles.listRow} disabled={!canInvite(group)} onPress={() => setInviteOpen(true)}>
+                <View style={[styles.iconCircle, { backgroundColor: colors.primarySoft }]}>
+                  <Ionicons name="person-add" size={17} color={canInvite(group) ? colors.primary : colors.textMuted} />
+                </View>
+                <Text style={[type.body, { flex: 1, color: canInvite(group) ? colors.primary : colors.textMuted }]}>
+                  {canInvite(group) ? 'Add member' : `Only ${ownerName(group)} can add members`}
+                </Text>
+              </Pressable>
+            )}
             {tab === 'Members' &&
               members.map((m, i) => (
                 <Pressable
@@ -903,7 +922,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
       )}
 
       {profileOpen && (
-        <BubbleProfile group={group} startEditing={profileOpen === 'edit'} onClose={() => setProfileOpen(false)} onChanged={refresh} onLeave={leaveGroup} />
+        <BubbleProfile group={group} startEditing={profileOpen === 'edit'} onClose={() => setProfileOpen(false)} onChanged={refresh} onLeave={leaveGroup} onInvite={() => setInviteOpen(true)} />
       )}
       <DropPin
         visible={dropOpen}
@@ -922,6 +941,23 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         }}
       />
 
+      <AddMembers group={inviteOpen ? base : null} onClose={() => setInviteOpen(false)} />
+      <NewHotspot
+        visible={hotspotOpen}
+        groups={GROUPS}
+        initialGroupId={group?.id}
+        onClose={() => setHotspotOpen(false)}
+        onCreate={(h, groupId) => {
+          const g = GROUPS.find((x) => x.id === groupId)!;
+          g.hotspots.push(h);
+          if (!EVERYONE.hotspots.some((x) => x.name === h.name)) EVERYONE.hotspots.push(h);
+          g.activity.unshift({ icon: 'radio-outline', text: `You added the hotspot ${h.name}`, time: 'Now' });
+          setHotspotOpen(false);
+          setSelected(ALL.indexOf(g));
+          setFocus(h);
+          showToast(`Hotspot ${h.name} added to ${g.name}`);
+        }}
+      />
       <NewBubble
         visible={newBubbleOpen}
         onClose={() => setNewBubbleOpen(false)}
