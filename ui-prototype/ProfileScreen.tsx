@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Bubble, Button, IconName, MenuButton } from './components';
-import { LinkedText } from './Details';
+import { Avatar, Bubble, Button, IconName, MenuButton, PageSheet, Separator } from './components';
+import { LinkedText, PlaceLink } from './Details';
 import { bubbleColors, colors, fonts, radius, spacing, type } from './theme';
-import { GROUPS, PROFILE } from './data';
+import { allPins, avgRating, GROUPS, PROFILE, pinCategory } from './data';
 
 const RADII = [1, 5, 10, 25, 50];
 
@@ -32,6 +32,10 @@ export default function ProfileScreen({
   const [sharing, setSharing] = useState(true);
   const [alerts, setAlerts] = useState(true);
   const tint = bubbleColors[color];
+  const [pinsOpen, setPinsOpen] = useState(false);
+  const pins = allPins();
+  const myPins = pins.filter(({ pin }) => pin.by === 'You');
+  const topPins = [...pins].sort((a, b) => avgRating(b.pin) - avgRating(a.pin)).slice(0, 10);
   const tile = (useWindowDimensions().width - spacing.md * 2 - spacing.sm * 2) / 3;
 
   const setting = (icon: IconName, label: string, value: boolean, onChange: (v: boolean) => void, divider = true) => (
@@ -67,11 +71,11 @@ export default function ProfileScreen({
           </>
         )}
         <View style={styles.stats}>
-          {[['Bubbles', GROUPS.length], ['Pins', 27], ['Friends', 58]].map(([label, n]) => (
-            <View key={label} style={{ alignItems: 'center' }}>
+          {([['Bubbles', GROUPS.length, null], ['Pins', myPins.length, () => setPinsOpen(true)], ['Friends', 58, null]] as const).map(([label, n, onPress]) => (
+            <Pressable key={label} disabled={!onPress} onPress={onPress ?? undefined} style={{ alignItems: 'center' }}>
               <Text style={[type.h2, { color: tint }]}>{n}</Text>
-              <Text style={type.caption}>{label}</Text>
-            </View>
+              <Text style={[type.caption, onPress && { color: colors.primary }]}>{label}{onPress ? ' ›' : ''}</Text>
+            </Pressable>
           ))}
         </View>
         <View style={{ alignSelf: 'stretch' }}>
@@ -174,6 +178,28 @@ export default function ProfileScreen({
         </View>
         <Text style={[type.caption, { paddingHorizontal: spacing.md }]}>Reduce motion stops floating bubbles and replaces animations with instant changes.</Text>
       </View>
+      <PageSheet visible={pinsOpen} title="Your Pins" onClose={() => setPinsOpen(false)}>
+        {[['Pinned by you', myPins], ['Top rated in your Bubbles', topPins]].map(([title, list]) => (
+          <View key={title as string} style={styles.section}>
+            <Text style={styles.sectionTitle}>{title as string}</Text>
+            <View style={styles.group}>
+              {(list as typeof pins).map(({ pin, group }, i) => (
+                <PlaceLink key={pin.name} loc={{ name: pin.name, lat: pin.lat, lng: pin.lng, icon: pin.icon }}>
+                  {i > 0 && <Separator inset={48} />}
+                  <View style={styles.settingRow}>
+                    <Ionicons name={pin.icon} size={20} color={colors.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={type.body}>{pin.name}</Text>
+                      <Text style={type.caption}>{pinCategory(pin)} · {group.name}</Text>
+                    </View>
+                    <Text style={[type.body, { fontFamily: fonts.bodyBold }]}>{avgRating(pin).toFixed(1)}★</Text>
+                  </View>
+                </PlaceLink>
+              ))}
+            </View>
+          </View>
+        ))}
+      </PageSheet>
     </ScrollView>
   );
 }

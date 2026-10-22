@@ -3,13 +3,13 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Alert, Linking, Platform, Pressable, ScrollView, Share, StyleProp, StyleSheet, Switch, Text, TextInput, TextStyle, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Bubble, Button, IconName, PageSheet, Segmented, Separator } from './components';
+import { Avatar, Bubble, Button, IconName, MapPin, PageSheet, Segmented, Separator } from './components';
 import { bubbleColors, colors, fonts, radius, spacing, type } from './theme';
 import {
   avgRating, BubbleEvent, distanceFromMe, EVENTS, formatMiles, Group, groupColor, GROUPS, initials, joinCode, Loc, LOCATIONS, ME, Member, memberColor, meters,
-  Pin, ratingCount,
+  Pin, PIN_CATEGORIES, PinCategory, ratingCount,
 } from './data';
-import BubbleMap from './BubbleMap';
+import BubbleMap, { Focus } from './BubbleMap';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -590,28 +590,40 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
 // Icons a Bubble can show inside it.
 const BUBBLE_ICONS: IconName[] = ['ellipse-outline', 'people', 'home', 'school', 'leaf', 'football', 'basketball', 'musical-notes', 'book', 'restaurant', 'fitness', 'heart'];
 
-const CATEGORIES: IconName[] = ['star', 'leaf', 'restaurant', 'cafe', 'football', 'camera'];
+
+// Stable empty list: a new [] each render would make the map re-fit and undo the user's drag.
+const NO_MEMBERS: Member[] = [];
 
 export function DropPin({ visible, groups, initialGroupId, onClose, onDrop }: {
   visible: boolean; groups: Group[]; initialGroupId?: string; onClose: () => void; onDrop: (pin: Pin, groupId: string, notify: boolean) => void;
 }) {
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
-  const [icon, setIcon] = useState<IconName>('star');
+  const [category, setCategory] = useState<PinCategory>('Other');
   const [rating, setRating] = useState(5);
   const [groupId, setGroupId] = useState(groups[0]?.id);
   const [notify, setNotify] = useState(true);
+  // Where the map is centered (start = where it jumps to; center = where the user dragged it).
+  const [start, setStart] = useState<Focus>({ name: 'You', lat: ME.lat, lng: ME.lng });
+  const [center, setCenter] = useState({ lat: ME.lat, lng: ME.lng });
+  const [search, setSearch] = useState('');
   useEffect(() => {
     if (!visible) return;
     setName('');
     setNote('');
-    setIcon('star');
+    setCategory('Other');
     setRating(5);
     setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
     setNotify(true);
+    setStart({ name: 'You', lat: ME.lat, lng: ME.lng });
+    setCenter({ lat: ME.lat, lng: ME.lng });
+    setSearch('');
   }, [visible]);
   const color = groupColor(groupId);
-  const draft: Pin = { name: name || 'New pin', note, by: 'You', rating, icon, lat: ME.lat, lng: ME.lng };
+  const icon = PIN_CATEGORIES.find((c) => c.name === category)!.icon;
+  const q = search.trim().toLowerCase();
+  const matches = q ? LOCATIONS.filter((l) => l.name.toLowerCase().includes(q)).slice(0, 5) : [];
+  const nearMe = distanceFromMe(center.lat, center.lng) < 0.05;
 
   return (
     <PageSheet
@@ -619,15 +631,45 @@ export function DropPin({ visible, groups, initialGroupId, onClose, onDrop }: {
       title="Drop Pin"
       onClose={onClose}
       right={
-        <Pressable disabled={!name.trim()} onPress={() => onDrop({ ...draft, name: name.trim() }, groupId, notify)} hitSlop={10}>
+        <Pressable
+          disabled={!name.trim()}
+          onPress={() => onDrop({ name: name.trim(), note, by: 'You', rating, icon, category, lat: center.lat, lng: center.lng }, groupId, notify)}
+          hitSlop={10}
+        >
           <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }, !name.trim() && { color: colors.textMuted }]}>Drop</Text>
         </Pressable>
       }
     >
-      <View style={styles.mapPreview}>
-        <BubbleMap members={[]} places={[]} pins={[draft]} color={color} focus={{ name: 'You', lat: ME.lat, lng: ME.lng }} topInset={0} bottomInset={0} onMemberPress={() => {}} />
+      {/* Search for a place, or drag the map under the fixed pin */}
+      <View style={[styles.searchRow, { marginHorizontal: spacing.md }]}>
+        <Ionicons name="search" size={16} color={colors.textMuted} />
+        <TextInput value={search} onChangeText={setSearch} placeholder="Search a place" placeholderTextColor={colors.textMuted} style={styles.searchInput} autoCorrect={false} />
       </View>
-      <Text style={[type.caption, { textAlign: 'center' }]}>Pinned at your current location</Text>
+      {matches.length > 0 && (
+        <View style={[styles.group, { marginHorizontal: spacing.md, marginTop: spacing.xs }]}>
+          {matches.map((l, i) => (
+            <Pressable
+              key={l.name}
+              onPress={() => {
+                setStart({ name: l.name, lat: l.lat, lng: l.lng });
+                setCenter({ lat: l.lat, lng: l.lng });
+                if (!name.trim()) setName(l.name);
+                setSearch('');
+              }}
+            >
+              {i > 0 && <Separator inset={48} />}
+              <Row icon={l.icon} label={l.name} value={formatMiles(distanceFromMe(l.lat, l.lng))} />
+            </Pressable>
+          ))}
+        </View>
+      )}
+      <View style={[styles.mapPreview, { marginTop: spacing.sm }]}>
+        <BubbleMap members={NO_MEMBERS} places={[]} pins={[]} color={color} focus={start} topInset={0} bottomInset={0} onMemberPress={() => {}} onCenterChange={setCenter} />
+        <View style={styles.centerPin} pointerEvents="none">
+          <MapPin color={color} icon={icon} style={{ position: 'relative' }} />
+        </View>
+      </View>
+      <Text style={[type.caption, { textAlign: 'center' }]}>{nearMe ? 'At your current location · drag the map to move the pin' : `${away(center.lat, center.lng)} · drag to adjust`}</Text>
 
       <Section title="Details">
         <TextInput value={name} onChangeText={setName} placeholder="Name, e.g. Sunken Garden Trail" placeholderTextColor={colors.textMuted} style={styles.input} />
@@ -642,13 +684,19 @@ export function DropPin({ visible, groups, initialGroupId, onClose, onDrop }: {
         />
       </Section>
 
-      <Section title="Type">
-        <View style={[styles.row, { gap: spacing.sm }]}>
-          {CATEGORIES.map((c) => (
-            <Pressable key={c} onPress={() => setIcon(c)} style={[styles.category, c === icon && { backgroundColor: color, borderColor: color }]}>
-              <Ionicons name={c} size={18} color={c === icon ? colors.surface : colors.text} />
-            </Pressable>
-          ))}
+      <Section title="Category">
+        <View style={[styles.row, { flexWrap: 'wrap', gap: spacing.sm }]}>
+          {PIN_CATEGORIES.map((c) => {
+            const on = c.name === category;
+            return (
+              <Pressable key={c.name} onPress={() => setCategory(c.name)} style={[styles.timeChip, on && { backgroundColor: color, borderColor: color }]}>
+                <View style={[styles.row, { paddingHorizontal: 0, paddingVertical: 0, gap: 6 }]}>
+                  <Ionicons name={c.icon} size={15} color={on ? colors.surface : colors.text} />
+                  <Text style={[styles.timeText, on && { color: colors.surface }]}>{c.name}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
       </Section>
 
@@ -846,7 +894,7 @@ export function NewEvent({ visible, groups, initialGroupId, today, onClose, onCr
             const on = (l?.name ?? null) === (place?.name ?? null);
             return (
               <Pressable key={l?.name ?? 'here'} onPress={() => setPlace(l)} style={[styles.timeChip, on && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
-                <View style={[styles.row, { padding: 0, gap: 4 }]}>
+                <View style={[styles.row, { paddingHorizontal: 0, paddingVertical: 0, gap: 4 }]}>
                   <Ionicons name={l?.icon ?? 'locate'} size={14} color={on ? colors.primary : colors.textMuted} />
                   <Text style={[styles.timeText, on && { color: colors.primary }]}>{l?.name ?? 'Current location'}</Text>
                 </View>
@@ -899,6 +947,9 @@ const styles = StyleSheet.create({
   input: { ...type.body, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 4 },
   highlight: { width: 104, height: 104, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', padding: spacing.sm, gap: 4 },
   highlightText: { ...type.caption, fontSize: 12, textAlign: 'center', color: colors.text },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.sm, paddingHorizontal: spacing.sm + 2, height: 38 },
+  searchInput: { ...type.body, flex: 1, padding: 0 },
+  centerPin: { position: 'absolute', left: '50%', top: '50%', marginLeft: -15, marginTop: -44 },
   mapPreview: { height: 180, marginHorizontal: spacing.md, borderRadius: radius.md, overflow: 'hidden' },
   category: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   dayChip: { width: 52, paddingVertical: 6, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },

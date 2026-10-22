@@ -14,7 +14,18 @@ export type Member = {
 
 export type Place = { name: string; icon: IconName; lat: number; lng: number; radius: number }; // radius in meters
 
-export type Pin = { name: string; note: string; by: string; rating: number; icon: IconName; lat: number; lng: number };
+export type PinCategory = 'Food' | 'Coffee' | 'Outdoors' | 'Study' | 'Sports' | 'Parking' | 'Photo spot' | 'Other';
+export const PIN_CATEGORIES: { name: PinCategory; icon: IconName }[] = [
+  { name: 'Food', icon: 'restaurant' },
+  { name: 'Coffee', icon: 'cafe' },
+  { name: 'Outdoors', icon: 'leaf' },
+  { name: 'Study', icon: 'book' },
+  { name: 'Sports', icon: 'football' },
+  { name: 'Parking', icon: 'car' }, // e.g. where you parked your car
+  { name: 'Photo spot', icon: 'camera' },
+  { name: 'Other', icon: 'star' },
+];
+export type Pin = { name: string; note: string; by: string; rating: number; icon: IconName; lat: number; lng: number; category?: PinCategory };
 
 export type BubbleEvent = { groupId: string; title: string; date: string; time: string; place: string; going: string[]; lat: number; lng: number }; // date: YYYY-MM-DD
 
@@ -385,6 +396,20 @@ export const formatMiles = (mi: number) => (mi < 0.1 ? 'Nearby' : mi < 10 ? `${m
 // so the numbers look real; a backend would store individual ratings.
 export const ratingCount = (pin: Pin) => 3 + (pin.name.length % 9);
 export const avgRating = (pin: Pin) => Math.max(1, Math.min(5, pin.rating - (pin.name.length % 6) / 10));
+
+// Category for pins made before categories existed, guessed from their icon.
+const ICON_CATEGORY: Partial<Record<string, PinCategory>> = {
+  restaurant: 'Food', cafe: 'Coffee', leaf: 'Outdoors', sunny: 'Outdoors', walk: 'Outdoors', flower: 'Outdoors',
+  easel: 'Study', book: 'Study', school: 'Study', football: 'Sports', disc: 'Sports', basketball: 'Sports',
+  fitness: 'Sports', car: 'Parking', camera: 'Photo spot', images: 'Photo spot',
+};
+export const pinCategory = (p: Pin): PinCategory => p.category ?? ICON_CATEGORY[p.icon] ?? 'Other';
+
+// Every pin across your Bubbles, once each, with the Bubble it belongs to.
+export const allPins = () => {
+  const seen = new Set<string>();
+  return GROUPS.flatMap((g) => g.pins.map((pin) => ({ pin, group: g }))).filter(({ pin }) => !seen.has(pin.name) && seen.add(pin.name));
+};
 
 // Stable color per group and per person.
 export const groupColor = (id: string) => {

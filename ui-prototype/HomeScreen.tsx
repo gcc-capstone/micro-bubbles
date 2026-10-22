@@ -11,6 +11,7 @@ import { colors, fonts, radius, shadow, spacing, type } from './theme';
 import { ALL, avgRating, FAVORITES_MAX, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Loc, Member, memberColor, Pin, TODAY } from './data';
 import { BubbleProfile, DropPin, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
+import MapSearch from './MapSearch';
 
 const RS = 44; // row bubble size
 const ROW_ITEM_MIN = 68; // narrowest slot per bubble; slots stretch so each page shows whole bubbles
@@ -404,6 +405,12 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     setSub({ person: m });
     toggleSheet(true);
   };
+  const openPlace = (l: Loc) => {
+    setFocus(l);
+    slideIn(subX, subO, 1);
+    setSub({ place: l });
+    toggleSheet(true);
+  };
   const openPin = (pn: Pin) => {
     setFocus(pn);
     slideIn(subX, subO, 1);
@@ -465,18 +472,13 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             pins={group.pins}
             color={color}
             focus={focus}
-            topInset={insets.top}
+            topInset={insets.top + 56} // room for the search bar
             bottomInset={SHEET_MIN}
             onMemberPress={openPerson}
             onPinPress={openPin}
             radiusMi={group.id === 'everyone' ? everyoneRadius : undefined}
             events={eventsOnMap ? mapEvents : []}
-            onPlacePress={(pl) => {
-              setFocus(pl);
-              slideIn(subX, subO, 1);
-              setSub({ place: { name: pl.name, lat: pl.lat, lng: pl.lng, icon: pl.icon } });
-              toggleSheet(true);
-            }}
+            onPlacePress={(pl) => openPlace({ name: pl.name, lat: pl.lat, lng: pl.lng, icon: pl.icon })}
             onEventPress={openEvent}
           />
           {/* Right-side controls, just above the sheet */}
@@ -486,13 +488,18 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             <MapButton icon="locate" onPress={() => setFocus({ name: 'You', lat: ME.lat, lng: ME.lng })} />
             <MenuButton
               icon="add"
-              options={['New Bubble', 'Drop Pin', 'New Event']}
-              icons={{ 'New Bubble': 'ellipse-outline', 'Drop Pin': 'location-outline', 'New Event': 'calendar-outline' }}
-              onSelect={(o) => (o === 'New Bubble' ? setNewBubbleOpen(true) : o === 'Drop Pin' ? setDropOpen(true) : setNewEventOpen(true))}
-              triggerStyle={styles.fab}
-              trigger={<Ionicons name="add" size={30} color={colors.primary} />}
+              options={['New Bubble', 'New Event']}
+              icons={{ 'New Bubble': 'ellipse-outline', 'New Event': 'calendar-outline' }}
+              onSelect={(o) => (o === 'New Bubble' ? setNewBubbleOpen(true) : setNewEventOpen(true))}
+              triggerStyle={styles.smallFab}
+              trigger={<Ionicons name="add" size={22} color={colors.text} />}
             />
+            {/* Drop Pin gets its own pin-shaped button (testers looked for a pin, not a +) */}
+            <Pressable style={styles.fab} onPress={() => setDropOpen(true)} accessibilityLabel="Drop Pin">
+              <Ionicons name="location" size={28} color={colors.primary} />
+            </Pressable>
           </Animated.View>
+          <MapSearch top={insets.top + spacing.sm} onPerson={openPerson} onPin={openPin} onPlace={openPlace} />
         </Animated.View>
       )}
 
@@ -997,6 +1004,7 @@ const styles = StyleSheet.create({
   noTouch: { pointerEvents: 'none' },
   mapArea: { position: 'absolute', top: 0, left: 0, right: 0 },
   rightStack: { position: 'absolute', right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4, alignItems: 'center', gap: spacing.sm + 4 },
+  smallFab: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   fab: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   panel: { position: 'absolute', left: 0, right: 0, bottom: 0, pointerEvents: 'none' },
   title: { position: 'absolute', left: spacing.md, pointerEvents: 'none' },

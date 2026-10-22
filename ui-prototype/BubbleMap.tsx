@@ -31,10 +31,11 @@ export type BubbleMapProps = {
   onPlacePress?: (p: Place) => void;
   events?: MapEvent[];
   onEventPress?: (key: string) => void;
-  radiusMi?: number; // when set (and nothing is focused), center on you and show this radius
+  radiusMi?: number;
+  onCenterChange?: (c: { lat: number; lng: number }) => void; // after the user pans (Drop Pin) // when set (and nothing is focused), center on you and show this radius
 };
 
-export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi }: BubbleMapProps) {
+export default function BubbleMap({ members, places, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange }: BubbleMapProps) {
   const map = useRef<MapView>(null);
   const ready = useRef(false);
   const [region, setRegion] = useState<Region | null>(null);
@@ -114,7 +115,10 @@ export default function BubbleMap({ members, places, pins, color, focus, topInse
       zoomEnabled // pinch to zoom
       rotateEnabled
       onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
-      onRegionChangeComplete={setRegion}
+      onRegionChangeComplete={(r) => {
+        setRegion(r);
+        onCenterChange?.({ lat: r.latitude, lng: r.longitude });
+      }}
       onMapReady={() => {
         ready.current = true;
         fit();
