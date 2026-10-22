@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, IconName, MapButton, MenuButton, Segmented, Separator } from './components';
 import { colors, fonts, radius, shadow, spacing, type } from './theme';
-import { ALL, avgRating, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Loc, Member, memberColor, Pin, TODAY } from './data';
+import { ALL, avgRating, FAVORITES_MAX, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, joinCode, ME, Loc, Member, memberColor, Pin, TODAY } from './data';
 import { BubbleProfile, DropPin, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
 
@@ -18,9 +18,11 @@ const ROW_H = 8 + RS + 4 + 16 + 8; // padding + bubble + gap + one-line label + 
 const NAV_H = 44; // nav row above the large title
 const ROW_GROW = 1.3; // bubbles scale up while the row has focus
 const ROW_H_FOCUS = ROW_H + RS * (ROW_GROW - 1) + 2;
-const SHEET_MIN = 66;
+const SHEET_MIN = 100; // header + Activity/Pins/Members chips
+const SHELF_H = 112; // "More Bubbles" shelf at the bottom of All Bubbles
 const SEARCH_H = 52;
 const MAX_ROW = 11; // more than this many Bubbles shows a "More bubbles..." bubble
+const TAB_ICONS: Record<string, IconName> = { Activity: 'pulse', Pins: 'location', Members: 'people' };
 const TABS = ['Activity', 'Pins', 'Members'];
 const SORTS: Record<string, string[]> = {
   Activity: ['Newest', 'Oldest'],
@@ -126,7 +128,11 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [dropOpen, setDropOpen] = useState(false);
   const [newBubbleOpen, setNewBubbleOpen] = useState(false);
   const [newEventOpen, setNewEventOpen] = useState(false);
-  const [editing, setEditing] = useState(false); // All Bubbles edit mode: tap a bubble's − to leave it
+  const [editing, setEditing] = useState(false); // All Bubbles edit mode: − leaves, ★ favorites
+  const [bubbleQuery, setBubbleQuery] = useState<string | null>(null); // All Bubbles search (null = closed)
+  const [popping, setPopping] = useState<string | null>(null); // Bubble being popped on leave
+  const popV = useRef(new Animated.Value(0)).current;
+  const [rowHint, setRowHint] = useState(true); // "more →" hint until the row is scrolled
   const [, setTick] = useState(0); // re-render after in-memory edits (drop pin, edit/leave Bubble)
   const refresh = () => setTick((t) => t + 1);
   const [query, setQuery] = useState('');
@@ -149,7 +155,17 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
 
   const { w, h } = size;
   const fieldTop = insets.top + NAV_H + 56; // below nav row + large title
-  const watch = ALL.length > CENTERS.length;
+  // ponytail: favorites cap the field at 6, so the stream/honeycomb layouts below are parked (MANY_LAYOUT).
+  const watch = false;
+  // Everyone + favorites float; the rest sit on the "More Bubbles" shelf.
+  const fieldIdx = ALL.map((_, i) => i).filter((i) => ALL[i].id === 'everyone' || ALL[i].favorite).slice(0, FAVORITES_MAX + 1);
+  const shelfIdx = ALL.map((_, i) => i).filter((i) => !fieldIdx.includes(i));
+  const favCount = ALL.filter((g) => g.favorite).length;
+  const toggleFavorite = (g: Group) => {
+    if (!g.favorite && favCount >= FAVORITES_MAX) return showToast(`You can float up to ${FAVORITES_MAX} favorites`);
+    g.favorite = !g.favorite;
+    refresh();
+  };
 
   // Drag the honeycomb around (field mode only); taps still reach the bubbles.
   const offsetRef = useRef(offset);
@@ -173,11 +189,12 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   // Where bubble i sits in the bubble view: center, size, and edge shrink.
   const fieldSpot = (i: number, g: Group) => {
     if (!watch) {
-      const k = Math.min(w / CANVAS.w, (h - fieldTop - 8) / CANVAS.h);
+      const room = h - fieldTop - SHELF_H - 8;
+      const k = Math.min(w / CANVAS.w, room / CANVAS.h);
       const c = CENTERS[i];
       return {
         x: (w - CANVAS.w * k) / 2 + c.x * k,
-        y: fieldTop + (h - fieldTop - 8 - CANVAS.h * k) / 2 + c.y * k,
+        y: fieldTop + (room - CANVAS.h * k) / 2 + c.y * k,
         s: bubbleSize(g.members.length) * k,
         scale: 1,
       };
@@ -220,13 +237,13 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   let rowIdx = ALL.map((_, i) => i).slice(0, overflow ? MAX_ROW - 1 : ALL.length);
   if (selected !== null && !rowIdx.includes(selected)) rowIdx = [...rowIdx.slice(0, -1), selected];
 
-  const animate = (v: Animated.Value, to: number, duration: number, done?: () => void) => {
+  const animate = (v: Animated.Value, to: number, duration: number, done?: () => void, bounce = false) => {
     if (reduceMotion) {
       v.setValue(to);
       done?.();
     } else {
       // springs feel smoother than timed easing (iOS-style); duration only picks how firm the spring is
-      Animated.spring(v, { toValue: to, useNativeDriver: false, damping: 24, stiffness: duration > 400 ? 120 : 260, mass: 1, overshootClamping: true }).start(() => done?.());
+      Animated.spring(v, { toValue: to, useNativeDriver: false, damping: 24, stiffness: duration > 400 ? 120 : 260, mass: 1, overshootClamping: !bounce }).start(() => done?.());
     }
   };
 
@@ -258,10 +275,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     setFocus(null);
     setMode('animating');
     animate(p, 0, 600, () => {
-      console.log('DBGB done');
       setMode('field');
       setSelected(null);
-    });
+    }, true); // bubbles overshoot a little as they land
   };
 
   useEffect(() => {
@@ -341,6 +357,19 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
       : ['Bubble Info', 'Edit Bubble', 'Add Members', isMuted ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble'];
   const leaveGroup = () => removeGroup(base!);
   const removeGroup = (g: Group) => {
+    // On All Bubbles the bubble pops first (scale up, fade, droplets), then is removed.
+    if (mode === 'field' && !reduceMotion) {
+      setPopping(g.id);
+      popV.setValue(0);
+      Animated.timing(popV, { toValue: 1, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: false }).start(() => {
+        setPopping(null);
+        dropGroup(g);
+      });
+      return;
+    }
+    dropGroup(g);
+  };
+  const dropGroup = (g: Group) => {
     // ponytail: removes from the in-memory lists only
     GROUPS.splice(GROUPS.indexOf(g), 1);
     ALL.splice(ALL.indexOf(g), 1);
@@ -528,6 +557,17 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                 onSelect={onBubbleMenu}
               />
             </View>
+            {/* shortcuts: open the sheet straight to a tab */}
+            {!sheetOpen && (
+              <View style={[styles.row, { gap: spacing.sm, marginTop: spacing.sm }]}>
+                {TABS.map((t) => (
+                  <Pressable key={t} style={styles.sheetChip} onPress={() => { switchTab(t); toggleSheet(true); }}>
+                    <Ionicons name={TAB_ICONS[t]} size={13} color={colors.primary} />
+                    <Text style={styles.sheetChipText}>{t} · {t === 'Members' ? group.members.length : t === 'Pins' ? group.pins.length : group.activity.length}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </Pressable>
           </View>
           <View style={{ paddingHorizontal: spacing.md }}>
@@ -548,6 +588,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   value={query}
                   onChangeText={setQuery}
                   placeholder={`Search ${tab.toLowerCase()}`}
+                  autoCorrect={false}
+                  autoCapitalize="none"
                   placeholderTextColor={colors.textMuted}
                   style={styles.searchInput}
                 />
@@ -659,8 +701,13 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
       {/* Bubbles that fly into the row */}
       {mode !== 'row' && w > 0 && (
         <View style={StyleSheet.absoluteFill} {...(watch && mode === 'field' ? pan.panHandlers : {})}>
-          {ALL.map((g, i) => {
-            const f = fieldSpot(i, g);
+          {fieldIdx.map((i, pos) => {
+            const g = ALL[i];
+            const f = fieldSpot(pos, g);
+            // stagger: later bubbles leave the row a little after earlier ones (rise one by one)
+            const lag = Math.min(0.45, pos * 0.07);
+            const along = (from: number, to: number) => p.interpolate({ inputRange: [0, 1 - lag, 1], outputRange: [from, to, to], extrapolateRight: 'clamp' });
+            const isPop = popping === g.id;
             const slot = rowIdx.includes(i) ? rowIdx.indexOf(i) : MAX_ROW - 1;
             const rx = slot * itemW + itemW / 2;
             const ry = h - ROW_H + spacing.sm + RS / 2;
@@ -672,18 +719,31 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   width: f.s,
                   height: f.s,
                   transform: [
-                    { translateX: p.interpolate({ inputRange: [0, 1], outputRange: [f.x - f.s / 2, rx - f.s / 2] }) },
-                    { translateY: p.interpolate({ inputRange: [0, 1], outputRange: [f.y - f.s / 2, ry - f.s / 2] }) },
-                    { scale: p.interpolate({ inputRange: [0, 1], outputRange: [f.scale, RS / f.s] }) },
+                    { translateX: along(f.x - f.s / 2, rx - f.s / 2) },
+                    { translateY: along(f.y - f.s / 2, ry - f.s / 2) },
+                    { scale: isPop ? popV.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }) : along(f.scale, RS / f.s) },
                   ],
+                  opacity: isPop ? popV.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1, 0.6, 0] }) : 1,
                 }}
               >
+                {isPop &&
+                  [0, 1, 2, 3, 4, 5, 6, 7].map((d) => {
+                    const a = (d / 8) * Math.PI * 2;
+                    const dist = popV.interpolate({ inputRange: [0, 1], outputRange: [0, f.s * 0.45] });
+                    return (
+                      <Animated.View
+                        key={d}
+                        style={[styles.droplet, { left: f.s / 2 - 4, top: f.s / 2 - 4, backgroundColor: groupColor(g.id), transform: [{ translateX: Animated.multiply(dist, Math.cos(a)) }, { translateY: Animated.multiply(dist, Math.sin(a)) }] }]}
+                      />
+                    );
+                  })}
                 <FloatingBubble
                   size={f.s}
                   tint={groupColor(g.id)}
                   label={g.name}
                   sublabel={`${g.members.length} ${g.id === 'everyone' ? 'people' : 'members'}`}
-                  count={g.unread}
+                  icon={g.icon}
+                  count={editing ? 0 : g.unread} // edit badges take that corner
                   delay={i * 500}
                   still={reduceMotion}
                   onPress={() => (editing ? g.id !== 'everyone' && confirmRemove(g) : select(i))}
@@ -692,6 +752,11 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                 {editing && g.id !== 'everyone' && (
                   <Pressable style={[styles.removeBadge, { transform: [{ scale: f.scale }] }]} onPress={() => confirmRemove(g)} hitSlop={8}>
                     <Ionicons name="remove" size={18} color={colors.surface} />
+                  </Pressable>
+                )}
+                {editing && g.id !== 'everyone' && (
+                  <Pressable style={[styles.starBadge, { transform: [{ scale: f.scale }] }]} onPress={() => toggleFavorite(g)} hitSlop={8}>
+                    <Ionicons name="star" size={15} color={colors.surface} />
                   </Pressable>
                 )}
               </Animated.View>
@@ -711,10 +776,64 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             <Text style={[styles.fieldAction, editing && { fontFamily: fonts.bodyBold }]}>{editing ? 'Done' : 'Edit'}</Text>
           </Pressable>
           {!editing && (
+            <Pressable onPress={() => setBubbleQuery(bubbleQuery === null ? '' : null)} hitSlop={10}>
+              <Ionicons name={bubbleQuery === null ? 'search' : 'close'} size={24} color={colors.primary} />
+            </Pressable>
+          )}
+          {!editing && (
             <Pressable onPress={() => setNewBubbleOpen(true)} hitSlop={10}>
               <Ionicons name="add" size={28} color={colors.primary} />
             </Pressable>
           )}
+        </View>
+      )}
+      {mode === 'field' && bubbleQuery !== null && (
+        // Search every Bubble, not just favorites
+        <View style={[styles.searchPanel, { top: insets.top + NAV_H + 52 }]}>
+          <View style={styles.search}>
+            <Ionicons name="search" size={16} color={colors.textMuted} />
+            <TextInput autoFocus value={bubbleQuery} onChangeText={setBubbleQuery} placeholder="Search Bubbles" autoCorrect={false} autoCapitalize="none" placeholderTextColor={colors.textMuted} style={styles.searchInput} />
+          </View>
+          <ScrollView style={styles.results} keyboardShouldPersistTaps="handled">
+            {ALL.map((g, i) => ({ g, i }))
+              .filter(({ g }) => g.name.toLowerCase().includes(bubbleQuery.trim().toLowerCase()))
+              .map(({ g, i }, n) => (
+                <Pressable key={g.id} style={[styles.resultRow, n > 0 && styles.divider]} onPress={() => { setBubbleQuery(null); select(i); }}>
+                  <Bubble size={32} tint={groupColor(g.id)}>{g.icon && <Ionicons name={g.icon} size={14} color={groupColor(g.id)} />}</Bubble>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowTitle}>{g.name}</Text>
+                    <Text style={type.caption}>{g.members.length} {g.id === 'everyone' ? 'people' : 'members'}</Text>
+                  </View>
+                  {g.favorite && <Ionicons name="star" size={14} color={colors.primary} />}
+                </Pressable>
+              ))}
+          </ScrollView>
+        </View>
+      )}
+      {mode === 'field' && shelfIdx.length > 0 && (
+        // Non-favorite Bubbles: scrollable shelf with a "more →" hint
+        <View style={styles.shelf}>
+          <View style={[styles.row, { justifyContent: 'space-between', paddingHorizontal: spacing.md }]}>
+            <Text style={styles.shelfTitle}>More Bubbles</Text>
+            <Text style={type.caption}>{editing ? 'Tap ★ to float' : `${shelfIdx.length} ›`}</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shelfContent}>
+            {shelfIdx.map((i) => {
+              const g = ALL[i];
+              return (
+                <Pressable key={g.id} style={styles.shelfItem} onPress={() => (editing ? toggleFavorite(g) : select(i))}>
+                  <Bubble size={RS} tint={groupColor(g.id)}>{g.icon && <Ionicons name={g.icon} size={18} color={groupColor(g.id)} />}</Bubble>
+                  {g.unread > 0 && !editing && <Badge count={g.unread} style={styles.shelfBadge} />}
+                  {editing && (
+                    <View style={[styles.starBadge, styles.shelfStar]}>
+                      <Ionicons name="star-outline" size={13} color={colors.surface} />
+                    </View>
+                  )}
+                  <Text numberOfLines={1} style={styles.rowLabel}>{g.name}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
       )}
 
@@ -727,7 +846,10 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.rowContent}
           onTouchStart={() => focusRow(true)}
-          onScrollBeginDrag={() => focusRow(true)}
+          onScrollBeginDrag={() => {
+            focusRow(true);
+            setRowHint(false);
+          }}
         >
           {rowIdx.map((i) => {
             const g = ALL[i];
@@ -735,7 +857,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
               <Pressable key={g.id} onPress={() => select(i)} style={[styles.rowItem, { width: itemW }]}>
                 <Animated.View style={{ transform: [{ translateY: grow.lift }, { scale: grow.scale }] }}>
                   <Bubble size={RS} tint={groupColor(g.id)}>
-                    {g.id === 'everyone' && <Ionicons name="people" size={18} color={groupColor(g.id)} />}
+                    {g.icon && <Ionicons name={g.icon} size={18} color={groupColor(g.id)} />}
                   </Bubble>
                 </Animated.View>
                 {/* outside the scaled view so it stays crisp; slides out with the bubble's edge */}
@@ -764,6 +886,12 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             </Pressable>
           )}
         </ScrollView>
+        {/* hint that the row scrolls, until it has been scrolled once */}
+        {rowHint && rowIdx.length > perPage && (
+          <View style={styles.rowHint}>
+            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+          </View>
+        )}
         </Animated.View>
       )}
 
@@ -823,6 +951,32 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
 }
 
 const styles = StyleSheet.create({
+  rowHint: { position: 'absolute', right: 4, top: 18, width: 26, height: 26, borderRadius: 13, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', ...shadow },
+  droplet: { position: 'absolute', width: 8, height: 8, borderRadius: 4, opacity: 0.6 },
+  starBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchPanel: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: SHELF_H, gap: spacing.sm },
+  results: { flexGrow: 0, backgroundColor: colors.surface, borderRadius: radius.md },
+  resultRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2 },
+  shelf: { position: 'absolute', left: 0, right: 0, bottom: 0, height: SHELF_H, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background },
+  shelfTitle: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
+  shelfContent: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, gap: spacing.xs },
+  shelfItem: { width: 72, alignItems: 'center' },
+  shelfBadge: { position: 'absolute', top: -4, right: 6, transform: [{ scale: 0.8 }] },
+  shelfStar: { right: 6, top: -4, width: 22, height: 22 },
+  sheetChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm + 2, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
+  sheetChipText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
   fieldActions: { position: 'absolute', right: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md, height: NAV_H },
   fieldAction: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
   removeBadge: {

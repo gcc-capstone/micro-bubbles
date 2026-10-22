@@ -56,7 +56,7 @@ export default function InboxScreen() {
         <View style={styles.searchWrap}>
           <View style={styles.search}>
             <Ionicons name="search" size={16} color={colors.textMuted} />
-            <TextInput value={query} onChangeText={setQuery} placeholder="Search inbox" placeholderTextColor={colors.textMuted} style={styles.searchInput} />
+            <TextInput value={query} onChangeText={setQuery} placeholder="Search inbox" autoCorrect={false} autoCapitalize="none" placeholderTextColor={colors.textMuted} style={styles.searchInput} />
           </View>
         </View>
 

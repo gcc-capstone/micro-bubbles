@@ -29,6 +29,8 @@ export type Group = {
   unread: number;
   activity: Activity[]; // newest first
   color?: string; // chosen in Bubble profile > Edit; defaults to the palette
+  icon?: IconName; // shown inside the bubble
+  favorite?: boolean; // floats on All Bubbles (max FAVORITES_MAX)
   about?: string;
   isPublic?: boolean;
 };
@@ -48,6 +50,8 @@ const STUDIO: Place = { name: 'Krav Maga Studio', icon: 'fitness', lat: 41.158, 
 export const GROUPS: Group[] = [
   {
     id: 'soccer',
+    icon: 'football',
+    favorite: true,
     name: 'Home Soccer',
     about: 'U12 team parents and players. Game days at Davis Park.',
     unread: 2,
@@ -75,6 +79,8 @@ export const GROUPS: Group[] = [
   },
   {
     id: 'senior',
+    icon: 'school',
+    favorite: true,
     name: 'Senior Project',
     unread: 1,
     places: [TLC],
@@ -97,6 +103,8 @@ export const GROUPS: Group[] = [
   },
   {
     id: 'fallbreak',
+    icon: 'car-sport',
+    favorite: true,
     name: 'Fall Break Crew',
     about: 'Plans, photos and stories from our fall break trips.',
     unread: 0,
@@ -120,6 +128,8 @@ export const GROUPS: Group[] = [
   },
   {
     id: 'theatre',
+    icon: 'musical-notes',
+    favorite: true,
     name: 'Theatre Crew',
     unread: 3,
     places: [FINE_ARTS, DINING],
@@ -143,6 +153,7 @@ export const GROUPS: Group[] = [
   },
   {
     id: 'krav',
+    icon: 'fitness',
     name: 'Krav Maga Club',
     unread: 0,
     places: [STUDIO],
@@ -161,6 +172,8 @@ export const GROUPS: Group[] = [
   },
   {
     id: 'family',
+    icon: 'home',
+    favorite: true,
     name: 'Shin Family',
     unread: 1,
     places: [
@@ -182,6 +195,7 @@ export const GROUPS: Group[] = [
   },
   {
     id: 'hiking',
+    icon: 'leaf',
     name: 'Hiking Club',
     about: 'Weekend hikes around Moraine and beyond. Beginners welcome.',
     unread: 2,
@@ -205,6 +219,7 @@ export const GROUPS: Group[] = [
   },
   {
     id: 'rochester',
+    icon: 'flower',
     name: 'Rochester Nature Lovers',
     unread: 1,
     places: [{ name: 'Canawaugus Park', icon: 'leaf', lat: 43.0306, lng: -77.7547, radius: 300 }],
@@ -224,6 +239,7 @@ export const GROUPS: Group[] = [
   },
   {
     id: 'discgolf',
+    icon: 'disc',
     name: 'Disc Golf Club',
     unread: 0,
     places: [{ name: 'Wolf Creek Course', icon: 'disc', lat: 41.17, lng: -80.07, radius: 200 }],
@@ -242,6 +258,7 @@ export const GROUPS: Group[] = [
   },
   {
     id: 'imsports',
+    icon: 'basketball',
     name: 'GCC IM Sports',
     isPublic: true,
     about: 'Public Bubble for Grove City College intramural players. No code needed.',
@@ -264,6 +281,7 @@ export const GROUPS: Group[] = [
   },
   {
     id: 'roommates',
+    icon: 'bed',
     name: 'Roommates',
     unread: 0,
     places: [{ name: 'Harker Hall', icon: 'bed', lat: 41.157, lng: -80.0805, radius: 50 }],
@@ -276,6 +294,7 @@ export const GROUPS: Group[] = [
   },
   {
     id: 'biblestudy',
+    icon: 'book',
     name: 'Tuesday Bible Study',
     unread: 0,
     places: [{ name: 'Harbison Chapel', icon: 'book', lat: 41.156, lng: -80.0795, radius: 60 }],
@@ -307,6 +326,7 @@ const unique = <T,>(items: T[], key: (t: T) => string) => [...new Map(items.map(
 export const EVERYONE: Group = {
   id: 'everyone',
   name: 'Everyone',
+  icon: 'people',
   color: colors.primary, // the app's own teal
   unread: 0,
   members: unique(GROUPS.flatMap((g) => g.members), (m) => m.name),
@@ -316,6 +336,9 @@ export const EVERYONE: Group = {
 };
 
 export const ALL: Group[] = [EVERYONE, ...GROUPS];
+// Pin each Bubble's color once, so leaving or adding a Bubble doesn't recolor the others.
+ALL.forEach((g, i) => (g.color ??= bubbleColors[i % bubbleColors.length]));
+export const FAVORITES_MAX = 5; // plus Everyone = 6 floating bubbles
 
 export type InboxItem = {
   id: string;

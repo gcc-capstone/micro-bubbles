@@ -84,6 +84,19 @@ function Stars({ value, size = 18, onChange }: { value: number; size?: number; o
   );
 }
 
+// A few drifting bubbles behind a Bubble's cover, so it isn't just a flat color.
+function CoverBubbles({ color }: { color: string }) {
+  return (
+    <>
+      {[[44, 14, 12], [26, 78, 40], [60, 22, 260], [18, 90, 300], [34, 52, 330]].map(([s, top, left], i) => (
+        <View key={i} style={{ position: 'absolute', top, left }}>
+          <Bubble size={s} tint={color} />
+        </View>
+      ))}
+    </>
+  );
+}
+
 /* ---------- Locations ---------- */
 
 // Location details: where it is, who's there, pins and upcoming events nearby.
@@ -417,6 +430,7 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
   const [name, setName] = useState('');
   const [about, setAbout] = useState('');
   const [color, setColor] = useState('');
+  const [icon, setIcon] = useState<IconName | undefined>();
   const [privacy, setPrivacy] = useState('Private');
   useEffect(() => {
     if (!group) return;
@@ -424,6 +438,7 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
     setName(group.name);
     setAbout(group.about ?? `${group.name} on Bubbles.`);
     setColor(groupColor(group.id));
+    setIcon(group.icon);
     setPrivacy(group.isPublic ? 'Public' : 'Private');
   }, [group]);
   if (!group) return null;
@@ -432,7 +447,7 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
 
   const save = () => {
     // ponytail: edits mutate the in-memory dummy data; nothing is persisted
-    Object.assign(group, { name, about, color, isPublic: privacy === 'Public' });
+    Object.assign(group, { name, about, color, icon, isPublic: privacy === 'Public' });
     onChanged();
     setEditing(false);
   };
@@ -456,8 +471,9 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
       }
     >
       <View style={[styles.cover, { backgroundColor: color + '33' }]}>
+        <CoverBubbles color={color} />
         <Bubble size={96} tint={color}>
-          {everyone && <Ionicons name="people" size={34} color={color} />}
+          {icon && <Ionicons name={icon} size={34} color={color} />}
         </Bubble>
       </View>
 
@@ -468,6 +484,15 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
           </Section>
           <Section title="About">
             <TextInput value={about} onChangeText={setAbout} style={[styles.input, { minHeight: 72 }]} multiline />
+          </Section>
+          <Section title="Icon">
+            <View style={[styles.row, { gap: spacing.sm, flexWrap: 'wrap' }]}>
+              {BUBBLE_ICONS.map((ic) => (
+                <Pressable key={ic} onPress={() => setIcon(ic)} style={[styles.category, ic === icon && { backgroundColor: color, borderColor: color }]}>
+                  <Ionicons name={ic} size={18} color={ic === icon ? colors.surface : colors.text} />
+                </Pressable>
+              ))}
+            </View>
           </Section>
           <Section title="Bubble color">
             <View style={[styles.row, { gap: spacing.md }]}>
@@ -561,6 +586,9 @@ export function BubbleProfile({ group, startEditing, onClose, onLeave, onChanged
 }
 
 /* ---------- Drop pin ---------- */
+
+// Icons a Bubble can show inside it.
+const BUBBLE_ICONS: IconName[] = ['ellipse-outline', 'people', 'home', 'school', 'leaf', 'football', 'basketball', 'musical-notes', 'book', 'restaurant', 'fitness', 'heart'];
 
 const CATEGORIES: IconName[] = ['star', 'leaf', 'restaurant', 'cafe', 'football', 'camera'];
 
@@ -658,6 +686,7 @@ export function NewBubble({ visible, onClose, onCreate }: {
   const [name, setName] = useState('');
   const [about, setAbout] = useState('');
   const [color, setColor] = useState(bubbleColors[0]);
+  const [icon, setIcon] = useState<IconName>('ellipse-outline');
   const [privacy, setPrivacy] = useState('Private');
   useEffect(() => {
     if (!visible) return;
@@ -674,6 +703,7 @@ export function NewBubble({ visible, onClose, onCreate }: {
       name: name.trim(),
       about: about.trim() || undefined,
       color,
+      icon,
       isPublic: privacy === 'Public',
       unread: 0,
       // you're the first member, at your current location
@@ -695,13 +725,25 @@ export function NewBubble({ visible, onClose, onCreate }: {
       }
     >
       <View style={[styles.cover, { backgroundColor: color + '33' }]}>
-        <Bubble size={96} tint={color} />
+        <CoverBubbles color={color} />
+        <Bubble size={96} tint={color}>
+          <Ionicons name={icon} size={34} color={color} />
+        </Bubble>
       </View>
       <Section title="Name">
         <TextInput value={name} onChangeText={setName} placeholder="e.g. Hiking Club" placeholderTextColor={colors.textMuted} style={styles.input} autoFocus />
       </Section>
       <Section title="About">
         <TextInput value={about} onChangeText={setAbout} placeholder="What's this Bubble for?" placeholderTextColor={colors.textMuted} style={[styles.input, { minHeight: 64 }]} multiline />
+      </Section>
+      <Section title="Icon">
+        <View style={[styles.row, { gap: spacing.sm, flexWrap: 'wrap' }]}>
+          {BUBBLE_ICONS.map((ic) => (
+            <Pressable key={ic} onPress={() => setIcon(ic)} style={[styles.category, ic === icon && { backgroundColor: color, borderColor: color }]}>
+              <Ionicons name={ic} size={18} color={ic === icon ? colors.surface : colors.text} />
+            </Pressable>
+          ))}
+        </View>
       </Section>
       <Section title="Bubble color">
         <View style={[styles.row, { gap: spacing.md, flexWrap: 'wrap' }]}>

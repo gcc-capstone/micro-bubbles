@@ -13,23 +13,24 @@ type Style = StyleProp<ViewStyle>;
 /* ---------- Bubbles ---------- */
 
 // Realistic soap bubble: clear film, slightly darker rim, white reflections.
+// Soap bubble: nearly clear film, thin tinted rim, soft window highlight, sharp glint and a faint
+// reflection at the bottom. Layered translucent shapes stand in for gradients (no extra deps).
 export function Bubble({ size, tint = colors.primary, children }: { size: number; tint?: string; children?: ReactNode }) {
   const r = size / 2;
-  const inset = (f: number) => ({ top: size * f, left: size * f, right: size * f, bottom: size * f });
+  const at = (x: number, y: number, w: number, h: number) => ({ left: size * x, top: size * y, width: size * w, height: size * h });
   return (
-    <View style={[s.bubble, { width: size, height: size, borderRadius: r, backgroundColor: tint + '12', borderColor: tint + '59', shadowColor: tint }]}>
-      {/* rim depth */}
-      <View style={[s.fill, s.noTouch, { borderRadius: r, borderWidth: Math.max(2, size * 0.06), borderColor: tint + '1A' }]} />
-      {/* curved window reflection, top-left */}
+    <View style={[s.bubble, { width: size, height: size, borderRadius: r, backgroundColor: tint + '10', borderColor: tint + '73', shadowColor: tint }]}>
+      {/* film thickens toward the edge */}
+      <View style={[s.fill, s.noTouch, { borderRadius: r, borderWidth: Math.max(2, size * 0.09), borderColor: tint + '14' }]} />
+      {/* soft window highlight, top-left */}
+      <View style={[s.blob, s.noTouch, at(0.16, 0.12, 0.42, 0.24), { borderRadius: size, opacity: 0.38, transform: [{ rotate: '-35deg' }] }]} />
+      {/* sharp glint */}
+      <View style={[s.blob, s.noTouch, at(0.24, 0.2, 0.09, 0.09), { borderRadius: size, opacity: 0.95 }]} />
+      {/* bounce light along the bottom-right rim */}
       <View
-        style={[s.fill, s.noTouch, inset(0.08), s.arc, { borderRadius: r, borderWidth: Math.max(1.5, size * 0.035), borderTopColor: 'rgba(255,255,255,0.95)' }]}
+        style={[s.fill, s.noTouch, { top: size * 0.06, left: size * 0.06, right: size * 0.06, bottom: size * 0.06 }, s.arc,
+          { borderRadius: r, borderWidth: Math.max(1, size * 0.025), borderBottomColor: 'rgba(255,255,255,0.55)', borderRightColor: 'rgba(255,255,255,0.25)' }]}
       />
-      {/* faint bounce light, bottom-right */}
-      <View
-        style={[s.fill, s.noTouch, inset(0.12), s.arc, { borderRadius: r, borderWidth: Math.max(1, size * 0.02), borderBottomColor: 'rgba(255,255,255,0.7)' }]}
-      />
-      {/* glint */}
-      <View style={[s.glint, s.noTouch, { width: size * 0.08, height: size * 0.08, top: size * 0.26, left: size * 0.26 }]} />
       {children}
     </View>
   );
@@ -37,8 +38,8 @@ export function Bubble({ size, tint = colors.primary, children }: { size: number
 
 // Bubble that floats and sways; springs bigger when selected.
 // still: no floating (reduced motion).
-export function FloatingBubble({ size, tint, label, sublabel, count = 0, delay = 0, selected, still, onPress, style }: {
-  size: number; tint: string; label: string; sublabel?: string; count?: number; delay?: number; selected?: boolean; still?: boolean;
+export function FloatingBubble({ size, tint, label, sublabel, icon, count = 0, delay = 0, selected, still, onPress, style }: {
+  size: number; tint: string; label: string; sublabel?: string; icon?: IconName; count?: number; delay?: number; selected?: boolean; still?: boolean;
   onPress?: () => void; style?: Style;
 }) {
   const t = useRef(new Animated.Value(0)).current;
@@ -59,6 +60,7 @@ export function FloatingBubble({ size, tint, label, sublabel, count = 0, delay =
     <Animated.View style={[{ position: 'absolute', transform: [{ translateY: wave(-12, 8) }, { translateX: wave(5, -5) }, { scale }] }, style]}>
       <Pressable onPress={onPress}>
         <Bubble size={size} tint={tint}>
+          {icon && size > 70 && <Ionicons name={icon} size={size * 0.16} color={tint} style={{ marginBottom: 2 }} />}
           <Text numberOfLines={2} style={[s.bubbleLabel, { color: colors.text, fontSize: size > 130 ? 17 : size > 105 ? 15 : 13, maxWidth: size * 0.78 }]}>{label}</Text>
           {sublabel && <Text style={[s.bubbleSub, { color: colors.textMuted }]}>{sublabel}</Text>}
         </Bubble>
@@ -422,7 +424,7 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
   },
   arc: { borderColor: 'transparent', transform: [{ rotate: '-45deg' }] },
-  glint: { position: 'absolute', borderRadius: radius.pill, backgroundColor: colors.surface },
+  blob: { position: 'absolute', backgroundColor: colors.surface },
   bubbleLabel: { fontFamily: fonts.bodyBold, textAlign: 'center' },
   bubbleSub: { fontFamily: fonts.body, fontSize: 11, opacity: 0.8 },
 
