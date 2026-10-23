@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Keyboard, LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, IconName, Separator } from './components';
-import { colors, fonts, radius, shadow, spacing, type } from './theme';
+import { CONTROL, CONTROL_SLOP, colors, fonts, radius, shadow, spacing, type } from './theme';
 import {
   allPins, avgRating, distanceFromMe, formatMiles, GROUPS, initials, Loc, LOCATIONS, Member, memberColor, Pin, PIN_CATEGORIES, pinCategory, PinCategory,
 } from './data';
@@ -14,9 +14,9 @@ type Result =
   | { kind: 'pin'; key: string; pin: Pin; groupName: string }
   | { kind: 'place'; key: string; loc: Loc };
 
-// side: which end of the top bar the closed search button sits at.
-export default function MapSearch({ top, side = 'right', reduceMotion, onOpenChange, onPerson, onPin, onPlace }: {
-  top: number; side?: 'left' | 'right'; reduceMotion: boolean; onOpenChange: (open: boolean) => void; onPerson: (m: Member) => void; onPin: (p: Pin) => void; onPlace: (l: Loc) => void;
+// buttonOffset: gap between the closed search button and the right edge (room for other buttons).
+export default function MapSearch({ top, buttonOffset = 0, reduceMotion, onOpenChange, onPerson, onPin, onPlace }: {
+  top: number; buttonOffset?: number; reduceMotion: boolean; onOpenChange: (open: boolean) => void; onPerson: (m: Member) => void; onPin: (p: Pin) => void; onPlace: (l: Loc) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -81,8 +81,8 @@ export default function MapSearch({ top, side = 'right', reduceMotion, onOpenCha
           </Pressable>
         </View>
       ) : (
-        <Pressable style={[styles.button, side === 'left' && { alignSelf: 'flex-start' }]} onPress={expand} accessibilityLabel="Search places, pins, people">
-          <Ionicons name="search" size={20} color={colors.text} />
+        <Pressable style={[styles.button, { marginRight: buttonOffset }]} hitSlop={CONTROL_SLOP} onPress={expand} accessibilityLabel="Search places, pins, people">
+          <Ionicons name="search" size={17} color={colors.text} />
         </Pressable>
       )}
 
@@ -140,9 +140,9 @@ export default function MapSearch({ top, side = 'right', reduceMotion, onOpenCha
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4, gap: spacing.sm },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  cancelBtn: { height: 44, paddingHorizontal: spacing.sm + 4, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: colors.surface, ...shadow },
-  bar: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 44, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow },
-  button: { alignSelf: 'flex-end', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...shadow },
+  cancelBtn: { height: CONTROL, paddingHorizontal: spacing.sm + 4, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: colors.surface, ...shadow },
+  bar: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: CONTROL, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow },
+  button: { alignSelf: 'flex-end', width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...shadow },
   input: { ...type.body, flex: 1, padding: 0 },
   cancel: { fontFamily: fonts.body, fontSize: 16, color: colors.primary },
   panel: { backgroundColor: colors.surface, borderRadius: radius.md, overflow: 'hidden', ...shadow },

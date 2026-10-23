@@ -7,7 +7,7 @@ import { ActionSheetIOS, Alert, Animated, Easing, PanResponder, Pressable, Scrol
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, GlassTabs, IconName, MapButton, MenuButton, Separator } from './components';
-import { colors, FIXED_TEXT, fonts, radius, shadow, spacing, type } from './theme';
+import { colors, CONTROL, CONTROL_SLOP, FIXED_TEXT, fonts, radius, shadow, spacing, type } from './theme';
 import { ALL, avgRating, canInvite, ownerName, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, Loc, Member, memberColor, Pin, TODAY } from './data';
 import { AddMembers, BubbleProfile, DropPin, NewHotspot, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView, QuickMessages } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
@@ -22,7 +22,7 @@ const ROW_GROW = 1.3; // bubbles scale up while the row has focus
 const ROW_H_FOCUS = ROW_H + RS * (ROW_GROW - 1) + 2;
 const SHEET_MIN = 80; // grabber + Bubble name + who's nearby
 const NEARBY_MI = 1; // walking distance: "nearby" for a Bubble's sheet
-const FEED_H = 32; // activity pill above the sheet (quick-message height)
+const FEED_H = CONTROL; // activity pill above the sheet, same height as the map buttons
 const RECENT_HOURS = 6; // the pill and its list cover this window...
 const RECENT_MIN = 3; // ...but always show at least this many items
 const PERSON_H = 250; // compact person card; quick messages float above it (like Life360)
@@ -756,19 +756,19 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             </Pressable>
           )}
           {nav && (
-            // top bar: search (below), then Inbox on the left; your profile on the right
+            // top bar: your profile on the left; search (below), then Inbox, on the right
             <>
-              <Pressable onPress={nav.onInbox} style={[styles.topBtn, { top: insets.top + spacing.sm, left: spacing.sm + 4 + 44 + spacing.sm }]} accessibilityLabel={`Inbox, ${nav.unread} unread`}>
-                <Ionicons name="mail-outline" size={20} color={colors.text} />
+              <Pressable onPress={nav.onInbox} hitSlop={CONTROL_SLOP} style={[styles.topBtn, { top: insets.top + spacing.sm, right: spacing.sm + 4 }]} accessibilityLabel={`Inbox, ${nav.unread} unread`}>
+                <Ionicons name="mail-outline" size={17} color={colors.text} />
                 {nav.unread > 0 && <Badge count={nav.unread} style={styles.topBadge} />}
               </Pressable>
-              <Pressable onPress={nav.onProfile} style={[styles.topBtn, { top: insets.top + spacing.sm, right: spacing.sm + 4 }]} accessibilityLabel="Profile">
+              <Pressable onPress={nav.onProfile} hitSlop={CONTROL_SLOP} style={[styles.topBtn, { top: insets.top + spacing.sm, left: spacing.sm + 4 }]} accessibilityLabel="Profile">
                 {nav.avatar}
               </Pressable>
             </>
           )}
           <MapSearch
-            side={nav ? 'left' : 'right'}
+            buttonOffset={nav ? CONTROL + spacing.sm : 0} // leaves room for Inbox at the right edge
             top={insets.top + spacing.sm}
             reduceMotion={reduceMotion}
             onOpenChange={(o) => {
@@ -1066,13 +1066,14 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
       {mode === 'field' && !editing && (
         // Search at the leading end of the nav row
         <View style={[styles.fieldActions, { top: insets.top, left: spacing.md, right: undefined }]}>
-          <Pressable onPress={() => setBubbleQuery(bubbleQuery === null ? '' : null)} hitSlop={10} accessibilityLabel={bubbleQuery === null ? 'Search Bubbles' : 'Close search'}>
-            <Ionicons name={bubbleQuery === null ? 'search' : 'close'} size={24} color={colors.primary} />
-          </Pressable>
-          {nav && (
-            <Pressable onPress={nav.onInbox} hitSlop={10} accessibilityLabel={`Inbox, ${nav.unread} unread`}>
-              <Ionicons name="mail-outline" size={24} color={colors.primary} />
-              {nav.unread > 0 && <Badge count={nav.unread} style={styles.topBadge} />}
+          {nav ? (
+            // experiment: your profile leads; search and Inbox join Edit at the trailing end
+            <Pressable onPress={nav.onProfile} hitSlop={6} accessibilityLabel="Profile">
+              {nav.avatar}
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => setBubbleQuery(bubbleQuery === null ? '' : null)} hitSlop={10} accessibilityLabel={bubbleQuery === null ? 'Search Bubbles' : 'Close search'}>
+              <Ionicons name={bubbleQuery === null ? 'search' : 'close'} size={24} color={colors.primary} />
             </Pressable>
           )}
         </View>
@@ -1080,17 +1081,23 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
       {mode === 'field' && (
         // Edit (leave Bubbles) and + (new Bubble) in a nav row above the large title, like iOS
         <View style={[styles.fieldActions, { top: insets.top }]}>
+          {nav && !editing && (
+            <>
+              <Pressable onPress={() => setBubbleQuery(bubbleQuery === null ? '' : null)} hitSlop={10} accessibilityLabel={bubbleQuery === null ? 'Search Bubbles' : 'Close search'}>
+                <Ionicons name={bubbleQuery === null ? 'search' : 'close'} size={24} color={colors.primary} />
+              </Pressable>
+              <Pressable onPress={nav.onInbox} hitSlop={10} accessibilityLabel={`Inbox, ${nav.unread} unread`}>
+                <Ionicons name="mail-outline" size={24} color={colors.primary} />
+                {nav.unread > 0 && <Badge count={nav.unread} style={styles.topBadge} />}
+              </Pressable>
+            </>
+          )}
           <Pressable onPress={() => setEditing(!editing)} hitSlop={10}>
             <Text style={[styles.fieldAction, editing && { fontFamily: fonts.bodyBold }]}>{editing ? 'Done' : 'Edit'}</Text>
           </Pressable>
           {!editing && !nav && (
             <Pressable onPress={newBubble} hitSlop={10}>
               <Ionicons name="add" size={28} color={colors.primary} />
-            </Pressable>
-          )}
-          {!editing && nav && (
-            <Pressable onPress={nav.onProfile} hitSlop={6} accessibilityLabel="Profile">
-              {nav.avatar}
             </Pressable>
           )}
         </View>
@@ -1310,15 +1317,15 @@ const styles = StyleSheet.create({
   mapArea: { position: 'absolute', top: 0, left: 0, right: 0 },
   notesFloat: { position: 'absolute', left: 0, right: 0, height: NOTES_H, justifyContent: 'center' },
   rightStack: { position: 'absolute', right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4, alignItems: 'center', gap: spacing.sm + 4 },
-  topBtn: { position: 'absolute', width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
+  topBtn: { position: 'absolute', width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   topBadge: { position: 'absolute', top: -4, right: -6, transform: [{ scale: 0.85 }] },
-  smallFab: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
+  smallFab: { width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   dots: { position: 'absolute', left: 0, right: 0, bottom: 4, flexDirection: 'row', justifyContent: 'center', gap: 5 },
   dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.textMuted, opacity: 0.25 },
   dotOn: { opacity: 0.7 },
-  feedPill: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4 + 44 + spacing.sm, bottom: SHEET_MIN + spacing.sm + 4 + (44 - FEED_H) / 2, height: FEED_H, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm + 6, backgroundColor: colors.surface, ...shadow }, // centered on the arrow button beside it
+  feedPill: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4 + CONTROL + spacing.sm, bottom: SHEET_MIN + spacing.sm + 4, height: FEED_H, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm + 6, backgroundColor: colors.surface, ...shadow }, // centered on the arrow button beside it
   feedText: { ...type.body, fontSize: 14, lineHeight: 18, flex: 1 },
-  feedList: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4 + 44 + spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, paddingVertical: spacing.sm, ...shadow },
+  feedList: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4 + CONTROL + spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, paddingVertical: spacing.sm, ...shadow },
   feedHead: { ...type.caption, fontFamily: fonts.bodyBold, paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
   feedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 2, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2 },
   panel: { position: 'absolute', left: 0, right: 0, bottom: 0, pointerEvents: 'none' },

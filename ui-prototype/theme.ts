@@ -54,6 +54,11 @@ export const type = {
 // with Dynamic Type only this far, so it can't clip; everything else grows freely.
 export const FIXED_TEXT = 1.3;
 
+// One height for every floating map control (buttons, activity pill, search bar), so they line up.
+// Buttons add hitSlop (CONTROL_SLOP) to keep a 44 pt touch target.
+export const CONTROL = 36;
+export const CONTROL_SLOP = (44 - CONTROL) / 2;
+
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 
 export const radius = { sm: 10, md: 20, pill: 999 };

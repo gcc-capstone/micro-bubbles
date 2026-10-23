@@ -246,7 +246,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       })}
     </MapView>
     {bar && (
-      <Animated.View pointerEvents="none" style={[styles.scale, { top: topInset - 34, opacity: scaleO }]}>
+      <Animated.View pointerEvents="none" style={[styles.scale, { top: topInset - 44, opacity: scaleO }]}>
         <Text style={styles.scaleText}>{bar.label}</Text>
         <View style={[styles.scaleBar, { width: bar.pt }]} />
       </Animated.View>
@@ -267,7 +267,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
 }
 
 const styles = StyleSheet.create({
-  scale: { position: 'absolute', left: spacing.md, gap: 2 },
+  scale: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 2 }, // top center, between the corner buttons
   scaleText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.text, textShadowColor: colors.background, textShadowRadius: 3 },
   scaleBar: { height: 6, borderLeftWidth: 2, borderRightWidth: 2, borderBottomWidth: 2, borderColor: colors.text }, // ticks at both ends, like Apple Maps
   placeTag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 },

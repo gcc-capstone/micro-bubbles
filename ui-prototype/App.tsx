@@ -9,7 +9,7 @@ import { getCalendars } from 'expo-localization';
 import { useFonts, Lato_400Regular, Lato_700Bold } from '@expo-google-fonts/lato';
 import { Montserrat_600SemiBold, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { Tab, TabBar } from './components';
-import { applyTheme, colors, fonts, isDark, shadow, spacing } from './theme';
+import { applyTheme, colors, CONTROL, fonts, isDark, shadow, spacing } from './theme';
 import { EVERYONE, INBOX, PROFILE } from './data';
 import CalendarScreen from './CalendarScreen';
 import HomeScreen, { CreateKind } from './HomeScreen';
@@ -116,7 +116,7 @@ export default function App() {
                 eventsOnMap={eventsOnMap}
                 eventDays={eventDays}
                 weekStart={weekStart}
-                nav={NAV_EXPERIMENT ? { unread, avatar: <ProfileAvatar size={40} />, onInbox: () => setSheet('inbox'), onProfile: () => setSheet('profile') } : undefined}
+                nav={NAV_EXPERIMENT ? { unread, avatar: <ProfileAvatar size={CONTROL} />, onInbox: () => setSheet('inbox'), onProfile: () => setSheet('profile') } : undefined}
                 createReq={createReq}
               />
             )}

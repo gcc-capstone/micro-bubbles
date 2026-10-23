@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, Ellipse, G, Path, RadialGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, FIXED_TEXT, fonts, radius, shadow, spacing, type } from './theme';
+import { colors, CONTROL, CONTROL_SLOP, FIXED_TEXT, fonts, radius, shadow, spacing, type } from './theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 type Style = StyleProp<ViewStyle>;
@@ -234,7 +234,7 @@ export function EdgeMarker({ initials, color, angle, count = 1, style }: { initi
 
 export function MapButton({ icon, onPress }: { icon: IconName; onPress?: () => void }) {
   return (
-    <Pressable style={s.mapButton} onPress={onPress}>
+    <Pressable style={s.mapButton} onPress={onPress} hitSlop={CONTROL_SLOP}>
       <Ionicons name={icon} size={18} color={colors.text} />
     </Pressable>
   );
@@ -608,7 +608,7 @@ const s = StyleSheet.create({
   },
   edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 12, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...shadow },
   clusterText: { fontFamily: fonts.bodyBold, fontSize: 12, color: 'white' },
-  mapButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
+  mapButton: { width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
 
   card: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, ...shadow },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: radius.pill },
