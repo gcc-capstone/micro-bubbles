@@ -5,7 +5,7 @@
 //           follows the list (top day when scrolling down, bottom day when scrolling up).
 // Lists are virtualized over a wide but fixed range with known row heights, so jumps are instant.
 import { useMemo, useRef, useState } from 'react';
-import { Animated, FlatList, NativeScrollEvent, NativeSyntheticEvent, PanResponder, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, ViewToken } from 'react-native';
+import { Animated, FlatList, NativeScrollEvent, NativeSyntheticEvent, PanResponder, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, ListViewToken as ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Bubble, EventRow } from './components';

@@ -1,8 +1,7 @@
 // Shared UI building blocks for Bubbles screens. All values come from theme.ts.
 import { ComponentProps, ReactNode, useEffect, useId, useRef, useState } from 'react';
 import {
-  Alert, Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, useWindowDimensions, View, ViewStyle,
-} from 'react-native';
+  Alert, Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, useWindowDimensions, View, ViewStyle, HostInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, Ellipse, G, Path, RadialGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -367,7 +366,7 @@ export function MenuButton({ icon, label, options, selected = [], onSelect, mult
 }) {
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
   const [open, setOpen] = useState(false);
-  const ref = useRef<View>(null);
+  const ref = useRef<HostInstance>(null);
   const show = () =>
     ref.current?.measureInWindow((x, y, w, h) => {
       setAnchor({ x, y, w, h });

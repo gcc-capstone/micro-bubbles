@@ -1,7 +1,7 @@
 // Browser stand-in for BubbleMap.tsx (react-native-maps has no web support).
 // ponytail: flat lat/lng projection on a drawn backdrop; good enough for previewing layout.
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, HostInstance } from 'react-native';
 import { EventPin, LocationCircle, MapPin, MemberPin, YouDot } from './components';
 import { colors } from './theme';
 import { initials, memberColor, ME } from './data';
@@ -14,7 +14,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
   // Browser zoom/pan: trackpad pinch (ctrl+wheel) or two-finger touch pinch zooms, wheel/drag pans.
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const box = useRef<View>(null);
+  const box = useRef<HostInstance>(null);
   const pinch = useRef<{ d: number; z: number } | null>(null);
   useEffect(() => {
     setZoom(1);

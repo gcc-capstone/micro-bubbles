@@ -3,7 +3,7 @@
 // Re-tapping the Bubbles tab (resetKey) or "More Bubbles…" shows all Bubbles as floating
 // bubbles (few) or an Apple Watch-style honeycomb (many).
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Modal, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Modal, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, GlassTabs, IconName, MapButton, MenuAnchor, MenuButton, PopMenu, Separator } from './components';
@@ -193,9 +193,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const subO = useRef(new Animated.Value(1)).current;
   const rowFocused = useRef(false);
   const rowTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const list = useRef<ScrollView>(null);
-  const subList = useRef<ScrollView>(null);
-  const rowList = useRef<ScrollView>(null);
+  const list = useRef<ScrollViewInstance>(null);
+  const subList = useRef<ScrollViewInstance>(null);
+  const rowList = useRef<ScrollViewInstance>(null);
   // switching Bubbles: scroll the row so the open one sits at the left edge (as far as the row
   // can scroll; near the end it just stays in view)
   useEffect(() => {

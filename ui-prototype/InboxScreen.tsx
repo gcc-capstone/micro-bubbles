@@ -2,7 +2,7 @@
 // unread rows are shaded and bold. Pull down at the top to reveal search. Tap opens the item;
 // swipe right (or long-press) toggles read/unread.
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Bubble, PageSheet, Separator } from './components';
@@ -37,7 +37,7 @@ export default function InboxScreen({ onChange }: { onChange: () => void }) {
   };
   const [query, setQuery] = useState('');
   const [listH, setListH] = useState(0);
-  const list = useRef<ScrollView>(null);
+  const list = useRef<ScrollViewInstance>(null);
   const scrollY = useRef(new Animated.Value(SEARCH_H)).current;
   const update = (id: string, change: Partial<InboxItem>) => setItems(items.map((it) => (it.id === id ? { ...it, ...change } : it)));
   const unread = items.filter((it) => !it.read).length;
