@@ -1387,7 +1387,7 @@ const styles = StyleSheet.create({
   searchList: { marginHorizontal: spacing.md, backgroundColor: colors.surface, borderRadius: radius.sm + 4, overflow: 'hidden' },
   searchWrap: { height: SEARCH_H, justifyContent: 'center', paddingHorizontal: spacing.md },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.background, borderRadius: radius.sm, paddingHorizontal: spacing.sm + 2, height: 36 },
-  searchInput: { ...type.body, flex: 1, padding: 0 },
+  searchInput: { ...type.input, flex: 1, padding: 0 },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 4, paddingVertical: spacing.sm + 2, paddingHorizontal: spacing.md },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   unread: { backgroundColor: colors.primarySoft },

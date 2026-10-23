@@ -150,7 +150,7 @@ export default function ProfileScreen({
                   placeholderTextColor={colors.textMuted}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  style={[type.body, { flex: 1, padding: 0 }]}
+                  style={[type.input, { flex: 1, padding: 0 }]}
                 />
                 <Pressable onPress={addLink} hitSlop={10}>
                   <Text style={styles.link}>Add</Text>
@@ -365,7 +365,7 @@ function FriendsSheet({ visible, onClose }: { visible: boolean; onClose: () => v
     <PageSheet visible={visible} title="Friends" onClose={onClose}>
       <View style={[styles.search, { marginHorizontal: spacing.md }]}>
         <Ionicons name="search" size={16} color={colors.textMuted} />
-        <TextInput value={query} onChangeText={setQuery} placeholder="Search friends" placeholderTextColor={colors.textMuted} autoCorrect={false} style={[type.body, { flex: 1, padding: 0 }]} />
+        <TextInput value={query} onChangeText={setQuery} placeholder="Search friends" placeholderTextColor={colors.textMuted} autoCorrect={false} style={[type.input, { flex: 1, padding: 0 }]} />
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {[null, ...GROUPS.map((g) => g.id)].map((id) => {
@@ -418,13 +418,13 @@ const styles = StyleSheet.create({
   link: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.primary },
   hobbies: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, padding: spacing.md },
   hobbyAdd: { borderStyle: 'dashed', paddingVertical: 2 },
-  hobbyInput: { ...type.body, fontSize: 14, minWidth: 90, padding: 0 },
+  hobbyInput: { ...type.input, fontSize: 14, minWidth: 90, padding: 0 },
   accents: { flexDirection: 'row', justifyContent: 'space-between', padding: spacing.md },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.sm, paddingHorizontal: spacing.sm + 2, height: 38 },
   filterRow: { gap: spacing.sm, padding: spacing.md },
   filterChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.sm + 4, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   filterChipOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
-  input: { ...type.body, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  input: { ...type.input, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   stats: { flexDirection: 'row', justifyContent: 'space-around', alignSelf: 'stretch', marginVertical: spacing.md },
   section: { marginTop: spacing.lg, paddingHorizontal: spacing.md, gap: spacing.sm },
   sectionTitle: { ...type.caption, fontFamily: fonts.bodyBold, textTransform: 'uppercase', paddingHorizontal: spacing.md },

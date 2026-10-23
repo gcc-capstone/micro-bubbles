@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   cancelBtn: { height: CONTROL, paddingHorizontal: spacing.sm + 4, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: colors.surface, ...shadow },
   bar: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: CONTROL, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow },
   button: { alignSelf: 'flex-end', width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...shadow },
-  input: { ...type.body, flex: 1, padding: 0 },
+  input: { ...type.input, flex: 1, padding: 0 },
   cancel: { fontFamily: fonts.body, fontSize: 16, color: colors.primary },
   panel: { backgroundColor: colors.surface, borderRadius: radius.md, overflow: 'hidden', ...shadow },
   chips: { gap: spacing.sm, padding: spacing.sm + 2 },

@@ -46,6 +46,8 @@ export const type = {
   h1: { fontFamily: fonts.heading, fontSize: 28, lineHeight: 34, color: colors.text },
   h2: { fontFamily: fonts.subheading, fontSize: 20, lineHeight: 26, color: colors.text },
   body: { fontFamily: fonts.body, fontSize: 16, lineHeight: 24, color: colors.text },
+  // text fields: no lineHeight, which iOS adds below the text and pushes it off-center in a field
+  input: { fontFamily: fonts.body, fontSize: 16, color: colors.text },
   caption: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.textMuted },
   button: { fontFamily: fonts.bodyBold, fontSize: 16 },
 };

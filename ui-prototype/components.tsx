@@ -752,7 +752,7 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 4,
   },
-  input: { ...type.body, flex: 1, padding: 0 },
+  input: { ...type.input, flex: 1, padding: 0 },
   menu: { backgroundColor: colors.surface, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   menuItem: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 4 },
 

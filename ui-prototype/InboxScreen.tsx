@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   link: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
   searchWrap: { height: SEARCH_H, justifyContent: 'center', paddingHorizontal: spacing.md },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.sm, paddingHorizontal: spacing.sm + 2, height: 36 },
-  searchInput: { ...type.body, flex: 1, padding: 0 },
+  searchInput: { ...type.input, flex: 1, padding: 0 },
   list: { backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   row: { flexDirection: 'row', gap: spacing.sm + 4, paddingVertical: spacing.sm + 4, paddingHorizontal: spacing.md },
   unread: { backgroundColor: colors.primarySoft },
