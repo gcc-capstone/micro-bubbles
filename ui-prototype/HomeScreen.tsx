@@ -3,7 +3,7 @@
 // Re-tapping the Bubbles tab (resetKey) or "More Bubbles…" shows all Bubbles as floating
 // bubbles (few) or an Apple Watch-style honeycomb (many).
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Modal, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, GlassTabs, IconName, MapButton, MenuAnchor, MenuButton, PopMenu, Separator } from './components';
@@ -14,9 +14,8 @@ import BubbleMap, { Focus } from './BubbleMap';
 import MapSearch from './MapSearch';
 
 const RS = 36; // row bubble size
-const DOTS_H = 12; // page dots under the Bubble row
 const ROW_ITEM_MIN = 60; // 6 per page on a 360 pt phone // narrowest slot per bubble; slots stretch so each page shows whole bubbles
-const ROW_H = 6 + RS + 3 + 14 + DOTS_H; // padding + bubble + gap + one-line label + page dots (the sheet header names the selected Bubble in full)
+const ROW_H = 6 + RS + 3 + 14 + 6; // padding + bubble + gap + one-line label + padding (the sheet header names the selected Bubble in full)
 const NAV_H = 44; // nav row above the large title
 const ROW_GROW = 1.3; // bubbles scale up while the row has focus
 const ROW_H_FOCUS = ROW_H + RS * (ROW_GROW - 1) + 2;
@@ -36,7 +35,7 @@ const MAX_ROW = 11; // more than this many Bubbles shows a "More Bubbles…" bub
 const TABS = ['Members', 'Pins']; // activity lives in the pill above the sheet
 const SORTS: Record<string, string[]> = {
   Pins: ['Top rated', 'Nearest', 'A–Z'],
-  Members: ['Nearest', 'A–Z', 'Recently updated'],
+  Members: ['Last active', 'Nearest', 'A–Z'],
 };
 const FILTERS: Record<string, string[]> = {
   Pins: ['4.5+ stars', 'Pinned by me', 'Within 10 mi'],
@@ -135,7 +134,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [detent, setDetent] = useState<0 | 1 | 2>(0);
   const sheetOpen = detent > 0;
   const [tab, setTab] = useState(TABS[0]);
-  const [sort, setSort] = useState<Record<string, string>>({ Pins: 'Top rated', Members: 'Nearest' });
+  const [sort, setSort] = useState<Record<string, string>>({ Pins: 'Top rated', Members: 'Last active' }); // freshest locations first
   const [filters, setFilters] = useState<Record<string, string[]>>({ Pins: [], Members: [] });
   const [sub, setSub] = useState<{ person?: Member; pin?: Pin; event?: BubbleEvent; place?: Loc } | null>(null); // sheet sub-view
   const [profileOpen, setProfileOpen] = useState<false | 'view' | 'edit'>(false);
@@ -170,7 +169,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const feedO = useRef(new Animated.Value(1)).current;
   const [recenter, setRecenter] = useState(0); // bump to send the map back to the view around you
   const [dropAt, setDropAt] = useState<{ lat: number; lng: number } | null>(null); // long-pressed spot (pin, hotspot or event)
-  const [rowPage, setRowPage] = useState(0);
+  const [rowX, setRowX] = useState(-1); // row scroll offset; -1 until it scrolls (starts at Everyone)
   const [popping, setPopping] = useState<string | null>(null); // Bubble being popped on leave
   const popV = useRef(new Animated.Value(0)).current;
   const [, setTick] = useState(0); // re-render after in-memory edits (drop pin, edit/leave Bubble)
@@ -650,7 +649,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         .filter((m) => match(m.name, m.place))
         .filter((m) => (!has('Moving now') || m.moving) && (!has('Within 1 mi') || m.mi <= 1) && (!has('Updated in the last hour') || minutesAgo(m.updated) < 60))
         .sort((a, b) =>
-          sort.Members === 'A–Z' ? a.name.localeCompare(b.name) : sort.Members === 'Recently updated' ? minutesAgo(a.updated) - minutesAgo(b.updated) : a.mi - b.mi,
+          sort.Members === 'A–Z' ? a.name.localeCompare(b.name) : sort.Members === 'Last active' ? minutesAgo(a.updated) - minutesAgo(b.updated) || a.mi - b.mi : a.mi - b.mi,
         );
 
   return (
@@ -1078,12 +1077,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
       {mode === 'field' && !editing && (
         // Search at the leading end of the nav row
         <View style={[styles.fieldActions, { top: insets.top, left: spacing.md, right: undefined }]}>
-          {nav ? (
-            // experiment: your profile leads; search joins Edit at the trailing end
-            <Pressable onPress={nav.onProfile} hitSlop={6} accessibilityLabel="Profile">
-              {nav.avatar}
-            </Pressable>
-          ) : (
+          {!nav && (
             <Pressable onPress={() => setBubbleQuery(bubbleQuery === null ? '' : null)} hitSlop={10} accessibilityLabel={bubbleQuery === null ? 'Search Bubbles' : 'Close search'}>
               <Ionicons name={bubbleQuery === null ? 'search' : 'close'} size={24} color={colors.primary} />
             </Pressable>
@@ -1110,28 +1104,51 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
           )}
         </View>
       )}
-      {mode === 'field' && bubbleQuery !== null && (
-        // Search every Bubble, on either screen
-        <View style={[styles.searchPanel, { top: insets.top + NAV_H + 52 }]}>
-          <View style={styles.search}>
-            <Ionicons name="search" size={16} color={colors.textMuted} />
-            <TextInput autoFocus value={bubbleQuery} onChangeText={setBubbleQuery} placeholder="Search Bubbles" autoCorrect={false} autoCapitalize="none" placeholderTextColor={colors.textMuted} style={styles.searchInput} />
+      {/* Bubble search: its own page sheet over the screen. Before you type, Bubbles are listed by
+          latest activity, so the ones with news are at the top. */}
+      <Modal visible={bubbleQuery !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setBubbleQuery(null)}>
+        <View style={styles.searchSheet}>
+          <View style={styles.searchHead}>
+            <View style={[styles.search, { flex: 1, backgroundColor: colors.text + '0F' }]}>
+              <Ionicons name="search" size={16} color={colors.textMuted} />
+              <TextInput
+                autoFocus
+                value={bubbleQuery ?? ''}
+                onChangeText={setBubbleQuery}
+                placeholder="Search Bubbles"
+                autoCorrect={false}
+                autoCapitalize="none"
+                placeholderTextColor={colors.textMuted}
+                style={styles.searchInput}
+              />
+            </View>
+            <Pressable onPress={() => setBubbleQuery(null)} hitSlop={10}>
+              <Text style={styles.fieldAction}>Cancel</Text>
+            </Pressable>
           </View>
-          <ScrollView style={styles.results} keyboardShouldPersistTaps="handled">
-            {ALL.map((g, i) => ({ g, i }))
-              .filter(({ g }) => g.name.toLowerCase().includes(bubbleQuery.trim().toLowerCase()))
-              .map(({ g, i }, n) => (
-                <Pressable key={g.id} style={[styles.resultRow, n > 0 && styles.divider]} onPress={() => { setBubbleQuery(null); select(i); }}>
-                  <Bubble size={32} tint={groupColor(g.id)}>{g.icon && <Ionicons name={g.icon} size={14} color={groupColor(g.id)} />}</Bubble>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.rowTitle}>{g.name}</Text>
-                    <Text style={type.caption}>{g.members.length} {g.id === 'everyone' ? 'people' : 'members'}</Text>
-                  </View>
-                </Pressable>
-              ))}
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: spacing.xl }}>
+            {!(bubbleQuery ?? '').trim() && <Text style={styles.searchSection}>Recently active</Text>}
+            <View style={styles.searchList}>
+              {byRecent
+                .map((i) => ({ g: ALL[i], i }))
+                .filter(({ g }) => g.name.toLowerCase().includes((bubbleQuery ?? '').trim().toLowerCase()))
+                .map(({ g, i }, n) => (
+                  <Pressable key={g.id} style={[styles.resultRow, n > 0 && styles.divider]} onPress={() => { setBubbleQuery(null); select(i); }}>
+                    <Bubble size={36} tint={groupColor(g.id)}>{g.icon && <Ionicons name={g.icon} size={15} color={groupColor(g.id)} />}</Bubble>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowTitle}>{g.name}</Text>
+                      <Text numberOfLines={1} style={type.caption}>
+                        {g.members.length} {g.id === 'everyone' ? 'people' : 'members'}
+                        {g.activity[0] ? ` · ${g.activity[0].text}` : ''}
+                      </Text>
+                    </View>
+                    {g.activity[0] && <Text style={type.caption}>{g.activity[0].time}</Text>}
+                  </Pressable>
+                ))}
+            </View>
           </ScrollView>
         </View>
-      )}
+      </Modal>
       {/* Compact scrollable row once collapsed */}
       {mode === 'row' && (
         <Animated.View style={[styles.rowWrap, { height: rowH }]}>
@@ -1144,7 +1161,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
           snapToOffsets={[0, ...Array.from({ length: rowPages }, (_, k) => itemW + k * w)]}
           decelerationRate="fast"
           scrollEventThrottle={32}
-          onScroll={(e) => setRowPage(Math.max(0, Math.min(rowPages - 1, Math.round((e.nativeEvent.contentOffset.x - itemW) / w))))}
+          onScroll={(e) => setRowX(e.nativeEvent.contentOffset.x)}
           onTouchStart={() => focusRow(true)}
           onScrollBeginDrag={() => focusRow(true)}
         >
@@ -1200,14 +1217,17 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             </Pressable>
           )}
         </ScrollView>
-        {/* page dots: small and dim, just enough to say there's more to scroll */}
-        {rowPages > 1 && (
-          <View style={styles.dots} pointerEvents="none">
-            {Array.from({ length: rowPages }, (_, k) => (
-              <View key={k} style={[styles.dot, k === rowPage && styles.dotOn]} />
-            ))}
-          </View>
-        )}
+        {/* tiny dim chevrons on whichever side has more to scroll to */}
+        {(() => {
+          const x = rowX < 0 ? itemW : rowX;
+          const contentW = itemW * (1 + rowIdx.length + (overflow ? 1 : 0));
+          return (
+            <>
+              {x > 4 && <Ionicons name="chevron-back" size={12} color={colors.textMuted} style={[styles.rowChevron, { left: 1 }]} />}
+              {x < contentW - w - 4 && <Ionicons name="chevron-forward" size={12} color={colors.textMuted} style={[styles.rowChevron, { right: 1 }]} />}
+            </>
+          );
+        })()}
         </Animated.View>
       )}
 
@@ -1312,8 +1332,6 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
 
 const styles = StyleSheet.create({
   droplet: { position: 'absolute', width: 8, height: 8, borderRadius: 4, opacity: 0.6 },
-  searchPanel: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: spacing.md, gap: spacing.sm },
-  results: { flexGrow: 0, backgroundColor: colors.surface, borderRadius: radius.md },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2 },
   fieldActions: { position: 'absolute', right: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md, height: NAV_H },
   fieldAction: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
@@ -1339,9 +1357,7 @@ const styles = StyleSheet.create({
   topBtn: { position: 'absolute', width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   topBadge: { position: 'absolute', top: -4, right: -6, transform: [{ scale: 0.85 }] },
   smallFab: { width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
-  dots: { position: 'absolute', left: 0, right: 0, bottom: 4, flexDirection: 'row', justifyContent: 'center', gap: 5 },
-  dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.textMuted, opacity: 0.25 },
-  dotOn: { opacity: 0.7 },
+  rowChevron: { position: 'absolute', top: 6 + RS / 2 - 6, opacity: 0.45, pointerEvents: 'none' },
   feedPill: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4 + CONTROL + spacing.sm, bottom: SHEET_MIN + spacing.sm + 4, height: FEED_H, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm + 6, backgroundColor: colors.surface, ...shadow }, // centered on the arrow button beside it
   feedText: { ...type.body, fontSize: 14, lineHeight: 18, flex: 1 },
   feedList: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4 + CONTROL + spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, paddingVertical: spacing.sm, ...shadow },
@@ -1365,6 +1381,10 @@ const styles = StyleSheet.create({
   back: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
   toolbar: { height: TOOLBAR_H, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md },
   sheetBody: { paddingBottom: spacing.md },
+  searchSheet: { flex: 1, backgroundColor: colors.background },
+  searchHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
+  searchSection: { ...type.caption, fontFamily: fonts.bodyBold, textTransform: 'uppercase', paddingHorizontal: spacing.md * 2, paddingBottom: 6 },
+  searchList: { marginHorizontal: spacing.md, backgroundColor: colors.surface, borderRadius: radius.sm + 4, overflow: 'hidden' },
   searchWrap: { height: SEARCH_H, justifyContent: 'center', paddingHorizontal: spacing.md },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.background, borderRadius: radius.sm, paddingHorizontal: spacing.sm + 2, height: 36 },
   searchInput: { ...type.body, flex: 1, padding: 0 },
