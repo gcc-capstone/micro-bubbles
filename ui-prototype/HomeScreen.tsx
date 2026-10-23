@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Badge, Bubble, FloatingBubble, GlassTabs, IconName, MapButton, MenuAnchor, MenuButton, PopMenu, Separator } from './components';
 import { colors, CONTROL, CONTROL_SLOP, FIXED_TEXT, fonts, radius, shadow, spacing, type } from './theme';
-import { ALL, avgRating, canInvite, ownerName, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, Loc, Member, memberColor, Pin, TODAY } from './data';
+import { ALL, avgRating, canInvite, ownerName, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, Loc, Member, memberColor, meters, Pin, TODAY } from './data';
 import { AddMembers, BubbleProfile, DropPin, NewHotspot, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView, QuickMessages } from './Details';
 import BubbleMap, { Focus } from './BubbleMap';
 import MapSearch from './MapSearch';
@@ -32,12 +32,14 @@ const SEARCH_H = 52;
 const TOOLBAR_H = 44; // count + sort/filter row; tucked away with the search bar until you pull down
 const HIDDEN_H = SEARCH_H + TOOLBAR_H;
 const MAX_ROW = 11; // more than this many Bubbles shows a "More Bubbles…" bubble
-const TABS = ['Members', 'Pins']; // activity lives in the pill above the sheet
+const TABS = ['Members', 'Hotspots', 'Pins']; // activity lives in the pill above the sheet
 const SORTS: Record<string, string[]> = {
+  Hotspots: ['Nearest', 'A–Z', 'Most people'],
   Pins: ['Top rated', 'Nearest', 'A–Z'],
   Members: ['Last active', 'Nearest', 'A–Z'],
 };
 const FILTERS: Record<string, string[]> = {
+  Hotspots: ['Alerts on', 'Someone there now'],
   Pins: ['4.5+ stars', 'Pinned by me', 'Within 10 mi'],
   Members: ['Moving now', 'Within 1 mi', 'Updated in the last hour'],
 };
@@ -134,8 +136,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [detent, setDetent] = useState<0 | 1 | 2>(0);
   const sheetOpen = detent > 0;
   const [tab, setTab] = useState(TABS[0]);
-  const [sort, setSort] = useState<Record<string, string>>({ Pins: 'Top rated', Members: 'Last active' }); // freshest locations first
-  const [filters, setFilters] = useState<Record<string, string[]>>({ Pins: [], Members: [] });
+  const [sort, setSort] = useState<Record<string, string>>({ Hotspots: 'Nearest', Pins: 'Top rated', Members: 'Last active' }); // freshest locations first
+  const [filters, setFilters] = useState<Record<string, string[]>>({ Hotspots: [], Pins: [], Members: [] });
   const [sub, setSub] = useState<{ person?: Member; pin?: Pin; event?: BubbleEvent; place?: Loc } | null>(null); // sheet sub-view
   const [profileOpen, setProfileOpen] = useState<false | 'view' | 'edit'>(false);
 
@@ -654,6 +656,15 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         .filter((pin) => match(pin.name, pin.note, pin.by))
         .filter((pin) => (!has('4.5+ stars') || avgRating(pin) >= 4.5) && (!has('Pinned by me') || pin.by === 'You') && (!has('Within 10 mi') || pin.mi <= 10))
         .sort((a, b) => (sort.Pins === 'Nearest' ? a.mi - b.mi : sort.Pins === 'A–Z' ? a.name.localeCompare(b.name) : avgRating(b) - avgRating(a)));
+  // Hotspots in this Bubble (Everyone: all of them), with who's inside right now
+  const hotspots = !group
+    ? []
+    : (group.id === 'everyone' ? GROUPS.flatMap((g) => g.hotspots) : group.hotspots)
+        .filter((hs, i, all) => all.findIndex((x) => x.name === hs.name) === i)
+        .map((hs) => ({ ...hs, mi: distanceFromMe(hs.lat, hs.lng), inside: group.members.filter((m) => meters(hs, m) <= hs.radius) }))
+        .filter((hs) => match(hs.name))
+        .filter((hs) => (!has('Alerts on') || Object.values(hs.alerts ?? {}).some((a) => a.arrive || a.leave)) && (!has('Someone there now') || hs.inside.length > 0))
+        .sort((a, b) => (sort.Hotspots === 'A–Z' ? a.name.localeCompare(b.name) : sort.Hotspots === 'Most people' ? b.inside.length - a.inside.length : a.mi - b.mi));
   const members = !group
     ? []
     : group.members
@@ -917,7 +928,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             {/* Sort and filter menus, below the hidden search */}
             <View style={styles.toolbar}>
               <Text style={[type.caption, { flex: 1 }]}>
-                {tab === 'Pins' ? `${pins.length} pins` : `${members.length} members`}
+                {tab === 'Pins' ? `${pins.length} pins` : tab === 'Hotspots' ? `${hotspots.length} hotspots` : `${members.length} members`}
               </Text>
               <MenuButton icon="swap-vertical" label={sort[tab]} options={SORTS[tab]} selected={[sort[tab]]} onSelect={(o) => setSort({ ...sort, [tab]: o })} />
               <MenuButton
@@ -930,6 +941,33 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                 active={filters[tab].length > 0}
               />
             </View>
+
+            {tab === 'Hotspots' && (
+              <Pressable style={styles.listRow} onPress={() => create('New Hotspot')}>
+                <View style={[styles.iconCircle, { backgroundColor: color + '1F' }]}>
+                  <Ionicons name="add" size={20} color={color} />
+                </View>
+                <Text style={[type.body, { color: colors.primary }]}>New Hotspot</Text>
+              </Pressable>
+            )}
+            {tab === 'Hotspots' &&
+              hotspots.map((hs) => (
+                <Pressable key={hs.name} style={[styles.listRow, styles.divider]} onPress={() => openPlace({ name: hs.name, lat: hs.lat, lng: hs.lng, icon: hs.icon })}>
+                  <View style={[styles.iconCircle, { backgroundColor: color + '1F' }]}>
+                    <Ionicons name={hs.icon} size={18} color={color} />
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={styles.rowTitle}>{hs.name}</Text>
+                    <Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={1} style={type.caption}>
+                      {hs.inside.length ? `${hs.inside.map((m) => m.name.split(' ')[0]).join(', ')} there now` : 'Nobody there now'}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.distance}>{hs.radius >= 1000 ? `${hs.radius / 1000} km` : `${hs.radius} m`}</Text>
+                    <Text style={type.caption}>{formatMiles(hs.mi)}</Text>
+                  </View>
+                </Pressable>
+              ))}
 
             {tab === 'Pins' &&
               pins.map((pin, i) => (
@@ -989,7 +1027,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                 </Pressable>
               ))}
 
-            {((tab === 'Pins' && !pins.length) || (tab === 'Members' && !members.length)) && (
+            {((tab === 'Pins' && !pins.length) || (tab === 'Members' && !members.length) || (tab === 'Hotspots' && !hotspots.length && !!q)) && (
               <Text style={[type.caption, { padding: spacing.md }]}>
                 {q ? `No results for “${query.trim()}”` : tab === 'Pins' ? 'No pins yet' : 'No members yet'}
               </Text>
