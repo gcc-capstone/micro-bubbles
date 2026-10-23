@@ -220,7 +220,7 @@ export function EdgeMarker({ initials, color, angle, count = 1, style }: { initi
   return (
     <View style={[s.abs, s.center, { width: EDGE_BOX, height: EDGE_BOX }, style]} pointerEvents="box-none">
       <View style={[s.abs, s.center, { width: EDGE_BOX, height: EDGE_BOX, transform: [{ rotate: `${angle}rad` }] }]} pointerEvents="none">
-        <View style={[s.edgeArrow, { left: EDGE_BOX / 2 + 21 }]} />
+        <View style={[s.edgeArrow, { left: EDGE_BOX / 2 + 22 }]} />
       </View>
       <View style={[s.cluster, { width: 36, height: 36, borderWidth: 3, backgroundColor: color }]}>
         <Text maxFontSizeMultiplier={FIXED_TEXT} style={[s.clusterText, { fontSize: 12 }]}>{initials}</Text>
@@ -670,8 +670,8 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     ...shadow,
   },
-  // triangle from borders: a 10 pt wide, 12 pt tall wedge pointing right (rotated by the parent)
-  edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 6, width: 0, height: 0, borderTopWidth: 6, borderBottomWidth: 6, borderLeftWidth: 10, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: colors.text, opacity: 0.45 },
+  // triangle from borders: a flat wedge, 12 pt base and 6 pt tall, pointing right (rotated by the parent)
+  edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 6, width: 0, height: 0, borderTopWidth: 6, borderBottomWidth: 6, borderLeftWidth: 6, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: colors.text, opacity: 0.45 },
   clusterText: { fontFamily: fonts.bodyBold, fontSize: 12, color: 'white' },
   mapButton: { width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
 

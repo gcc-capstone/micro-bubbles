@@ -1,12 +1,12 @@
 // Native map (Apple Maps on iOS, Google Maps on Android). BubbleMap.web.tsx is the browser stand-in.
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Circle, Marker, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { Cluster, EdgeMarker, EventPin, MapPin, MemberPin, YouDot } from './components';
 import { aroundMe, edgeSpot, scaleBar, spread, toScreen, visibleLabels } from './mapFit';
 import { groupNearby } from './cluster';
-import { colors, FIXED_TEXT, fonts, radius, spacing } from './theme';
+import { colors, FIXED_TEXT, fonts, isDark, radius, spacing } from './theme';
 import { initials, Member, memberColor, ME, minutesAgo, Pin, Hotspot } from './data';
 
 export type Focus = { name: string; lat: number; lng: number };
@@ -146,23 +146,10 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       ).map((g) => g.sort((a, b) => a.d - b.d))
     : [];
 
-  // Scale bar: shown for a few seconds each time the map frames a new view, then fades
-  // (Apple's own scale only appears while you pinch).
-  const scaleO = useRef(new Animated.Value(0)).current;
-  const justFit = useRef(false);
-  const flashScale = () => {
-    scaleO.stopAnimation();
-    Animated.sequence([
-      Animated.timing(scaleO, { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.delay(2500),
-      Animated.timing(scaleO, { toValue: 0, duration: 500, useNativeDriver: true }),
-    ]).start();
-  };
-  const bar = region ? scaleBar(region, size.w) : null;
+  const scale = useRef<{ show: (r: Region) => void; settle: () => void }>(null);
 
   const fit = () => {
     if (!ready.current) return;
-    justFit.current = true;
     if (focus) {
       map.current?.animateToRegion({ latitude: focus.lat, longitude: focus.lng, latitudeDelta: 0.004, longitudeDelta: 0.004 }, 500);
     } else if (radiusMi) {
@@ -190,11 +177,11 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
       // ponytail: edge markers update when panning stops; onRegionChange would re-render every frame
       onLongPress={(e) => onLongPress?.({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude, x: e.nativeEvent.position.x, y: e.nativeEvent.position.y })}
+      // scale shows whenever the map moves, zooms or pinches (and when it frames a view), then fades
+      onRegionChange={(r) => scale.current?.show(r)}
       onRegionChangeComplete={(r) => {
-        if (justFit.current) {
-          justFit.current = false;
-          flashScale();
-        }
+        scale.current?.show(r);
+        scale.current?.settle();
         setRegion(r);
         onCenterChange?.({ lat: r.latitude, lng: r.longitude });
       }}
@@ -273,12 +260,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
         );
       })}
     </MapView>
-    {bar && (
-      <Animated.View pointerEvents="none" style={[styles.scale, { top: topInset - 44, opacity: scaleO }]}>
-        <Text style={styles.scaleText}>{bar.label}</Text>
-        <View style={[styles.scaleBar, { width: bar.pt }]} />
-      </Animated.View>
-    )}
+    <ScaleBar ref={scale} width={size.w} top={topInset - 44} />
     {edges.map((g) => {
       const e = g[0];
       // keep clear of the corner buttons at the top and the location arrow at the bottom right
@@ -305,10 +287,47 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
   );
 }
 
+// Map scale in Apple's style: a thin bar of alternating dark and light halves, outlined, with the
+// distance in small gray text with a halo. Lives apart from the map so it can follow every frame
+// of a pan or pinch without re-rendering the markers.
+const ScaleBar = forwardRef<{ show: (r: Region) => void; settle: () => void }, { width: number; top: number }>(({ width, top }, ref) => {
+  const [r, setR] = useState<Region | null>(null);
+  const o = useRef(new Animated.Value(0)).current;
+  const hide = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useImperativeHandle(ref, () => ({
+    show: (next) => {
+      setR(next);
+      clearTimeout(hide.current);
+      o.stopAnimation();
+      Animated.timing(o, { toValue: 1, duration: 120, useNativeDriver: true }).start();
+    },
+    settle: () => {
+      clearTimeout(hide.current);
+      hide.current = setTimeout(() => Animated.timing(o, { toValue: 0, duration: 400, useNativeDriver: true }).start(), 1500);
+    },
+  }));
+  if (!r || width < 2) return null;
+  const bar = scaleBar(r, width);
+  const ink = isDark ? '#EBEBF5' : '#3C3C43'; // Apple's label gray
+  const paper = isDark ? '#1C1C1E' : '#FFFFFF';
+  return (
+    <Animated.View pointerEvents="none" style={[styles.scale, { top, opacity: o }]}>
+      <View style={{ width: bar.pt, flexDirection: 'row', justifyContent: 'space-between' }}>
+        <Text style={[styles.scaleText, { color: ink, textShadowColor: paper }]}>0</Text>
+        <Text style={[styles.scaleText, { color: ink, textShadowColor: paper }]}>{bar.label}</Text>
+      </View>
+      <View style={[styles.scaleBar, { width: bar.pt, borderColor: ink + '99' }]}>
+        <View style={{ flex: 1, backgroundColor: ink }} />
+        <View style={{ flex: 1, backgroundColor: paper }} />
+      </View>
+    </Animated.View>
+  );
+});
+
 const styles = StyleSheet.create({
   scale: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 2 }, // top center, between the corner buttons
-  scaleText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.text, textShadowColor: colors.background, textShadowRadius: 3 },
-  scaleBar: { height: 6, borderLeftWidth: 2, borderRightWidth: 2, borderBottomWidth: 2, borderColor: colors.text }, // ticks at both ends, like Apple Maps
+  scaleText: { fontFamily: fonts.bodyBold, fontSize: 10, textShadowRadius: 2, textShadowOffset: { width: 0, height: 0 } },
+  scaleBar: { height: 4, flexDirection: 'row', borderWidth: StyleSheet.hairlineWidth, borderRadius: 1, overflow: 'hidden' },
   placeTag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   areaName: { fontFamily: fonts.heading, textAlign: 'center', opacity: 0.6 },
   placeTagText: { fontFamily: fonts.bodyBold, fontSize: 11, color: 'white' },
