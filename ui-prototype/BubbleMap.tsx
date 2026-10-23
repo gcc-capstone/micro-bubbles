@@ -234,7 +234,8 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
           <MapPin color={colors.danger} icon="location" style={{ position: 'relative' }} />
         </Marker>
       )}
-      <Marker coordinate={{ latitude: ME.lat, longitude: ME.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}>
+      {/* you always draw on top of people, pins, groups and labels */}
+      <Marker coordinate={{ latitude: ME.lat, longitude: ME.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false} zIndex={100}>
         <YouDot style={{ position: 'relative' }} />
       </Marker>
       {items.map(renderItem)}
