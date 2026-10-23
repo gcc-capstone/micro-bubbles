@@ -200,13 +200,14 @@ export function Cluster({ count, faces = [], style }: { count: number; faces?: {
       </View>
     );
   return (
-    <View style={[s.abs, s.row, style]}>
+    // wrapped in a white (black in Dark Mode) pill so it reads as one group, not separate people
+    <View style={[s.abs, s.row, s.groupPill, style]}>
       {faces.map((f, i) => (
-        <View key={i} style={[s.cluster, { backgroundColor: f.color, marginLeft: i ? -12 : 0 }]}>
+        <View key={i} style={[s.cluster, s.inPill, { backgroundColor: f.color, marginLeft: i ? -12 : 0 }]}>
           <Text maxFontSizeMultiplier={FIXED_TEXT} style={s.clusterText}>{f.initials}</Text>
         </View>
       ))}
-      <View style={[s.cluster, { marginLeft: -12 }]}>
+      <View style={[s.cluster, s.inPill, { marginLeft: -12 }]}>
         <Text maxFontSizeMultiplier={FIXED_TEXT} style={s.clusterText}>+{count - faces.length}</Text>
       </View>
     </View>
@@ -672,6 +673,8 @@ const s = StyleSheet.create({
   },
   // triangle from borders: a flat wedge, 12 pt base and 6 pt tall, pointing right (rotated by the parent)
   edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 6, width: 0, height: 0, borderTopWidth: 6, borderBottomWidth: 6, borderLeftWidth: 6, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: colors.text, opacity: 0.45 },
+  groupPill: { padding: 3, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow, shadowOpacity: 0.18 },
+  inPill: { borderColor: colors.surface, shadowOpacity: 0 }, // rings match the pill; the pill carries the shadow
   clusterText: { fontFamily: fonts.bodyBold, fontSize: 12, color: 'white' },
   mapButton: { width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
 
