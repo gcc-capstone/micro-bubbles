@@ -36,11 +36,12 @@ export type BubbleMapProps = {
   radiusMi?: number;
   hideEdges?: boolean; // hide off-screen markers (e.g. while a panel covers the map)
   recenter?: number; // bump to return to the default view (locate button)
+  dropped?: { lat: number; lng: number } | null; // a long-pressed spot, shown as a pin
   onLongPress?: (c: { lat: number; lng: number; x: number; y: number }) => void; // long-press on the map; x/y = touch point on the map view
   onCenterChange?: (c: { lat: number; lng: number }) => void; // after the user pans (Drop Pin) // when set (and nothing is focused), center on you and show this radius
 };
 
-export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange, hideEdges, recenter, onLongPress }: BubbleMapProps) {
+export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange, hideEdges, recenter, onLongPress, dropped }: BubbleMapProps) {
   const map = useRef<MapView>(null);
   const ready = useRef(false);
   const [region, setRegion] = useState<Region | null>(null);
@@ -135,7 +136,8 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
   const edges = region && !hideEdges
     ? Object.values(
         members.reduce<Record<number, { m: Member; x: number; y: number; angle: number; d: number }[]>>((acc, m) => {
-          const e = edgeSpot(region, size, { top: topInset, bottom: bottomInset }, m, 42); // room for the arrow
+          // markers may sit right up to the top (just under the status bar), not only below the top buttons
+          const e = edgeSpot(region, size, { top: topInset, bottom: bottomInset }, m, 30, { top: topInset - 52, bottom: bottomInset });
           if (!e) return acc;
           const sector = (Math.round(e.angle / (Math.PI / 2)) + 4) % 4;
           (acc[sector] ??= []).push({ m, ...e, d: Math.hypot(m.lat - region.latitude, m.lng - region.longitude) });
@@ -201,24 +203,50 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
         fit();
       }}>
       {hotspots.map((p) => (
+        // the whole area: a gentle tint with a thin dashed edge
         <Circle
           key={p.name}
           center={{ latitude: p.lat, longitude: p.lng }}
           radius={p.radius}
-          strokeColor="transparent" // iOS draws a default black outline otherwise
-          strokeWidth={0}
-          fillColor={color + '38'} // shaded area only, no outline
+          strokeColor={color + '99'}
+          strokeWidth={1.5}
+          lineDashPattern={[6, 5]}
+          fillColor={color + '24'}
         />
       ))}
-      {hotspots.map((p, i) => (
-        // hidden names stay mounted (see the note on markers below) and just turn invisible
-        <Marker key={'tag-' + p.name} coordinate={{ latitude: p.lat, longitude: p.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges onPress={() => tagShown[i] && onPlacePress?.(p)}>
-          <View style={[styles.placeTag, { backgroundColor: color, opacity: tagShown[i] ? 1 : 0 }]}>
-            <Ionicons name={p.icon} size={11} color={'white'} />
-            <Text maxFontSizeMultiplier={FIXED_TEXT} style={styles.placeTagText}>{p.name}</Text>
-          </View>
+      {hotspots.map((p, i) => {
+        // Big enough on screen: the name is written across the area, large and see-through. Small:
+        // a name tag at the center, hidden where it would collide (hidden ones stay mounted).
+        const rPx = region ? (p.radius / 111000 / region.latitudeDelta) * (size.h - topInset - bottomInset) : 0;
+        const big = rPx > 48;
+        return (
+          <Marker key={'tag-' + p.name} coordinate={{ latitude: p.lat, longitude: p.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges onPress={() => onPlacePress?.(p)}>
+            {big ? (
+              <View style={{ width: rPx * 1.6, alignItems: 'center' }}>
+                <Ionicons name={p.icon} size={Math.min(28, rPx * 0.22)} color={color} style={{ opacity: 0.55 }} />
+                <Text
+                  maxFontSizeMultiplier={FIXED_TEXT}
+                  numberOfLines={2}
+                  style={[styles.areaName, { color, fontSize: Math.max(13, Math.min(30, rPx * 0.24)) }]}
+                >
+                  {p.name}
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.placeTag, { backgroundColor: color, opacity: tagShown[i] ? 1 : 0 }]}>
+                <Ionicons name={p.icon} size={11} color={'white'} />
+                <Text maxFontSizeMultiplier={FIXED_TEXT} style={styles.placeTagText}>{p.name}</Text>
+              </View>
+            )}
+          </Marker>
+        );
+      })}
+      {dropped && (
+        // a long-pressed spot, until you make something there or close its sheet
+        <Marker coordinate={{ latitude: dropped.lat, longitude: dropped.lng }} anchor={{ x: 0.5, y: 1 }} zIndex={12}>
+          <MapPin color={colors.danger} icon="location" style={{ position: 'relative' }} />
         </Marker>
-      ))}
+      )}
       <Marker coordinate={{ latitude: ME.lat, longitude: ME.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}>
         <YouDot style={{ position: 'relative' }} />
       </Marker>
@@ -253,11 +281,22 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
     )}
     {edges.map((g) => {
       const e = g[0];
-      // keep clear of the search button (top right) and the locate / + / Drop Pin column (bottom right)
-      const right = e.x > size.w - 80;
-      const x = right && (e.y > size.h - bottomInset - 190 || e.y < topInset + 40) ? size.w - 104 : e.x;
+      // keep clear of the corner buttons at the top and the location arrow at the bottom right
+      const x =
+        e.y < topInset ? Math.max(76, Math.min(size.w - 120, e.x)) : e.x > size.w - 80 && e.y > size.h - bottomInset - 90 ? size.w - 70 : e.x;
       return (
-        <Pressable key={e.m.name} onPress={() => onMemberPress(e.m)} style={{ position: 'absolute', left: x - 42, top: e.y - 42, zIndex: 20 }}>
+        <Pressable
+          key={e.m.name}
+          // tap: zoom out just enough to show you and the people that way
+          onPress={() =>
+            map.current?.fitToCoordinates([...g.map(({ m }) => ({ latitude: m.lat, longitude: m.lng })), { latitude: ME.lat, longitude: ME.lng }], {
+              edgePadding: { top: 60, right: 50, bottom: 60, left: 50 },
+              animated: true,
+            })
+          }
+          accessibilityLabel={`${g.length} ${g.length === 1 ? 'person' : 'people'} off screen, nearest ${e.m.name}`}
+          style={{ position: 'absolute', left: x - 42, top: e.y - 42, zIndex: 20 }}
+        >
           <EdgeMarker initials={initials(e.m.name)} color={memberColor(e.m.name)} angle={e.angle} count={g.length} style={{ position: 'relative' }} />
         </Pressable>
       );
@@ -271,5 +310,6 @@ const styles = StyleSheet.create({
   scaleText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.text, textShadowColor: colors.background, textShadowRadius: 3 },
   scaleBar: { height: 6, borderLeftWidth: 2, borderRightWidth: 2, borderBottomWidth: 2, borderColor: colors.text }, // ticks at both ends, like Apple Maps
   placeTag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  areaName: { fontFamily: fonts.heading, textAlign: 'center', opacity: 0.6 },
   placeTagText: { fontFamily: fonts.bodyBold, fontSize: 11, color: 'white' },
 });

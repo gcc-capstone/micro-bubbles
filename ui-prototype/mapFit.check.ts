@@ -12,6 +12,9 @@ assert.strictEqual(Math.round(east.y), 400);
 assert.strictEqual(east.angle, 0);
 const north = edgeSpot(region, size, { top: 100, bottom: 300 }, { lat: 5, lng: 0 })!;
 assert.strictEqual(Math.round(north.y), 128); // below the top inset
+// with a box, markers can sit above the inset (still off screen = only visible-area test)
+const northUp = edgeSpot(region, size, { top: 100, bottom: 300 }, { lat: 5, lng: 0 }, 28, { top: 10, bottom: 300 })!;
+assert.strictEqual(Math.round(northUp.y), 38);
 // Overlapping markers end up apart; fixed ones stay put; far ones don't move.
 const pts = [{ x: 100, y: 100, r: 20 }, { x: 100, y: 100, r: 20 }, { x: 110, y: 100, r: 20, fixed: true }, { x: 400, y: 400, r: 20 }];
 const off = spread(pts, 100); // room to fully separate

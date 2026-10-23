@@ -168,6 +168,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   };
   const feedO = useRef(new Animated.Value(1)).current;
   const [recenter, setRecenter] = useState(0); // bump to send the map back to the view around you
+  const [dropped, setDropped] = useState<{ lat: number; lng: number } | null>(null); // long-pressed spot, pinned on the map
   const [dropAt, setDropAt] = useState<{ lat: number; lng: number } | null>(null); // long-pressed spot (pin, hotspot or event)
   const [rowX, setRowX] = useState(-1); // row scroll offset; -1 until it scrolls (starts at Everyone)
   const [popping, setPopping] = useState<string | null>(null); // Bubble being popped on leave
@@ -192,6 +193,15 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const rowTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const list = useRef<ScrollView>(null);
   const subList = useRef<ScrollView>(null);
+  const rowList = useRef<ScrollView>(null);
+  // switching Bubbles: scroll the row so the open one sits at the left edge (as far as the row
+  // can scroll; near the end it just stays in view)
+  useEffect(() => {
+    if (selected === null) return;
+    const slot = rowIdx.indexOf(selected);
+    const maxX = Math.max(0, itemW * (1 + rowIdx.length + (overflow ? 1 : 0)) - w);
+    rowList.current?.scrollTo({ x: Math.min(maxX, itemW * (1 + slot)), animated: !reduceMotion });
+  }, [selected]);
   // The person card is short on purpose; flash the scroll bar so people know there's more below.
   useEffect(() => {
     if (!sub?.person) return;
@@ -253,7 +263,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   // Bubble Info opened from a floating bubble (no Bubble selected yet)
   const [infoGroup, setInfoGroup] = useState<Group | null>(null);
   // One context menu for the screen (long-press a bubble or the map), styled like iOS's.
-  const [menu, setMenu] = useState<{ anchor: MenuAnchor; title?: string; options: string[]; icons?: Record<string, IconName>; destructive?: string[]; onSelect: (o: string) => void } | null>(null);
+  const [menu, setMenu] = useState<{ anchor: MenuAnchor; dim?: boolean; title?: string; options: string[]; icons?: Record<string, IconName>; destructive?: string[]; onSelect: (o: string) => void } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const showMenu = (m: NonNullable<typeof menu>) => {
     setMenu(m);
@@ -262,6 +272,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const bubbleActions = (g: Group, anchor: MenuAnchor) =>
     showMenu({
       anchor,
+      dim: true, // context menu on a bubble: focus it
       title: g.name,
       options: g.id === 'everyone' ? ['Bubble Info'] : ['Bubble Info', g.muted ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble'],
       icons: { 'Bubble Info': 'information-circle-outline', 'Mute Notifications': 'notifications-off-outline', 'Unmute Notifications': 'notifications-outline', 'Leave Bubble': 'exit-outline' },
@@ -473,6 +484,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     slideIn(subX, subO, -1);
     setSub(null);
     setFocus(null);
+    setDropped(null);
   };
 
   // Bubble "..." menu: info, edit, invite, mute, leave. Everyone only has info.
@@ -665,7 +677,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             color={color}
             focus={focus}
             topInset={insets.top + 56} // room for the search bar
-            bottomInset={personCard ? PERSON_H + NOTES_H : SHEET_MIN + FEED_H + spacing.md}
+            // the part of the map the sheet covers, so framing (and a dropped pin) stays in view above it
+            bottomInset={personCard ? PERSON_H + NOTES_H : detent === 1 ? sheetMid : SHEET_MIN + FEED_H + spacing.md}
             onMemberPress={openPerson}
             onPinPress={openPin}
             radiusMi={group.id === 'everyone' ? everyoneRadius : undefined}
@@ -674,10 +687,19 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             onEventPress={openEvent}
             hideEdges={searching || feedOpen} // a panel covers part of the map
             recenter={recenter}
-            onLongPress={(c) =>
-              // long-press a spot to start something there (Apple Maps convention; also in the + menu)
+            dropped={dropped}
+            onLongPress={(c) => {
+              // long-press a spot (Apple Maps style): a pin drops there, the sheet shows the spot, and
+              // a menu offers what to make there
+              setDropped({ lat: c.lat, lng: c.lng });
+              setFocus({ name: 'Dropped Pin', lat: c.lat, lng: c.lng }); // centers it above the sheet
+              slideIn(subX, subO, 1);
+              setSub({ place: { name: 'Dropped Pin', icon: 'location', lat: c.lat, lng: c.lng } });
+              setSheet(1);
+              // the menu opens from where the pin will settle: centered in the map left above the sheet
+              const pinY = (insets.top + 56 + (h - ROW_H - sheetMid)) / 2;
               showMenu({
-                anchor: { x: c.x, y: c.y, w: 0, h: 0 },
+                anchor: { x: w / 2, y: pinY, w: 0, h: 0 },
                 options: ['Drop Pin', 'New Hotspot', 'New Event'],
                 icons: { 'Drop Pin': 'location-outline', 'New Hotspot': 'radio-outline', 'New Event': 'calendar-outline' },
                 onSelect: (o) => {
@@ -686,8 +708,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   if (o === 'New Hotspot') setHotspotOpen(true);
                   if (o === 'New Event') setNewEventOpen(true);
                 },
-              })
-            }
+              });
+            }}
           />
           {/* Right-side controls, just above the sheet */}
           <Animated.View
@@ -1154,6 +1176,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         <Animated.View style={[styles.rowWrap, { height: rowH }]}>
         {/* Starts at Everyone; scroll left past it for New Bubble. Snaps a page at a time. */}
         <ScrollView
+          ref={rowList}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.rowContent}
@@ -1232,7 +1255,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
       )}
 
       <PopMenu
-        dim
+        dim={menu?.dim}
         visible={menuOpen}
         anchor={menu?.anchor ?? null}
         title={menu?.title}
@@ -1263,6 +1286,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         at={dropAt}
         onClose={() => setDropOpen(false)}
         onDrop={(pin, groupId, notify) => {
+          if (dropped) closeSub(); // made something at the dropped pin: it's done its job
           const g = GROUPS.find((x) => x.id === groupId)!;
           g.pins.unshift(pin);
           EVERYONE.pins.unshift(pin);
@@ -1282,6 +1306,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         at={dropAt}
         onClose={() => setHotspotOpen(false)}
         onCreate={(h, groupId) => {
+          if (dropped) closeSub(); // made something at the dropped pin: it's done its job
           const g = GROUPS.find((x) => x.id === groupId)!;
           g.hotspots.push(h);
           if (!EVERYONE.hotspots.some((x) => x.name === h.name)) EVERYONE.hotspots.push(h);
@@ -1313,6 +1338,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         weekStart={weekStart}
         onClose={() => setNewEventOpen(false)}
         onCreate={(e) => {
+          if (dropped) closeSub(); // made something at the dropped pin: it's done its job
           EVENTS.push(e);
           const g = GROUPS.find((x) => x.id === e.groupId);
           g?.activity.unshift({ icon: 'calendar-outline', text: `You added ${e.title} to the calendar`, time: 'Now' });

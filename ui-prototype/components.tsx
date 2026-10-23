@@ -213,16 +213,14 @@ export function Cluster({ count, faces = [], style }: { count: number; faces?: {
   );
 }
 
-// Marker on the map's edge for someone off screen: their face, and next to it (never under it) a
-// white chip with a bold accent arrow pointing their way, so it reads on any map.
+// Marker on the map's edge for someone off screen: their face, and just outside it a small, quiet
+// isosceles triangle pointing their way.
 const EDGE_BOX = 84;
 export function EdgeMarker({ initials, color, angle, count = 1, style }: { initials: string; color: string; angle: number; count?: number; style?: Style }) {
   return (
     <View style={[s.abs, s.center, { width: EDGE_BOX, height: EDGE_BOX }, style]} pointerEvents="box-none">
       <View style={[s.abs, s.center, { width: EDGE_BOX, height: EDGE_BOX, transform: [{ rotate: `${angle}rad` }] }]} pointerEvents="none">
-        <View style={[s.edgeArrow, { left: EDGE_BOX / 2 + 18 }]}>
-          <Ionicons name="arrow-forward" size={16} color={colors.primary} />
-        </View>
+        <View style={[s.edgeArrow, { left: EDGE_BOX / 2 + 21 }]} />
       </View>
       <View style={[s.cluster, { width: 36, height: 36, borderWidth: 3, backgroundColor: color }]}>
         <Text maxFontSizeMultiplier={FIXED_TEXT} style={[s.clusterText, { fontSize: 12 }]}>{initials}</Text>
@@ -672,7 +670,8 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     ...shadow,
   },
-  edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 12, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...shadow },
+  // triangle from borders: a 10 pt wide, 12 pt tall wedge pointing right (rotated by the parent)
+  edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 6, width: 0, height: 0, borderTopWidth: 6, borderBottomWidth: 6, borderLeftWidth: 10, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: colors.text, opacity: 0.45 },
   clusterText: { fontFamily: fonts.bodyBold, fontSize: 12, color: 'white' },
   mapButton: { width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
 

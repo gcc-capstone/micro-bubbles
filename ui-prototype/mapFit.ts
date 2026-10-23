@@ -28,11 +28,12 @@ export function edgeSpot(
   inset: { top: number; bottom: number },
   p: LatLng,
   margin = 28,
+  box?: { top: number; bottom: number }, // where markers may sit, if not the visible area (e.g. up to the very top)
 ): { x: number; y: number; angle: number } | null {
-  const top = inset.top;
-  const bottom = size.h - inset.bottom;
   const { x, y } = toScreen(region, size, inset, p);
-  if (x >= 0 && x <= size.w && y >= top && y <= bottom) return null;
+  if (x >= 0 && x <= size.w && y >= inset.top && y <= size.h - inset.bottom) return null;
+  const top = box?.top ?? inset.top;
+  const bottom = size.h - (box?.bottom ?? inset.bottom);
   const cx = size.w / 2;
   const cy = (top + bottom) / 2;
   const dx = x - cx;
