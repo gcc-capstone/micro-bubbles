@@ -672,7 +672,7 @@ const s = StyleSheet.create({
     ...shadow,
   },
   // triangle from borders: a flat wedge, 12 pt base and 6 pt tall, pointing right (rotated by the parent)
-  edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 6, width: 0, height: 0, borderTopWidth: 6, borderBottomWidth: 6, borderLeftWidth: 6, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: colors.text, opacity: 0.45 },
+  edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 6, width: 0, height: 0, borderTopWidth: 6, borderBottomWidth: 6, borderLeftWidth: 6, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: colors.primary, opacity: 0.75 }, // app color, so it reads as ours rather than map ink
   groupPill: { padding: 3, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow, shadowOpacity: 0.18 },
   inPill: { borderColor: colors.surface, shadowOpacity: 0 }, // rings match the pill; the pill carries the shadow
   clusterText: { fontFamily: fonts.bodyBold, fontSize: 12, color: 'white' },
