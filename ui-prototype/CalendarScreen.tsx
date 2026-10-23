@@ -47,7 +47,7 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
   const { width } = useWindowDimensions();
   const cellW = Math.floor((width - 2 * MONTH_PAD) / 7); // exact pixels; % widths can wrap the 7th column
   const monthSide = (width - 7 * cellW) / 2; // split the rounding leftover so both edges match
-  const [level, setLevel] = useState<Level>('month');
+  const [level, setLevel] = useState<Level>('week'); // opens on this week, with today selected
   const [sel, setSel] = useState(T); // selected day (week view) and anchor for other views
   const selRef = useRef(sel);
   selRef.current = sel;
@@ -237,9 +237,12 @@ export default function CalendarScreen({ weekStart, reduceMotion }: { weekStart:
           <Pressable onPress={today} hitSlop={10}>
             <Text maxFontSizeMultiplier={FIXED_TEXT} style={styles.navText}>Today</Text>
           </Pressable>
-          <Pressable onPress={() => setNewOpen(true)} hitSlop={10} accessibilityLabel="New Event">
-            <Ionicons name="add" size={28} color={colors.primary} />
-          </Pressable>
+          {/* no + on the year overview: pick a month or day first */}
+          {level !== 'year' && (
+            <Pressable onPress={() => setNewOpen(true)} hitSlop={10} accessibilityLabel="New Event">
+              <Ionicons name="add" size={28} color={colors.primary} />
+            </Pressable>
+          )}
         </View>
       </View>
       {/* Only Month has a large title; Year uses its in-list year headings, Week shows the selected day in the list. */}
