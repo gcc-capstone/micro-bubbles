@@ -9,24 +9,6 @@ const km = (a: LatLng, b: LatLng) => {
   return Math.hypot(dx, dy);
 };
 
-const GAP = 3; // a jump to 3x the previous distance marks the outliers
-const FLOOR_KM = 0.3; // distances under this count as "same spot", so tiny gaps don't cut
-
-// The people to frame: as many as possible in as small an area as possible. Start from the most
-// central person (least total distance to everyone), add people nearest-first, and stop at the first
-// big jump in distance once at least half are in. Whoever is left out gets an edge marker.
-// ponytail: O(n²) medoid, fine for a Bubble's few dozen people.
-export function corePoints<T extends LatLng>(pts: T[]): T[] {
-  if (pts.length <= 2) return pts;
-  const center = pts.reduce((best, p) => (pts.reduce((s, q) => s + km(p, q), 0) < pts.reduce((s, q) => s + km(best, q), 0) ? p : best));
-  const sorted = [...pts].sort((a, b) => km(center, a) - km(center, b));
-  const half = Math.ceil(pts.length / 2);
-  for (let i = half; i < sorted.length; i++) {
-    if (km(center, sorted[i]) > GAP * Math.max(km(center, sorted[i - 1]), FLOOR_KM)) return sorted.slice(0, i);
-  }
-  return sorted;
-}
-
 // Screen position of a point, given the region shown between the insets.
 export function toScreen(region: Region, size: { w: number; h: number }, inset: { top: number; bottom: number }, p: LatLng) {
   return {
@@ -118,4 +100,13 @@ export function visibleLabels(labels: Box[], markers: Box[]) {
     if (ok) shown.push(l);
     return ok;
   });
+}
+
+// Default view: centered on you, zoomed to fit your `near` closest people (who you could get to),
+// never tighter than `minDeg` or wider than `maxDeg` of latitude. People outside get edge markers.
+export function aroundMe(me: LatLng, people: LatLng[], near = 3, minDeg = 0.008, maxDeg = 0.6): Region {
+  const d = people.map((p) => km(me, p)).sort((a, b) => a - b);
+  const reach = d[Math.min(near, d.length) - 1] ?? 0; // km to the nth-nearest person
+  const lat = Math.min(maxDeg, Math.max(minDeg, ((reach * 2.4) / 111))); // both sides plus a margin
+  return { latitude: me.lat, longitude: me.lng, latitudeDelta: lat, longitudeDelta: lat / Math.cos((me.lat * Math.PI) / 180) };
 }

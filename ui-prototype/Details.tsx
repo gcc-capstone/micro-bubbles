@@ -878,8 +878,9 @@ const BUBBLE_ICONS: IconName[] = ['ellipse-outline', 'people', 'home', 'school',
 // Stable empty list: a new [] each render would make the map re-fit and undo the user's drag.
 const NO_MEMBERS: Member[] = [];
 
-export function DropPin({ visible, groups, initialGroupId, onClose, onDrop }: {
-  visible: boolean; groups: Group[]; initialGroupId?: string; onClose: () => void; onDrop: (pin: Pin, groupId: string, notify: boolean) => void;
+// at: where to start (a long-pressed spot on the map); defaults to your location.
+export function DropPin({ visible, groups, initialGroupId, at, onClose, onDrop }: {
+  visible: boolean; groups: Group[]; initialGroupId?: string; at?: { lat: number; lng: number } | null; onClose: () => void; onDrop: (pin: Pin, groupId: string, notify: boolean) => void;
 }) {
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
@@ -899,8 +900,9 @@ export function DropPin({ visible, groups, initialGroupId, onClose, onDrop }: {
     setRating(5);
     setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
     setNotify(true);
-    setStart({ name: 'You', lat: ME.lat, lng: ME.lng });
-    setCenter({ lat: ME.lat, lng: ME.lng });
+    const p = at ?? { lat: ME.lat, lng: ME.lng };
+    setStart({ name: at ? 'Dropped pin' : 'You', ...p });
+    setCenter(p);
     setSearch('');
   }, [visible]);
   const color = groupColor(groupId);

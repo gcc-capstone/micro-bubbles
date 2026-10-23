@@ -1,15 +1,6 @@
 // Run: node mapFit.check.ts
 import assert from 'node:assert';
-import { corePoints, edgeSpot, spread, visibleLabels } from './mapFit.ts';
-
-// Five people in town, one across the state: the far one is left out.
-const town = [0, 1, 2, 3, 4].map((i) => ({ lat: 41.15 + i * 0.002, lng: -80.08 }));
-const far = { lat: 40.44, lng: -79.99 };
-assert.deepStrictEqual(corePoints([...town, far]).length, 5);
-// Evenly spread people all stay in.
-assert.strictEqual(corePoints(town).length, 5);
-// Never drops below half, even when everyone is far apart.
-assert.ok(corePoints([{ lat: 0, lng: 0 }, { lat: 1, lng: 0 }, { lat: 10, lng: 0 }, { lat: 50, lng: 0 }]).length >= 2);
+import { aroundMe, edgeSpot, spread, visibleLabels } from './mapFit.ts';
 
 const region = { latitude: 0, longitude: 0, latitudeDelta: 1, longitudeDelta: 1 };
 const size = { w: 400, h: 800 };
@@ -40,4 +31,11 @@ assert.deepStrictEqual(
   ),
   [false, true, false, true],
 );
+// Centered on you, wide enough for the 3rd-nearest person, clamped both ways.
+const me = { lat: 41, lng: -80 };
+const r = aroundMe(me, [{ lat: 41.01, lng: -80 }, { lat: 41.02, lng: -80 }, { lat: 41.03, lng: -80 }, { lat: 45, lng: -80 }]);
+assert.strictEqual(r.latitude, 41);
+assert.ok(r.latitudeDelta > 0.06 && r.latitudeDelta < 0.08); // 3rd nearest is 0.03° away
+assert.strictEqual(aroundMe(me, [{ lat: 50, lng: -80 }]).latitudeDelta, 0.6); // far away: capped
+assert.strictEqual(aroundMe(me, []).latitudeDelta, 0.008); // alone: street level
 console.log('mapFit ok');

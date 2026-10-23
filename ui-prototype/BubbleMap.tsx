@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Circle, Marker, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { Cluster, EdgeMarker, EventPin, MapPin, MemberPin, YouDot } from './components';
-import { corePoints, edgeSpot, spread, toScreen, visibleLabels } from './mapFit';
+import { aroundMe, edgeSpot, spread, toScreen, visibleLabels } from './mapFit';
 import { groupNearby } from './cluster';
 import { FIXED_TEXT, fonts, radius, spacing } from './theme';
 import { initials, Member, memberColor, ME, minutesAgo, Pin, Hotspot } from './data';
@@ -35,10 +35,12 @@ export type BubbleMapProps = {
   onEventPress?: (key: string) => void;
   radiusMi?: number;
   hideEdges?: boolean; // hide off-screen markers (e.g. while a panel covers the map)
+  recenter?: number; // bump to return to the default view (locate button)
+  onLongPress?: (c: { lat: number; lng: number }) => void; // long-press on the map (Drop Pin)
   onCenterChange?: (c: { lat: number; lng: number }) => void; // after the user pans (Drop Pin) // when set (and nothing is focused), center on you and show this radius
 };
 
-export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange, hideEdges }: BubbleMapProps) {
+export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange, hideEdges, recenter, onLongPress }: BubbleMapProps) {
   const map = useRef<MapView>(null);
   const ready = useRef(false);
   const [region, setRegion] = useState<Region | null>(null);
@@ -150,14 +152,12 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       const d = (radiusMi * 2.2) / 69; // degrees of latitude spanning the radius, with a little margin
       map.current?.animateToRegion({ latitude: ME.lat, longitude: ME.lng, latitudeDelta: d, longitudeDelta: d / Math.cos((ME.lat * Math.PI) / 180) }, 500);
     } else {
-      // frame the main crowd; far-off people get edge markers instead of zooming way out
-      map.current?.fitToCoordinates(
-        corePoints(members).map((m) => ({ latitude: m.lat, longitude: m.lng })),
-        { edgePadding: { top: 40, right: 84, bottom: 40, left: 60 }, animated: true }, // right: clear of the map buttons
-      );
+      // centered on you, zoomed to your nearest people: who you could get to matters most;
+      // everyone farther away gets an edge marker
+      map.current?.animateToRegion(aroundMe(ME, members), 500);
     }
   };
-  useEffect(fit, [members, focus, topInset, bottomInset, radiusMi]);
+  useEffect(fit, [members, focus, topInset, bottomInset, radiusMi, recenter]);
 
   return (
     // Native compass appears only while rotated (platform convention); mapPadding keeps it and the
@@ -172,6 +172,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       showsPointsOfInterests={false} // Apple's shops and places compete with people; street names stay
       onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
       // ponytail: edge markers update when panning stops; onRegionChange would re-render every frame
+      onLongPress={(e) => onLongPress?.({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude })}
       onRegionChangeComplete={(r) => {
         setRegion(r);
         onCenterChange?.({ lat: r.latitude, lng: r.longitude });

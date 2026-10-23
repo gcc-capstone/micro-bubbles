@@ -389,6 +389,21 @@ export function Segmented({ options, value, onChange }: { options: string[]; val
   );
 }
 
+// Centered pill of tabs in a frosted "liquid glass" capsule (like Telegram's Members / Media bar):
+// a translucent track with a bright rim, and a raised glass lozenge behind the selected tab.
+// ponytail: no real blur (that needs a native view); the tint and rim carry the glass look.
+export function GlassTabs({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <View style={s.glassTrack}>
+      {options.map((o) => (
+        <Pressable key={o} onPress={() => onChange(o)} style={[s.glassTab, o === value && s.glassTabOn]} hitSlop={4}>
+          <Text maxFontSizeMultiplier={FIXED_TEXT} style={[s.glassText, o === value && { color: colors.text }]}>{o}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 /* ---------- Controls ---------- */
 
 export function Button({ title, variant = 'primary', onPress }: { title: string; variant?: 'primary' | 'secondary'; onPress?: () => void }) {
@@ -616,6 +631,26 @@ const s = StyleSheet.create({
   pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 6 },
   pageTitle: { flex: 1, textAlign: 'center', fontFamily: fonts.bodyBold, fontSize: 17, color: colors.text },
   pageAction: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
+  glassTrack: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.text + '0D',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  glassTab: { minWidth: 96, height: 36, paddingHorizontal: spacing.md, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  glassTabOn: {
+    backgroundColor: colors.surface + 'E6',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.surface,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  glassText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.textMuted },
   segmented: { flexDirection: 'row', gap: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   segment: { paddingVertical: spacing.sm, borderBottomWidth: 2, borderBottomColor: 'transparent', marginBottom: -1 },
   segmentOn: { borderBottomColor: colors.primary },
