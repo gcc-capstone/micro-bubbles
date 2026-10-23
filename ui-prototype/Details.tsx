@@ -266,8 +266,9 @@ export function HotspotAlerts({ hotspot, group }: { hotspot: Hotspot; group: Gro
 const RADII_M = [100, 250, 500, 1000, 3000];
 
 // Create a hotspot: name, where (search or drag), size, Bubble, and who you want alerts for.
-export function NewHotspot({ visible, groups, initialGroupId, onClose, onCreate }: {
-  visible: boolean; groups: Group[]; initialGroupId?: string; onClose: () => void; onCreate: (h: Hotspot, groupId: string) => void;
+// at: a long-pressed spot on the map to center on; defaults to your location.
+export function NewHotspot({ visible, groups, initialGroupId, at, onClose, onCreate }: {
+  visible: boolean; groups: Group[]; initialGroupId?: string; at?: { lat: number; lng: number } | null; onClose: () => void; onCreate: (h: Hotspot, groupId: string) => void;
 }) {
   const [name, setName] = useState('');
   const [radius, setRadius] = useState(250);
@@ -282,8 +283,9 @@ export function NewHotspot({ visible, groups, initialGroupId, onClose, onCreate 
     setName('');
     setRadius(250);
     setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
-    setStart({ name: 'You', lat: ME.lat, lng: ME.lng });
-    setCenter({ lat: ME.lat, lng: ME.lng });
+    const p = at ?? { lat: ME.lat, lng: ME.lng };
+    setStart({ name: at ? 'Chosen spot' : 'You', ...p });
+    setCenter(p);
     setSearch('');
     setWho([]);
     setWhen('Both');
@@ -477,7 +479,7 @@ export function PersonView({ member, onShowOnMap, compact }: { member: Member | 
       <LinkedText style={type.body} text={member.place} />
     </View>
   );
-  const status = `${away(member.lat, member.lng)} · Updated ${member.updated.toLowerCase()} · ${member.battery}% battery`;
+  const status = `${away(member.lat, member.lng)} · Updated ${member.updated.toLowerCase()}`;
 
   return (
     <View>
@@ -1043,7 +1045,7 @@ export function NewBubble({ visible, onClose, onCreate }: {
       isPublic: privacy === 'Public',
       unread: 0,
       // you're the first member, at your current location
-      members: [{ name: 'Ashlea Morgan', place: 'Grove City College', updated: 'Now', battery: 80, lat: ME.lat, lng: ME.lng }],
+      members: [{ name: 'Ashlea Morgan', place: 'Grove City College', updated: 'Now', lat: ME.lat, lng: ME.lng }],
       hotspots: [],
       pins: [],
       activity: [{ icon: 'sparkles-outline', text: `You created ${name.trim()}`, time: 'Now' }],
@@ -1156,9 +1158,12 @@ function DatePicker({ value, today, weekStart, onChange }: { value: string; toda
   );
 }
 
-export function NewEvent({ visible, groups, initialGroupId, today, initialDate = today, weekStart = 0, onClose, onCreate }: {
-  visible: boolean; groups: Group[]; initialGroupId?: string; today: string; initialDate?: string; weekStart?: number; onClose: () => void; onCreate: (e: BubbleEvent) => void;
+// at: a long-pressed spot on the map, offered (and chosen) as the place.
+export function NewEvent({ visible, groups, initialGroupId, today, initialDate = today, weekStart = 0, at, onClose, onCreate }: {
+  visible: boolean; groups: Group[]; initialGroupId?: string; today: string; initialDate?: string; weekStart?: number; at?: { lat: number; lng: number } | null;
+  onClose: () => void; onCreate: (e: BubbleEvent) => void;
 }) {
+  const spot: Loc | null = at ? { name: 'Chosen spot', icon: 'location', ...at } : null;
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(today);
   const [time, setTime] = useState(TIMES[DEFAULT_TIME]);
@@ -1170,7 +1175,7 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
     setTitle('');
     setDate(initialDate < today ? today : initialDate);
     setTime(TIMES[DEFAULT_TIME]);
-    setPlace(null);
+    setPlace(spot);
     setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
     setRemind(true);
   }, [visible]);
@@ -1221,7 +1226,7 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
 
       <Section title="Where">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: spacing.sm + 4, gap: spacing.sm }}>
-          {[null, ...LOCATIONS.filter((l) => distanceFromMe(l.lat, l.lng) < 15).slice(0, 12)].map((l) => {
+          {[null, ...(spot ? [spot] : []), ...LOCATIONS.filter((l) => distanceFromMe(l.lat, l.lng) < 15).slice(0, 12)].map((l) => {
             const on = (l?.name ?? null) === (place?.name ?? null);
             return (
               <Pressable key={l?.name ?? 'here'} onPress={() => setPlace(l)} style={[styles.timeChip, on && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>

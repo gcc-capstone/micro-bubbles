@@ -1,6 +1,6 @@
 // Run: node mapFit.check.ts
 import assert from 'node:assert';
-import { aroundMe, edgeSpot, spread, visibleLabels } from './mapFit.ts';
+import { aroundMe, edgeSpot, scaleBar, spread, visibleLabels } from './mapFit.ts';
 
 const region = { latitude: 0, longitude: 0, latitudeDelta: 1, longitudeDelta: 1 };
 const size = { w: 400, h: 800 };
@@ -38,4 +38,8 @@ assert.strictEqual(r.latitude, 41);
 assert.ok(r.latitudeDelta > 0.06 && r.latitudeDelta < 0.08); // 3rd nearest is 0.03° away
 assert.strictEqual(aroundMe(me, [{ lat: 50, lng: -80 }]).latitudeDelta, 0.6); // far away: capped
 assert.strictEqual(aroundMe(me, []).latitudeDelta, 0.008); // alone: street level
+// Scale bar: 1° of longitude at the equator is ~69 mi; 375 pt wide → 5 mi ≈ 27 pt, 10 mi ≈ 54, 25 mi too long.
+const bar = scaleBar({ latitude: 0, longitude: 0, latitudeDelta: 1, longitudeDelta: 1 }, 375, 100);
+assert.strictEqual(bar.label, '10 mi');
+assert.ok(bar.pt > 50 && bar.pt <= 100);
 console.log('mapFit ok');

@@ -1,12 +1,12 @@
 // Native map (Apple Maps on iOS, Google Maps on Android). BubbleMap.web.tsx is the browser stand-in.
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Circle, Marker, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { Cluster, EdgeMarker, EventPin, MapPin, MemberPin, YouDot } from './components';
-import { aroundMe, edgeSpot, spread, toScreen, visibleLabels } from './mapFit';
+import { aroundMe, edgeSpot, scaleBar, spread, toScreen, visibleLabels } from './mapFit';
 import { groupNearby } from './cluster';
-import { FIXED_TEXT, fonts, radius, spacing } from './theme';
+import { colors, FIXED_TEXT, fonts, radius, spacing } from './theme';
 import { initials, Member, memberColor, ME, minutesAgo, Pin, Hotspot } from './data';
 
 export type Focus = { name: string; lat: number; lng: number };
@@ -144,8 +144,23 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       ).map((g) => g.sort((a, b) => a.d - b.d))
     : [];
 
+  // Scale bar: shown for a few seconds each time the map frames a new view, then fades
+  // (Apple's own scale only appears while you pinch).
+  const scaleO = useRef(new Animated.Value(0)).current;
+  const justFit = useRef(false);
+  const flashScale = () => {
+    scaleO.stopAnimation();
+    Animated.sequence([
+      Animated.timing(scaleO, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.delay(2500),
+      Animated.timing(scaleO, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start();
+  };
+  const bar = region ? scaleBar(region, size.w) : null;
+
   const fit = () => {
     if (!ready.current) return;
+    justFit.current = true;
     if (focus) {
       map.current?.animateToRegion({ latitude: focus.lat, longitude: focus.lng, latitudeDelta: 0.004, longitudeDelta: 0.004 }, 500);
     } else if (radiusMi) {
@@ -174,6 +189,10 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       // ponytail: edge markers update when panning stops; onRegionChange would re-render every frame
       onLongPress={(e) => onLongPress?.({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude })}
       onRegionChangeComplete={(r) => {
+        if (justFit.current) {
+          justFit.current = false;
+          flashScale();
+        }
         setRegion(r);
         onCenterChange?.({ lat: r.latitude, lng: r.longitude });
       }}
@@ -226,6 +245,12 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
         );
       })}
     </MapView>
+    {bar && (
+      <Animated.View pointerEvents="none" style={[styles.scale, { top: topInset - 34, opacity: scaleO }]}>
+        <Text style={styles.scaleText}>{bar.label}</Text>
+        <View style={[styles.scaleBar, { width: bar.pt }]} />
+      </Animated.View>
+    )}
     {edges.map((g) => {
       const e = g[0];
       // keep clear of the search button (top right) and the locate / + / Drop Pin column (bottom right)
@@ -242,6 +267,9 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
 }
 
 const styles = StyleSheet.create({
+  scale: { position: 'absolute', left: spacing.md, gap: 2 },
+  scaleText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.text, textShadowColor: colors.background, textShadowRadius: 3 },
+  scaleBar: { height: 6, borderLeftWidth: 2, borderRightWidth: 2, borderBottomWidth: 2, borderColor: colors.text }, // ticks at both ends, like Apple Maps
   placeTag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   placeTagText: { fontFamily: fonts.bodyBold, fontSize: 11, color: 'white' },
 });

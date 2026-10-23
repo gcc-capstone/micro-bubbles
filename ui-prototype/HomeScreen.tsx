@@ -20,7 +20,8 @@ const ROW_H = 8 + RS + 4 + 28 + 2 + DOTS_H; // padding + bubble + gap + two-line
 const NAV_H = 44; // nav row above the large title
 const ROW_GROW = 1.3; // bubbles scale up while the row has focus
 const ROW_H_FOCUS = ROW_H + RS * (ROW_GROW - 1) + 2;
-const SHEET_MIN = 64; // grabber + Bubble name
+const SHEET_MIN = 80; // grabber + Bubble name + who's nearby
+const NEARBY_MI = 1; // walking distance: "nearby" for a Bubble's sheet
 const FEED_H = 44; // activity pill above the sheet
 const RECENT_HOURS = 6; // the pill and its list cover this window...
 const RECENT_MIN = 3; // ...but always show at least this many items
@@ -120,7 +121,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   // Start on the map with Everyone selected.
   const [selected, setSelected] = useState<number | null>(0);
   const [mode, setMode] = useState<'field' | 'animating' | 'row'>('row');
-  const [sheetOpen, setSheetOpen] = useState(false);
+  // Sheet heights: 0 = just the name, 1 = middle (map stays visible), 2 = full
+  const [detent, setDetent] = useState<0 | 1 | 2>(0);
+  const sheetOpen = detent > 0;
   const [tab, setTab] = useState(TABS[0]);
   const [sort, setSort] = useState<Record<string, string>>({ Pins: 'Top rated', Members: 'Nearest' });
   const [filters, setFilters] = useState<Record<string, string[]>>({ Pins: [], Members: [] });
@@ -139,7 +142,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [feedOpen, setFeedOpen] = useState(false); // activity pill expanded into a list
   const feedO = useRef(new Animated.Value(1)).current;
   const [recenter, setRecenter] = useState(0); // bump to send the map back to the view around you
-  const [dropAt, setDropAt] = useState<{ lat: number; lng: number } | null>(null); // long-pressed spot
+  const [dropAt, setDropAt] = useState<{ lat: number; lng: number } | null>(null); // long-pressed spot (pin, hotspot or event)
   const [rowPage, setRowPage] = useState(0);
   const [popping, setPopping] = useState<string | null>(null); // Bubble being popped on leave
   const popV = useRef(new Animated.Value(0)).current;
@@ -152,6 +155,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const p = useRef(new Animated.Value(1)).current;
   const sheetP = useRef(new Animated.Value(0)).current;
+  const shown = sheetP.interpolate({ inputRange: [0, 0.4], outputRange: [0, 1], extrapolate: 'clamp' }); // sheet content fades in by the middle height
   const rowP = useRef(new Animated.Value(0)).current; // 1 = row has focus (taller)
   const rowH = rowP.interpolate({ inputRange: [0, 1], outputRange: [ROW_H, ROW_H_FOCUS] });
   const tabX = useRef(new Animated.Value(0)).current; // slide for tab switches
@@ -320,14 +324,15 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     }
   };
 
-  const toggleSheetRef = useRef((_: boolean) => {});
-  const toggleSheet = (open: boolean) => {
-    setSheetOpen(open);
+  const setSheet = (d: 0 | 1 | 2) => {
+    setDetent(d);
     setQuery('');
-    animate(sheetP, open ? 1 : 0, 300);
+    animate(sheetP, d / 2, 300);
   };
-
-  toggleSheetRef.current = toggleSheet;
+  // open = the middle height (or stay where it is if already open); closed = just the name
+  const toggleSheet = (open: boolean) => setSheet(open ? (detent || 1) : 0);
+  const stepSheetRef = useRef((_: number) => {});
+  stepSheetRef.current = (dir: number) => setSheet(Math.max(0, Math.min(2, detent + dir)) as 0 | 1 | 2);
 
   const select = (i: number) => {
     if (mode === 'row') {
@@ -388,6 +393,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   };
   const color = group ? groupColor(group.id) : colors.primary;
   const sheetMax = (h - ROW_H - insets.top) * 0.8;
+  const sheetMid = Math.min(sheetMax, Math.max(300, (h - ROW_H) * 0.45));
   const personCard = !!sub?.person && sheetOpen;
   const q = query.trim().toLowerCase();
   const match = (...fields: string[]) => !q || fields.some((f) => f.toLowerCase().includes(q));
@@ -545,8 +551,9 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
     PanResponder.create({
       onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dy) > 8,
       onPanResponderRelease: (_, g) => {
-        if (g.dy > 30) toggleSheetRef.current(false);
-        if (g.dy < -30) toggleSheetRef.current(true);
+        // drag one height at a time; a long fling goes all the way
+        if (g.dy > 30) stepSheetRef.current(g.dy > 220 ? -2 : -1);
+        if (g.dy < -30) stepSheetRef.current(g.dy < -220 ? 2 : 1);
       },
     }),
   ).current;
@@ -622,14 +629,20 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             hideEdges={searching || feedOpen} // a panel covers part of the map
             recenter={recenter}
             onLongPress={(c) => {
-              // long-press anywhere drops a pin there (Apple Maps convention; also in the + menu)
-              setDropAt(c);
-              setDropOpen(true);
+              // long-press a spot to start something there (Apple Maps convention; also in the + menu)
+              const options = ['Drop Pin', 'New Hotspot', 'New Event', 'Cancel'];
+              ActionSheetIOS.showActionSheetWithOptions({ title: 'This spot', options, cancelButtonIndex: 3 }, (k) => {
+                if (k === 3) return;
+                setDropAt(c);
+                if (k === 0) setDropOpen(true);
+                if (k === 1) setHotspotOpen(true);
+                if (k === 2) setNewEventOpen(true);
+              });
             }}
           />
           {/* Right-side controls, just above the sheet */}
           <Animated.View
-            style={[styles.rightStack, { opacity: sheetP.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }, sheetOpen && styles.noTouch]}
+            style={[styles.rightStack, { opacity: sheetP.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0], extrapolate: 'clamp' }) }, sheetOpen && styles.noTouch]}
           >
             {/* location arrow, filled while the map shows the view around you (Apple Maps style) */}
             <MapButton
@@ -644,7 +657,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
               options={['Drop Pin', 'New Event', 'New Hotspot', 'New Bubble']}
               icons={{ 'Drop Pin': 'location-outline', 'New Bubble': 'ellipse-outline', 'New Event': 'calendar-outline', 'New Hotspot': 'radio-outline' }}
               onSelect={(o) =>
-                o === 'Drop Pin' ? (setDropAt(null), setDropOpen(true)) : o === 'New Bubble' ? newBubble() : o === 'New Event' ? setNewEventOpen(true) : setHotspotOpen(true)
+                (setDropAt(null), o === 'Drop Pin' ? setDropOpen(true) : o === 'New Bubble' ? newBubble() : o === 'New Event' ? setNewEventOpen(true) : setHotspotOpen(true))
               }
               triggerStyle={styles.smallFab}
               trigger={<Ionicons name="add" size={22} color={colors.text} />}
@@ -704,7 +717,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         <Animated.View
           style={[
             styles.sheet,
-            { opacity: p, bottom: rowH, height: sheetP.interpolate({ inputRange: [0, 1], outputRange: [SHEET_MIN, sub?.person ? PERSON_H : sheetMax] }) },
+            { opacity: p, bottom: rowH, height: sheetP.interpolate({ inputRange: [0, 0.5, 1], outputRange: sub?.person ? [SHEET_MIN, PERSON_H, PERSON_H] : [SHEET_MIN, sheetMid, sheetMax] }) },
             sub && { backgroundColor: colors.background }, // grabber area matches the sub-view
           ]}
           onTouchStart={() => focusRow(false)}
@@ -742,7 +755,17 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
           <Pressable onPress={() => toggleSheet(!sheetOpen)} style={styles.sheetHeader}>
             <View style={styles.handle} />
             <View style={[styles.row, { gap: spacing.sm }]}>
-              <Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={1} style={[styles.sheetTitle, { flex: 1 }]}>{group.name}</Text>
+              <View style={{ flex: 1 }}>
+                <Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={1} style={styles.sheetTitle}>{group.name}</Text>
+                {/* who you could get to: Everyone uses the map radius setting, Bubbles walking distance */}
+                <Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={1} style={type.caption}>
+                  {(() => {
+                    const r = group.id === 'everyone' ? everyoneRadius : NEARBY_MI;
+                    const n = group.members.filter((m) => distanceFromMe(m.lat, m.lng) <= r).length;
+                    return `${n} of ${group.members.length} within ${r} mi`;
+                  })()}
+                </Text>
+              </View>
               <MenuButton
                 plain
                 icon="ellipsis-horizontal-circle-outline"
@@ -755,10 +778,10 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
           </Pressable>
           </View>
           {/* tabs appear as the sheet opens, so the collapsed sheet is just the name */}
-          <Animated.View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xs, opacity: sheetP }}>
+          <Animated.View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xs, opacity: shown }}>
             <GlassTabs options={TABS} value={tab} onChange={switchTab} />
           </Animated.View>
-          <Animated.View style={{ flex: 1, opacity: Animated.multiply(tabO, sheetP), transform: [{ translateX: tabX }] }}>
+          <Animated.View style={{ flex: 1, opacity: Animated.multiply(tabO, shown), transform: [{ translateX: tabX }] }}>
           <ScrollView
             ref={list}
             onLayout={(e) => setListH(e.nativeEvent.layout.height)}
@@ -1122,6 +1145,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         visible={hotspotOpen}
         groups={GROUPS}
         initialGroupId={group?.id}
+        at={dropAt}
         onClose={() => setHotspotOpen(false)}
         onCreate={(h, groupId) => {
           const g = GROUPS.find((x) => x.id === groupId)!;
@@ -1150,6 +1174,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         visible={newEventOpen}
         groups={GROUPS}
         initialGroupId={group?.id}
+        at={dropAt}
         today={TODAY}
         weekStart={weekStart}
         onClose={() => setNewEventOpen(false)}

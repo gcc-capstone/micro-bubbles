@@ -110,3 +110,17 @@ export function aroundMe(me: LatLng, people: LatLng[], near = 3, minDeg = 0.008,
   const lat = Math.min(maxDeg, Math.max(minDeg, ((reach * 2.4) / 111))); // both sides plus a margin
   return { latitude: me.lat, longitude: me.lng, latitudeDelta: lat, longitudeDelta: lat / Math.cos((me.lat * Math.PI) / 180) };
 }
+
+const SCALE_STEPS: [string, number][] = [
+  ['100 ft', 0.0189], ['250 ft', 0.0473], ['500 ft', 0.0947], ['0.25 mi', 0.25], ['0.5 mi', 0.5], ['1 mi', 1],
+  ['2 mi', 2], ['5 mi', 5], ['10 mi', 10], ['25 mi', 25], ['50 mi', 50], ['100 mi', 100], ['250 mi', 250],
+];
+
+// Scale bar for the region shown across `widthPt` points: the longest round distance that fits in
+// `maxPt`, and its length in points.
+export function scaleBar(region: Region, widthPt: number, maxPt = 100): { label: string; pt: number } {
+  const miPerPt = (region.longitudeDelta * 69.17 * Math.cos((region.latitude * Math.PI) / 180)) / widthPt;
+  let best = SCALE_STEPS[0];
+  for (const s of SCALE_STEPS) if (s[1] / miPerPt <= maxPt) best = s;
+  return { label: best[0], pt: best[1] / miPerPt };
+}
