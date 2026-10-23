@@ -3,19 +3,31 @@
 // the tab bar paints down behind the home indicator.
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { AccessibilityInfo, StyleSheet, useColorScheme, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AccessibilityInfo, ActionSheetIOS, Modal, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { SafeAreaInsetsContext, SafeAreaProvider } from 'react-native-safe-area-context';
 import { getCalendars } from 'expo-localization';
 import { useFonts, Lato_400Regular, Lato_700Bold } from '@expo-google-fonts/lato';
 import { Montserrat_600SemiBold, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { Tab, TabBar } from './components';
-import { applyTheme, colors, isDark } from './theme';
+import { applyTheme, colors, fonts, isDark, shadow, spacing } from './theme';
 import { EVERYONE, INBOX, PROFILE } from './data';
 import CalendarScreen from './CalendarScreen';
-import HomeScreen from './HomeScreen';
+import HomeScreen, { CreateKind } from './HomeScreen';
 import InboxScreen from './InboxScreen';
-import ProfileScreen from './ProfileScreen';
+import ProfileScreen, { ProfileAvatar } from './ProfileScreen';
 import StyleReference from './StyleReference';
+
+// Navigation experiment: tabs are Bubbles · + · Calendar; Inbox and Profile become buttons on the
+// Bubbles screen and open as sheets. false = the four-tab layout.
+const NAV_EXPERIMENT = true;
+const CREATE: CreateKind[] = ['Drop Pin', 'New Hotspot', 'New Event', 'New Bubble'];
+// Same indices as TABS for the screens (0 Bubbles, 2 Calendar); 1 is the + button.
+const EXP_TABS: Tab[] = [
+  { icon: 'ellipse-outline', label: 'Bubbles' },
+  { icon: 'add', label: 'New', action: true },
+  { icon: 'calendar-outline', label: 'Calendar' },
+];
+const NO_INSETS = { top: 0, bottom: 0, left: 0, right: 0 }; // page sheets start below the status bar
 
 const TABS: Tab[] = [
   { icon: 'ellipse-outline', label: 'Bubbles' },
@@ -34,6 +46,15 @@ export default function App() {
   const [eventsOnMap, setEventsOnMap] = useState(false);
   const [eventDays, setEventDays] = useState(7); // how far ahead events show on the map
   const [, setInboxTick] = useState(0); // re-render for the Inbox tab badge
+  const [sheet, setSheet] = useState<'inbox' | 'profile' | null>(null); // experiment: Inbox / Profile as sheets
+  const [createReq, setCreateReq] = useState<{ kind: CreateKind; n: number }>();
+  const unread = INBOX.filter((it) => !it.read).length;
+  const create = () =>
+    ActionSheetIOS.showActionSheetWithOptions({ options: [...CREATE, 'Cancel'], cancelButtonIndex: CREATE.length }, (k) => {
+      if (k === CREATE.length) return;
+      setTab(0); // the create sheets live on the Bubbles screen
+      setCreateReq((r) => ({ kind: CREATE[k], n: (r?.n ?? 0) + 1 }));
+    });
   const [themeKey, setThemeKey] = useState(0); // bumped after applyTheme so every screen redraws with new colors
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const retheme = () => {
@@ -59,6 +80,24 @@ export default function App() {
   }, []);
   useEffect(() => setThemeKey((k) => k + 1), [scheme]);
 
+  const profile = (
+    <ProfileScreen
+      reduceMotion={reduceMotion}
+      onReduceMotion={setReduceMotion}
+      everyoneRadius={everyoneRadius}
+      onEveryoneRadius={setEveryoneRadius}
+      eventsOnMap={eventsOnMap}
+      onEventsOnMap={setEventsOnMap}
+      eventDays={eventDays}
+      onEventDays={setEventDays}
+      weekStartPref={weekStartPref}
+      systemWeekStart={systemWeekStart}
+      onWeekStartPref={setWeekStartPref}
+      onStyles={() => setShowStyles(true)}
+      onAccent={retheme}
+    />
+  );
+
   if (!fontsLoaded) return null;
 
   return (
@@ -70,29 +109,39 @@ export default function App() {
         <View key={themeKey} style={styles.screen}>
           <View style={{ flex: 1 }}>
             {tab === 0 && (
-              <HomeScreen resetKey={homeReset} reduceMotion={reduceMotion} everyoneRadius={everyoneRadius} eventsOnMap={eventsOnMap} eventDays={eventDays} weekStart={weekStart} />
-            )}
-            {tab === 1 && <InboxScreen onChange={() => setInboxTick((t) => t + 1)} />}
-            {tab === 2 && <CalendarScreen weekStart={weekStart} reduceMotion={reduceMotion} />}
-            {tab === 3 && (
-              <ProfileScreen
+              <HomeScreen
+                resetKey={homeReset}
                 reduceMotion={reduceMotion}
-                onReduceMotion={setReduceMotion}
                 everyoneRadius={everyoneRadius}
-                onEveryoneRadius={setEveryoneRadius}
                 eventsOnMap={eventsOnMap}
-                onEventsOnMap={setEventsOnMap}
                 eventDays={eventDays}
-                onEventDays={setEventDays}
-                weekStartPref={weekStartPref}
-                systemWeekStart={systemWeekStart}
-                onWeekStartPref={setWeekStartPref}
-                onStyles={() => setShowStyles(true)}
-                onAccent={retheme}
+                weekStart={weekStart}
+                nav={NAV_EXPERIMENT ? { unread, avatar: <ProfileAvatar size={40} />, onInbox: () => setSheet('inbox'), onProfile: () => setSheet('profile') } : undefined}
+                createReq={createReq}
               />
             )}
+            {!NAV_EXPERIMENT && tab === 1 && <InboxScreen onChange={() => setInboxTick((t) => t + 1)} />}
+            {tab === 2 && <CalendarScreen weekStart={weekStart} reduceMotion={reduceMotion} />}
+            {!NAV_EXPERIMENT && tab === 3 && profile}
           </View>
-          <TabBar tabs={TABS.map((t) => (t.label === 'Inbox' ? { ...t, badge: INBOX.filter((it) => !it.read).length } : t))} active={tab} onPress={(i) => (i === 0 && tab === 0 ? setHomeReset(homeReset + 1) : setTab(i))} />
+          <TabBar
+            tabs={NAV_EXPERIMENT ? EXP_TABS : TABS.map((t) => (t.label === 'Inbox' ? { ...t, badge: unread } : t))}
+            active={tab}
+            onPress={(i) => (NAV_EXPERIMENT && i === 1 ? create() : i === 0 && tab === 0 ? setHomeReset(homeReset + 1) : setTab(i))}
+          />
+          {NAV_EXPERIMENT && (
+            <Modal visible={!!sheet} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSheet(null)}>
+              <SafeAreaInsetsContext.Provider value={NO_INSETS}>
+                <View style={styles.screen}>
+                  {sheet === 'inbox' && <InboxScreen onChange={() => setInboxTick((t) => t + 1)} />}
+                  {sheet === 'profile' && profile}
+                  <Pressable onPress={() => setSheet(null)} style={styles.done} hitSlop={8}>
+                    <Text style={styles.doneText}>Done</Text>
+                  </Pressable>
+                </View>
+              </SafeAreaInsetsContext.Provider>
+            </Modal>
+          )}
         </View>
       )}
     </SafeAreaProvider>
@@ -101,4 +150,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  // leading, so it never collides with the screens' own trailing buttons (Mark All as Read, Settings)
+  done: { position: 'absolute', top: 6, left: spacing.md, height: 32, paddingHorizontal: spacing.md, borderRadius: 16, justifyContent: 'center', backgroundColor: colors.surface, ...shadow },
+  doneText: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.primary },
 });

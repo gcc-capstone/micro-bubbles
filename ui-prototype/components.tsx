@@ -481,7 +481,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: Tab[]; active: number;
       {tabs.map((tab, i) => (
         <Pressable key={i} style={s.tab} onPress={() => onPress?.(i)}>
           {tab.action ? (
-            <View style={s.tabAction}><Ionicons name={tab.icon} size={28} color={colors.onPrimary} /></View>
+            <View style={s.tabAction}><Ionicons name={tab.icon} size={24} color={colors.primary} /></View>
           ) : (
             <>
               {/* filled glyph for the selected tab, outline for the rest (iOS tab bars) */}
@@ -694,6 +694,7 @@ const s = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   tab: { flex: 1, alignItems: 'center', gap: 2 },
-  tabAction: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  // subtle round + between tabs: tinted, not a loud filled button
+  tabAction: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   tabLabel: { ...type.caption, fontSize: 11, fontFamily: fonts.bodyBold },
 });

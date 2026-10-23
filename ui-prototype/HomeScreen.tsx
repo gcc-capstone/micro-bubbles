@@ -2,7 +2,7 @@
 // the selected Bubble's sheet sits on top of it, with people and pins as sub-views inside the sheet.
 // Re-tapping the Bubbles tab (resetKey) or "More Bubbles…" shows all Bubbles as floating
 // bubbles (few) or an Apple Watch-style honeycomb (many).
-import { useEffect, useRef, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { ActionSheetIOS, Alert, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,16 +13,16 @@ import { AddMembers, BubbleProfile, DropPin, NewHotspot, EventView, NewBubble, N
 import BubbleMap, { Focus } from './BubbleMap';
 import MapSearch from './MapSearch';
 
-const RS = 44; // row bubble size
+const RS = 36; // row bubble size
 const DOTS_H = 12; // page dots under the Bubble row
-const ROW_ITEM_MIN = 68; // narrowest slot per bubble; slots stretch so each page shows whole bubbles
-const ROW_H = 8 + RS + 4 + 28 + 2 + DOTS_H; // padding + bubble + gap + two-line label + page dots
+const ROW_ITEM_MIN = 64; // narrowest slot per bubble; slots stretch so each page shows whole bubbles
+const ROW_H = 6 + RS + 3 + 14 + DOTS_H; // padding + bubble + gap + one-line label + page dots (the sheet header names the selected Bubble in full)
 const NAV_H = 44; // nav row above the large title
 const ROW_GROW = 1.3; // bubbles scale up while the row has focus
 const ROW_H_FOCUS = ROW_H + RS * (ROW_GROW - 1) + 2;
 const SHEET_MIN = 80; // grabber + Bubble name + who's nearby
 const NEARBY_MI = 1; // walking distance: "nearby" for a Bubble's sheet
-const FEED_H = 44; // activity pill above the sheet
+const FEED_H = 32; // activity pill above the sheet (quick-message height)
 const RECENT_HOURS = 6; // the pill and its list cover this window...
 const RECENT_MIN = 3; // ...but always show at least this many items
 const PERSON_H = 250; // compact person card; quick messages float above it (like Life360)
@@ -113,8 +113,16 @@ const dayLabel = (iso: string) => (iso === TODAY ? 'Today' : iso === isoPlus(TOD
 const minutesAgo = (s: string) =>
   s === 'Now' ? 0 : parseInt(s, 10) * (s.includes('h') ? 60 : s.includes('d') ? 1440 : s.includes('w') ? 10080 : 1);
 
-export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eventsOnMap, eventDays, weekStart }: {
+// Create actions the app's + tab can ask for.
+let handledCreate = 0;
+export type CreateKind = 'Drop Pin' | 'New Hotspot' | 'New Event' | 'New Bubble';
+
+// nav (navigation experiment, App.tsx): Inbox and Profile live as buttons on this screen instead of
+// tabs, and creating moves to the tab bar's + (createReq), so the map loses its own + button.
+export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eventsOnMap, eventDays, weekStart, nav, createReq }: {
   resetKey: number; reduceMotion: boolean; everyoneRadius: number; eventsOnMap: boolean; eventDays: number; weekStart: number;
+  nav?: { unread: number; avatar: ReactNode; onInbox: () => void; onProfile: () => void };
+  createReq?: { kind: CreateKind; n: number };
 }) {
   const insets = useSafeAreaInsets();
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -139,7 +147,24 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const [bubbleQuery, setBubbleQuery] = useState<string | null>(null); // All Bubbles search (null = closed)
   const [searching, setSearching] = useState(false); // map search open
   const [feedIdx, setFeedIdx] = useState(0); // activity pill: which item is showing
-  const [feedOpen, setFeedOpen] = useState(false); // activity pill expanded into a list
+  const [feedOpen, setFeedOpenState] = useState(false); // activity pill expanded into a list
+  const [feedShown, setFeedShown] = useState(false); // list stays mounted while it animates closed
+  const feedV = useRef(new Animated.Value(0)).current;
+  // The list springs up out of the pill and shrinks back into it; rows follow one after another.
+  const setFeedOpen = (open: boolean) => {
+    setFeedOpenState(open);
+    if (open) setFeedShown(true);
+    if (reduceMotion) {
+      feedV.setValue(open ? 1 : 0);
+      if (!open) setFeedShown(false);
+      return;
+    }
+    feedV.stopAnimation();
+    (open
+      ? Animated.spring(feedV, { toValue: 1, damping: 16, stiffness: 180, mass: 0.9, useNativeDriver: true })
+      : Animated.timing(feedV, { toValue: 0, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true })
+    ).start(({ finished }) => finished && !open && setFeedShown(false));
+  };
   const feedO = useRef(new Animated.Value(1)).current;
   const [recenter, setRecenter] = useState(0); // bump to send the map back to the view around you
   const [dropAt, setDropAt] = useState<{ lat: number; lng: number } | null>(null); // long-pressed spot (pin, hotspot or event)
@@ -209,6 +234,19 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   ).current;
   const newBubble = () =>
     ALL.length >= MAX_BUBBLES ? showToast(`You can be in up to ${MAX_BUBBLES} Bubbles. Leave one to make room.`) : setNewBubbleOpen(true);
+  const create = (k: CreateKind) => {
+    setDropAt(null);
+    if (k === 'Drop Pin') setDropOpen(true);
+    if (k === 'New Hotspot') setHotspotOpen(true);
+    if (k === 'New Event') setNewEventOpen(true);
+    if (k === 'New Bubble') newBubble();
+  };
+  useEffect(() => {
+    // each request once, even if this screen remounts later with the same one
+    if (!createReq?.n || createReq.n <= handledCreate) return;
+    handledCreate = createReq.n;
+    create(createReq.kind);
+  }, [createReq?.n]);
   // Bubble Info opened from a floating bubble (no Bubble selected yet)
   const [infoGroup, setInfoGroup] = useState<Group | null>(null);
   const bubbleActions = (g: Group) => {
@@ -306,7 +344,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   const grow = {
     scale: rowP.interpolate({ inputRange: [0, 1], outputRange: [1, ROW_GROW] }),
     lift: rowP.interpolate({ inputRange: [0, 1], outputRange: [0, (RS * (ROW_GROW - 1)) / 2] }), // keep the top edge in place
-    gap: rowP.interpolate({ inputRange: [0, 1], outputRange: [4, 4 + RS * (ROW_GROW - 1)] }),
+    gap: rowP.interpolate({ inputRange: [0, 1], outputRange: [3, 3 + RS * (ROW_GROW - 1)] }),
   };
   const itemW = w / perPage;
   const overflow = ALL.length > MAX_ROW;
@@ -652,31 +690,55 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                 setRecenter((r) => r + 1);
               }}
             />
-            <MenuButton
-              icon="add"
-              options={['Drop Pin', 'New Event', 'New Hotspot', 'New Bubble']}
-              icons={{ 'Drop Pin': 'location-outline', 'New Bubble': 'ellipse-outline', 'New Event': 'calendar-outline', 'New Hotspot': 'radio-outline' }}
-              onSelect={(o) =>
-                (setDropAt(null), o === 'Drop Pin' ? setDropOpen(true) : o === 'New Bubble' ? newBubble() : o === 'New Event' ? setNewEventOpen(true) : setHotspotOpen(true))
-              }
-              triggerStyle={styles.smallFab}
-              trigger={<Ionicons name="add" size={22} color={colors.text} />}
-            />
+            {!nav && (
+              <MenuButton
+                icon="add"
+                options={['Drop Pin', 'New Event', 'New Hotspot', 'New Bubble']}
+                icons={{ 'Drop Pin': 'location-outline', 'New Bubble': 'ellipse-outline', 'New Event': 'calendar-outline', 'New Hotspot': 'radio-outline' }}
+                onSelect={(o) => create(o as CreateKind)}
+                triggerStyle={styles.smallFab}
+                trigger={<Ionicons name="add" size={22} color={colors.text} />}
+              />
+            )}
           </Animated.View>
-          {showFeed && feedOpen && (
-            // Recent activity, opened from the pill
-            <View style={styles.feedList}>
+          {showFeed && feedShown && (
+            // Recent activity, opened from the pill: grows up from the pill's edge
+            <Animated.View
+              pointerEvents={feedOpen ? 'auto' : 'none'}
+              style={[
+                styles.feedList,
+                {
+                  opacity: feedV.interpolate({ inputRange: [0, 0.4], outputRange: [0, 1], extrapolate: 'clamp' }),
+                  transformOrigin: 'bottom',
+                  transform: [
+                    { translateY: feedV.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) },
+                    { scale: feedV.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) },
+                  ],
+                },
+              ]}
+            >
               <Text style={styles.feedHead}>Last {RECENT_HOURS} hours</Text>
               <ScrollView style={{ maxHeight: 260 }}>
-                {recent.map((a, i) => (
-                  <Pressable key={a.key} onPress={() => { setFeedOpen(false); openActivity(a.key, a.text); }} style={[styles.feedRow, i > 0 && styles.divider]}>
-                    <Ionicons name={a.icon} size={16} color={color} />
-                    <Text numberOfLines={2} style={[type.body, { flex: 1, fontSize: 15 }, a.unread && { fontFamily: fonts.bodyBold }]}>{a.text}</Text>
-                    <Text style={type.caption}>{a.time}</Text>
-                  </Pressable>
-                ))}
+                {recent.map((a, i) => {
+                  const at = Math.min(0.6, 0.08 * i); // stagger: later rows arrive a beat later
+                  return (
+                    <Animated.View
+                      key={a.key}
+                      style={{
+                        opacity: feedV.interpolate({ inputRange: [at, at + 0.4], outputRange: [0, 1], extrapolate: 'clamp' }),
+                        transform: [{ translateY: feedV.interpolate({ inputRange: [at, at + 0.4], outputRange: [10, 0], extrapolate: 'clamp' }) }],
+                      }}
+                    >
+                      <Pressable onPress={() => { setFeedOpen(false); openActivity(a.key, a.text); }} style={[styles.feedRow, i > 0 && styles.divider]}>
+                        <Ionicons name={a.icon} size={16} color={color} />
+                        <Text numberOfLines={2} style={[type.body, { flex: 1, fontSize: 15 }, a.unread && { fontFamily: fonts.bodyBold }]}>{a.text}</Text>
+                        <Text style={type.caption}>{a.time}</Text>
+                      </Pressable>
+                    </Animated.View>
+                  );
+                })}
               </ScrollView>
-            </View>
+            </Animated.View>
           )}
           {showFeed && feedItem && (
             // Activity pill: steps through recent news; tap for the list
@@ -688,10 +750,25 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                 </Text>
                 <Text maxFontSizeMultiplier={FIXED_TEXT} style={type.caption}>{feedItem.time}</Text>
               </Animated.View>
-              <Ionicons name={feedOpen ? 'chevron-down' : 'chevron-up'} size={16} color={colors.textMuted} />
+              <Animated.View style={{ transform: [{ rotate: feedV.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] }}>
+                <Ionicons name="chevron-up" size={14} color={colors.textMuted} />
+              </Animated.View>
             </Pressable>
           )}
+          {nav && (
+            // top bar: search (below), then Inbox on the left; your profile on the right
+            <>
+              <Pressable onPress={nav.onInbox} style={[styles.topBtn, { top: insets.top + spacing.sm, left: spacing.sm + 4 + 44 + spacing.sm }]} accessibilityLabel={`Inbox, ${nav.unread} unread`}>
+                <Ionicons name="mail-outline" size={20} color={colors.text} />
+                {nav.unread > 0 && <Badge count={nav.unread} style={styles.topBadge} />}
+              </Pressable>
+              <Pressable onPress={nav.onProfile} style={[styles.topBtn, { top: insets.top + spacing.sm, right: spacing.sm + 4 }]} accessibilityLabel="Profile">
+                {nav.avatar}
+              </Pressable>
+            </>
+          )}
           <MapSearch
+            side={nav ? 'left' : 'right'}
             top={insets.top + spacing.sm}
             reduceMotion={reduceMotion}
             onOpenChange={(o) => {
@@ -992,6 +1069,12 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
           <Pressable onPress={() => setBubbleQuery(bubbleQuery === null ? '' : null)} hitSlop={10} accessibilityLabel={bubbleQuery === null ? 'Search Bubbles' : 'Close search'}>
             <Ionicons name={bubbleQuery === null ? 'search' : 'close'} size={24} color={colors.primary} />
           </Pressable>
+          {nav && (
+            <Pressable onPress={nav.onInbox} hitSlop={10} accessibilityLabel={`Inbox, ${nav.unread} unread`}>
+              <Ionicons name="mail-outline" size={24} color={colors.primary} />
+              {nav.unread > 0 && <Badge count={nav.unread} style={styles.topBadge} />}
+            </Pressable>
+          )}
         </View>
       )}
       {mode === 'field' && (
@@ -1000,9 +1083,14 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
           <Pressable onPress={() => setEditing(!editing)} hitSlop={10}>
             <Text style={[styles.fieldAction, editing && { fontFamily: fonts.bodyBold }]}>{editing ? 'Done' : 'Edit'}</Text>
           </Pressable>
-          {!editing && (
+          {!editing && !nav && (
             <Pressable onPress={newBubble} hitSlop={10}>
               <Ionicons name="add" size={28} color={colors.primary} />
+            </Pressable>
+          )}
+          {!editing && nav && (
+            <Pressable onPress={nav.onProfile} hitSlop={6} accessibilityLabel="Profile">
+              {nav.avatar}
             </Pressable>
           )}
         </View>
@@ -1051,7 +1139,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                 <Ionicons name="add" size={22} color={colors.textMuted} />
               </Bubble>
             </Animated.View>
-            <Animated.Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={2} style={[styles.rowLabel, { marginTop: grow.gap }]}>New Bubble</Animated.Text>
+            <Animated.Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={1} style={[styles.rowLabel, { marginTop: grow.gap }]}>New Bubble</Animated.Text>
           </Pressable>
           {rowIdx.map((i) => {
             const g = ALL[i];
@@ -1078,7 +1166,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                 )}
                 <Animated.Text
                   maxFontSizeMultiplier={FIXED_TEXT}
-                  numberOfLines={2}
+                  numberOfLines={1}
                   style={[styles.rowLabel, { marginTop: grow.gap }, i === selected && { color: colors.primary, fontFamily: fonts.bodyBold }]}
                 >
                   {g.name}
@@ -1093,7 +1181,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   <Ionicons name="ellipsis-horizontal" size={18} color={colors.textMuted} />
                 </Bubble>
               </Animated.View>
-              <Animated.Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={2} style={[styles.rowLabel, { marginTop: grow.gap }]}>More Bubbles…</Animated.Text>
+              <Animated.Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={1} style={[styles.rowLabel, { marginTop: grow.gap }]}>More Bubbles…</Animated.Text>
             </Pressable>
           )}
         </ScrollView>
@@ -1222,13 +1310,15 @@ const styles = StyleSheet.create({
   mapArea: { position: 'absolute', top: 0, left: 0, right: 0 },
   notesFloat: { position: 'absolute', left: 0, right: 0, height: NOTES_H, justifyContent: 'center' },
   rightStack: { position: 'absolute', right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4, alignItems: 'center', gap: spacing.sm + 4 },
+  topBtn: { position: 'absolute', width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
+  topBadge: { position: 'absolute', top: -4, right: -6, transform: [{ scale: 0.85 }] },
   smallFab: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   dots: { position: 'absolute', left: 0, right: 0, bottom: 4, flexDirection: 'row', justifyContent: 'center', gap: 5 },
   dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.textMuted, opacity: 0.25 },
   dotOn: { opacity: 0.7 },
-  feedPill: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4 + 44 + spacing.sm, bottom: SHEET_MIN + spacing.sm + 4, height: FEED_H, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, backgroundColor: colors.surface, ...shadow },
-  feedText: { ...type.body, fontSize: 15, flex: 1 },
-  feedList: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4 + FEED_H + spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, paddingVertical: spacing.sm, ...shadow },
+  feedPill: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4 + 44 + spacing.sm, bottom: SHEET_MIN + spacing.sm + 4 + (44 - FEED_H) / 2, height: FEED_H, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm + 6, backgroundColor: colors.surface, ...shadow }, // centered on the arrow button beside it
+  feedText: { ...type.body, fontSize: 14, lineHeight: 18, flex: 1 },
+  feedList: { position: 'absolute', left: spacing.sm + 4, right: spacing.sm + 4, bottom: SHEET_MIN + spacing.sm + 4 + 44 + spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, paddingVertical: spacing.sm, ...shadow },
   feedHead: { ...type.caption, fontFamily: fonts.bodyBold, paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
   feedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 2, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2 },
   panel: { position: 'absolute', left: 0, right: 0, bottom: 0, pointerEvents: 'none' },
@@ -1260,7 +1350,7 @@ const styles = StyleSheet.create({
   distance: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
   iconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   rowWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 1, borderTopColor: colors.border },
-  rowContent: { paddingTop: spacing.sm },
+  rowContent: { paddingTop: 6 },
   rowItem: { alignItems: 'center' },
   rowBadge: { position: 'absolute', top: -4, left: '50%', marginLeft: RS / 2 - 16 },
   rowLabel: { ...type.caption, fontSize: 11, lineHeight: 14, width: '92%', textAlign: 'center' },

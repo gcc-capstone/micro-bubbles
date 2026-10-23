@@ -14,8 +14,9 @@ type Result =
   | { kind: 'pin'; key: string; pin: Pin; groupName: string }
   | { kind: 'place'; key: string; loc: Loc };
 
-export default function MapSearch({ top, reduceMotion, onOpenChange, onPerson, onPin, onPlace }: {
-  top: number; reduceMotion: boolean; onOpenChange: (open: boolean) => void; onPerson: (m: Member) => void; onPin: (p: Pin) => void; onPlace: (l: Loc) => void;
+// side: which end of the top bar the closed search button sits at.
+export default function MapSearch({ top, side = 'right', reduceMotion, onOpenChange, onPerson, onPin, onPlace }: {
+  top: number; side?: 'left' | 'right'; reduceMotion: boolean; onOpenChange: (open: boolean) => void; onPerson: (m: Member) => void; onPin: (p: Pin) => void; onPlace: (l: Loc) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -80,7 +81,7 @@ export default function MapSearch({ top, reduceMotion, onOpenChange, onPerson, o
           </Pressable>
         </View>
       ) : (
-        <Pressable style={styles.button} onPress={expand} accessibilityLabel="Search places, pins, people">
+        <Pressable style={[styles.button, side === 'left' && { alignSelf: 'flex-start' }]} onPress={expand} accessibilityLabel="Search places, pins, people">
           <Ionicons name="search" size={20} color={colors.text} />
         </Pressable>
       )}

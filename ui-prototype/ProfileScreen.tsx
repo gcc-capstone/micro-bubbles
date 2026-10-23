@@ -339,7 +339,7 @@ export default function ProfileScreen({
   );
 }
 
-function ProfileAvatar({ size }: { size: number }) {
+export function ProfileAvatar({ size }: { size: number }) {
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: colors.primary }]}>
       {PROFILE.avatar === 'initials' ? (
