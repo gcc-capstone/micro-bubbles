@@ -3,10 +3,10 @@
 // Re-tapping the Bubbles tab (resetKey) or "More Bubbles…" shows all Bubbles as floating
 // bubbles (few) or an Apple Watch-style honeycomb (many).
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { ActionSheetIOS, Alert, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Easing, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Badge, Bubble, FloatingBubble, GlassTabs, IconName, MapButton, MenuButton, Separator } from './components';
+import { Avatar, Badge, Bubble, FloatingBubble, GlassTabs, IconName, MapButton, MenuAnchor, MenuButton, PopMenu, Separator } from './components';
 import { colors, CONTROL, CONTROL_SLOP, FIXED_TEXT, fonts, radius, shadow, spacing, type } from './theme';
 import { ALL, avgRating, canInvite, ownerName, BubbleEvent, distanceFromMe, EVENTS, EVERYONE, formatMiles, Group, groupColor, GROUPS, initials, Loc, Member, memberColor, Pin, TODAY } from './data';
 import { AddMembers, BubbleProfile, DropPin, NewHotspot, EventView, NewBubble, NewEvent, LinkedText, LocationView, longDate, PersonView, PinView, QuickMessages } from './Details';
@@ -15,7 +15,7 @@ import MapSearch from './MapSearch';
 
 const RS = 36; // row bubble size
 const DOTS_H = 12; // page dots under the Bubble row
-const ROW_ITEM_MIN = 64; // narrowest slot per bubble; slots stretch so each page shows whole bubbles
+const ROW_ITEM_MIN = 60; // 6 per page on a 360 pt phone // narrowest slot per bubble; slots stretch so each page shows whole bubbles
 const ROW_H = 6 + RS + 3 + 14 + DOTS_H; // padding + bubble + gap + one-line label + page dots (the sheet header names the selected Bubble in full)
 const NAV_H = 44; // nav row above the large title
 const ROW_GROW = 1.3; // bubbles scale up while the row has focus
@@ -30,6 +30,8 @@ const NOTES_H = 44; // the floating quick-message row
 const MAX_BUBBLES = 15; // including Everyone; two All Bubbles screens hold them all
 const FIRST_SCREEN = 5; // most recently active Bubbles shown up front, after Everyone
 const SEARCH_H = 52;
+const TOOLBAR_H = 44; // count + sort/filter row; tucked away with the search bar until you pull down
+const HIDDEN_H = SEARCH_H + TOOLBAR_H;
 const MAX_ROW = 11; // more than this many Bubbles shows a "More Bubbles…" bubble
 const TABS = ['Members', 'Pins']; // activity lives in the pill above the sheet
 const SORTS: Record<string, string[]> = {
@@ -225,10 +227,12 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   goPageRef.current = goPage;
   const swipe = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+      // sideways switches screens; pulling down opens Bubble search (iOS pull-to-search)
+      onMoveShouldSetPanResponder: (_, g) => (Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 2) || (g.dy > 14 && g.dy > Math.abs(g.dx) * 2),
       onPanResponderRelease: (_, g) => {
         if (g.dx < -50) goPageRef.current(1);
         if (g.dx > 50) goPageRef.current(0);
+        if (g.dy > 60 && g.dy > Math.abs(g.dx) * 2) setBubbleQuery((q) => q ?? '');
       },
     }),
   ).current;
@@ -249,24 +253,29 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   }, [createReq?.n]);
   // Bubble Info opened from a floating bubble (no Bubble selected yet)
   const [infoGroup, setInfoGroup] = useState<Group | null>(null);
-  const bubbleActions = (g: Group) => {
-    const options =
-      g.id === 'everyone'
-        ? ['Bubble Info', 'Cancel']
-        : ['Bubble Info', g.muted ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble', 'Cancel'];
-    ActionSheetIOS.showActionSheetWithOptions(
-      { title: g.name, options, cancelButtonIndex: options.length - 1, destructiveButtonIndex: g.id === 'everyone' ? undefined : 2 },
-      (k) => {
-        const o = options[k];
+  // One context menu for the screen (long-press a bubble or the map), styled like iOS's.
+  const [menu, setMenu] = useState<{ anchor: MenuAnchor; title?: string; options: string[]; icons?: Record<string, IconName>; destructive?: string[]; onSelect: (o: string) => void } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const showMenu = (m: NonNullable<typeof menu>) => {
+    setMenu(m);
+    setMenuOpen(true);
+  };
+  const bubbleActions = (g: Group, anchor: MenuAnchor) =>
+    showMenu({
+      anchor,
+      title: g.name,
+      options: g.id === 'everyone' ? ['Bubble Info'] : ['Bubble Info', g.muted ? 'Unmute Notifications' : 'Mute Notifications', 'Leave Bubble'],
+      icons: { 'Bubble Info': 'information-circle-outline', 'Mute Notifications': 'notifications-off-outline', 'Unmute Notifications': 'notifications-outline', 'Leave Bubble': 'exit-outline' },
+      destructive: ['Leave Bubble'],
+      onSelect: (o) => {
         if (o === 'Bubble Info') {
           setInfoGroup(g);
           setProfileOpen('view');
         }
-        if (o?.endsWith('Notifications')) toggleMute(g);
+        if (o.endsWith('Notifications')) toggleMute(g);
         if (o === 'Leave Bubble') confirmRemove(g);
       },
-    );
-  };
+    });
 
   // Drag the honeycomb around (field mode only); taps still reach the bubbles.
   const offsetRef = useRef(offset);
@@ -401,7 +410,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   }, [resetKey]);
 
   // Keep the search bar tucked above the list until the user pulls down (iOS convention).
-  const hideSearch = () => list.current?.scrollTo({ y: SEARCH_H, animated: false });
+  const hideSearch = () => list.current?.scrollTo({ y: HIDDEN_H, animated: false });
   useEffect(() => {
     if (sheetOpen && !query) setTimeout(hideSearch, 50);
   }, [tab, sheetOpen, selected, listH]);
@@ -666,17 +675,20 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             onEventPress={openEvent}
             hideEdges={searching || feedOpen} // a panel covers part of the map
             recenter={recenter}
-            onLongPress={(c) => {
+            onLongPress={(c) =>
               // long-press a spot to start something there (Apple Maps convention; also in the + menu)
-              const options = ['Drop Pin', 'New Hotspot', 'New Event', 'Cancel'];
-              ActionSheetIOS.showActionSheetWithOptions({ title: 'This spot', options, cancelButtonIndex: 3 }, (k) => {
-                if (k === 3) return;
-                setDropAt(c);
-                if (k === 0) setDropOpen(true);
-                if (k === 1) setHotspotOpen(true);
-                if (k === 2) setNewEventOpen(true);
-              });
-            }}
+              showMenu({
+                anchor: { x: c.x, y: c.y, w: 0, h: 0 },
+                options: ['Drop Pin', 'New Hotspot', 'New Event'],
+                icons: { 'Drop Pin': 'location-outline', 'New Hotspot': 'radio-outline', 'New Event': 'calendar-outline' },
+                onSelect: (o) => {
+                  setDropAt({ lat: c.lat, lng: c.lng });
+                  if (o === 'Drop Pin') setDropOpen(true);
+                  if (o === 'New Hotspot') setHotspotOpen(true);
+                  if (o === 'New Event') setNewEventOpen(true);
+                },
+              })
+            }
           />
           {/* Right-side controls, just above the sheet */}
           <Animated.View
@@ -862,7 +874,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
           <ScrollView
             ref={list}
             onLayout={(e) => setListH(e.nativeEvent.layout.height)}
-            contentContainerStyle={[styles.sheetBody, { minHeight: listH + SEARCH_H }]}
+            contentContainerStyle={[styles.sheetBody, { minHeight: listH + HIDDEN_H }]}
             keyboardShouldPersistTaps="handled"
           >
             {/* Hidden until pulled down */}
@@ -1019,7 +1031,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
                   delay={i * 500}
                   still={reduceMotion}
                   onPress={() => (editing ? g.id !== 'everyone' && confirmRemove(g) : select(i))}
-                  onLongPress={editing ? undefined : () => bubbleActions(g)} // Bubble Info, mute, leave
+                  onLongPress={editing ? undefined : () => bubbleActions(g, { x: f.x - f.s / 2, y: f.y - f.s / 2, w: f.s, h: f.s })} // Bubble Info, mute, leave
                   style={{ left: 0, top: 0 }}
                 />
                 {editing && g.id !== 'everyone' && (
@@ -1067,7 +1079,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         // Search at the leading end of the nav row
         <View style={[styles.fieldActions, { top: insets.top, left: spacing.md, right: undefined }]}>
           {nav ? (
-            // experiment: your profile leads; search and Inbox join Edit at the trailing end
+            // experiment: your profile leads; search joins Edit at the trailing end
             <Pressable onPress={nav.onProfile} hitSlop={6} accessibilityLabel="Profile">
               {nav.avatar}
             </Pressable>
@@ -1085,10 +1097,6 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             <>
               <Pressable onPress={() => setBubbleQuery(bubbleQuery === null ? '' : null)} hitSlop={10} accessibilityLabel={bubbleQuery === null ? 'Search Bubbles' : 'Close search'}>
                 <Ionicons name={bubbleQuery === null ? 'search' : 'close'} size={24} color={colors.primary} />
-              </Pressable>
-              <Pressable onPress={nav.onInbox} hitSlop={10} accessibilityLabel={`Inbox, ${nav.unread} unread`}>
-                <Ionicons name="mail-outline" size={24} color={colors.primary} />
-                {nav.unread > 0 && <Badge count={nav.unread} style={styles.topBadge} />}
               </Pressable>
             </>
           )}
@@ -1203,6 +1211,17 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         </Animated.View>
       )}
 
+      <PopMenu
+        dim
+        visible={menuOpen}
+        anchor={menu?.anchor ?? null}
+        title={menu?.title}
+        options={menu?.options ?? []}
+        icons={menu?.icons}
+        destructive={menu?.destructive}
+        onSelect={(o) => menu?.onSelect(o)}
+        onClose={() => setMenuOpen(false)}
+      />
       {profileOpen && (
         <BubbleProfile
           group={infoGroup ?? group}
@@ -1344,7 +1363,7 @@ const styles = StyleSheet.create({
   handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: spacing.sm },
   sheetTitle: { fontFamily: fonts.subheading, fontSize: 17, color: colors.text },
   back: { fontFamily: fonts.body, fontSize: 17, color: colors.primary },
-  toolbar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  toolbar: { height: TOOLBAR_H, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md },
   sheetBody: { paddingBottom: spacing.md },
   searchWrap: { height: SEARCH_H, justifyContent: 'center', paddingHorizontal: spacing.md },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.background, borderRadius: radius.sm, paddingHorizontal: spacing.sm + 2, height: 36 },
@@ -1360,7 +1379,7 @@ const styles = StyleSheet.create({
   rowContent: { paddingTop: 6 },
   rowItem: { alignItems: 'center' },
   rowBadge: { position: 'absolute', top: -4, left: '50%', marginLeft: RS / 2 - 16 },
-  rowLabel: { ...type.caption, fontSize: 11, lineHeight: 14, width: '92%', textAlign: 'center' },
+  rowLabel: { ...type.caption, fontSize: 10, lineHeight: 14, width: '92%', textAlign: 'center' },
   toast: {
     position: 'absolute',
     alignSelf: 'center',

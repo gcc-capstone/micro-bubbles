@@ -281,22 +281,97 @@ export function Separator({ inset = spacing.md }: { inset?: number }) {
   return <View style={[s.separator, { marginLeft: inset }]} />;
 }
 
-// Button that opens a small popover menu (iOS-style). multi keeps it open for toggling filters;
+// Menu that looks like iOS pull-down and context menus, built in React Native (the real UIMenu
+// needs a native module Expo Go doesn't have): a translucent rounded card that springs out of
+// its anchor, 44 pt rows with the label leading and the icon trailing, checkmarks in a leading
+// column, destructive items red and grouped after a thicker gap, an optional small title.
+// anchor: the button's rect, or a touch point (w = h = 0). dim: darken behind it (context menus).
+export type MenuAnchor = { x: number; y: number; w: number; h: number };
+const MENU_W = 250;
+const ROW = 44;
+export function PopMenu({ visible, anchor, title, options, icons, destructive = [], selected = [], multi, dim, onSelect, onClose }: {
+  visible: boolean; anchor: MenuAnchor | null; title?: string; options: string[]; icons?: Record<string, IconName>; destructive?: string[];
+  selected?: string[]; multi?: boolean; dim?: boolean; onSelect: (o: string) => void; onClose: () => void;
+}) {
+  const { width, height } = useWindowDimensions();
+  const v = useRef(new Animated.Value(0)).current;
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (visible) {
+      setShown(true);
+      v.setValue(0);
+      Animated.spring(v, { toValue: 1, damping: 18, stiffness: 260, mass: 0.7, useNativeDriver: true }).start();
+    } else if (shown) {
+      Animated.timing(v, { toValue: 0, duration: 140, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => setShown(false));
+    }
+  }, [visible]);
+  if (!shown || !anchor) return null;
+
+  const groups = [options.filter((o) => !destructive.includes(o)), options.filter((o) => destructive.includes(o))].filter((g) => g.length);
+  const checks = multi || selected.length > 0;
+  const est = (title ? 34 : 0) + options.length * ROW + (groups.length - 1) * 8;
+  const below = anchor.y + anchor.h + 8 + est < height - 24;
+  const mid = anchor.x + anchor.w / 2;
+  const side = mid < width / 3 ? 'left' : mid > (width * 2) / 3 ? 'right' : 'center';
+  const left = Math.max(8, Math.min(width - MENU_W - 8, side === 'left' ? anchor.x : side === 'right' ? anchor.x + anchor.w - MENU_W : mid - MENU_W / 2));
+  const pos = below ? { top: anchor.y + anchor.h + 8 } : { bottom: height - anchor.y + 8 };
+
+  return (
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+        {dim && <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.18)', opacity: v }]} />}
+      </Pressable>
+      <Animated.View
+        style={[
+          s.popMenu,
+          pos,
+          { left, opacity: v.interpolate({ inputRange: [0, 0.3], outputRange: [0, 1], extrapolate: 'clamp' }) },
+          { transformOrigin: `${below ? 'top' : 'bottom'} ${side}`, transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] },
+        ]}
+      >
+        <View style={s.popClip}>
+        {title && <Text style={s.menuTitle}>{title}</Text>}
+        {groups.map((g, gi) => (
+          <View key={gi} style={gi > 0 && s.menuGap}>
+            {g.map((o, i) => {
+              const bad = destructive.includes(o);
+              const tint = bad ? colors.danger : colors.text;
+              return (
+                <Pressable
+                  key={o}
+                  onPress={() => {
+                    onSelect(o);
+                    if (!multi) onClose();
+                  }}
+                  style={({ pressed }) => [s.menuRow, (i > 0 || (gi === 0 && !!title)) && s.menuSep, pressed && { backgroundColor: colors.text + '14' }]}
+                >
+                  {checks && <View style={{ width: 22 }}>{selected.includes(o) && <Ionicons name="checkmark" size={17} color={colors.text} />}</View>}
+                  <Text maxFontSizeMultiplier={FIXED_TEXT} numberOfLines={1} style={[s.menuText, { color: tint }]}>{o}</Text>
+                  {icons?.[o] && <Ionicons name={icons[o]} size={19} color={tint} />}
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
+        </View>
+      </Animated.View>
+    </Modal>
+  );
+}
+
+// Button that opens a PopMenu. selected items get a checkmark; multi keeps it open for several.
 // plain is an icon-only trigger; icons show on the right of items; destructive items are red.
 // trigger/triggerStyle replace the default button look (e.g. the map's + button).
 export function MenuButton({ icon, label, options, selected = [], onSelect, multi, active, plain, icons, destructive = [], trigger, triggerStyle }: {
   icon: IconName; label?: string; options: string[]; selected?: string[]; onSelect: (o: string) => void; multi?: boolean; active?: boolean;
   plain?: boolean; icons?: Record<string, IconName>; destructive?: string[]; trigger?: ReactNode; triggerStyle?: Style;
 }) {
+  const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ right: number; top?: number; bottom?: number }>({ right: 0, top: 0 });
   const ref = useRef<View>(null);
-  const { width, height } = useWindowDimensions();
   const show = () =>
     ref.current?.measureInWindow((x, y, w, h) => {
-      // open upward when there isn't room below (e.g. buttons near the bottom of the screen)
-      const fitsBelow = y + h + 6 + options.length * 50 < height - 24;
-      setPos(fitsBelow ? { right: width - x - w, top: y + h + 6 } : { right: width - x - w, bottom: height - y + 6 });
+      setAnchor({ x, y, w, h });
       setOpen(true);
     });
   return (
@@ -309,26 +384,17 @@ export function MenuButton({ icon, label, options, selected = [], onSelect, mult
           </>
         )}
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)}>
-          <View style={[s.popover, pos]}>
-            {options.map((o, i) => (
-              <Pressable
-                key={o}
-                style={[s.popItem, i > 0 && s.popDivider]}
-                onPress={() => {
-                  onSelect(o);
-                  if (!multi) setOpen(false);
-                }}
-              >
-                <Text style={[type.body, { flex: 1 }, destructive.includes(o) && { color: colors.danger }]}>{o}</Text>
-                {selected.includes(o) && <Ionicons name="checkmark" size={18} color={colors.primary} />}
-                {icons?.[o] && <Ionicons name={icons[o]} size={18} color={destructive.includes(o) ? colors.danger : colors.text} />}
-              </Pressable>
-            ))}
-          </View>
-        </Pressable>
-      </Modal>
+      <PopMenu
+        visible={open}
+        anchor={anchor}
+        options={options}
+        icons={icons}
+        destructive={destructive}
+        selected={selected}
+        multi={multi}
+        onSelect={onSelect}
+        onClose={() => setOpen(false)}
+      />
     </>
   );
 }
@@ -624,9 +690,14 @@ const s = StyleSheet.create({
   menuBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm + 2, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.background },
   menuBtnOn: { backgroundColor: colors.primarySoft },
   menuBtnText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
-  popover: { position: 'absolute', minWidth: 210, backgroundColor: colors.surface, borderRadius: radius.sm + 4, ...shadow, shadowOpacity: 0.18, shadowRadius: 20 },
-  popItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 4 },
-  popDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  // shadow on the outer view; the inner one clips rows to the rounded corners (clipping would hide the shadow)
+  popMenu: { position: 'absolute', width: MENU_W, borderRadius: 14, shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 28, shadowOffset: { width: 0, height: 10 } },
+  popClip: { borderRadius: 14, overflow: 'hidden', backgroundColor: colors.surface + 'F7', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  menuTitle: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingHorizontal: spacing.md, paddingVertical: 9 },
+  menuRow: { height: ROW, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md },
+  menuSep: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  menuGap: { borderTopWidth: 8, borderTopColor: colors.text + '12' }, // iOS groups menu sections with a thicker band
+  menuText: { flex: 1, fontFamily: fonts.body, fontSize: 17 },
   page: { flex: 1, backgroundColor: colors.background },
   pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 6 },
   pageTitle: { flex: 1, textAlign: 'center', fontFamily: fonts.bodyBold, fontSize: 17, color: colors.text },
@@ -634,13 +705,13 @@ const s = StyleSheet.create({
   glassTrack: {
     alignSelf: 'center',
     flexDirection: 'row',
-    padding: 4,
+    padding: 3,
     borderRadius: radius.pill,
     backgroundColor: colors.text + '0D',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  glassTab: { minWidth: 96, height: 36, paddingHorizontal: spacing.md, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  glassTab: { minWidth: 88, height: 28, paddingHorizontal: spacing.md, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   glassTabOn: {
     backgroundColor: colors.surface + 'E6',
     borderWidth: StyleSheet.hairlineWidth,
@@ -650,7 +721,7 @@ const s = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
   },
-  glassText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.textMuted },
+  glassText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.textMuted },
   segmented: { flexDirection: 'row', gap: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   segment: { paddingVertical: spacing.sm, borderBottomWidth: 2, borderBottomColor: 'transparent', marginBottom: -1 },
   segmentOn: { borderBottomColor: colors.primary },

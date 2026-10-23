@@ -3,12 +3,12 @@
 // the tab bar paints down behind the home indicator.
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { AccessibilityInfo, ActionSheetIOS, Modal, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
-import { SafeAreaInsetsContext, SafeAreaProvider } from 'react-native-safe-area-context';
+import { AccessibilityInfo, Modal, Pressable, StyleSheet, Text, useColorScheme, useWindowDimensions, View } from 'react-native';
+import { initialWindowMetrics, SafeAreaInsetsContext, SafeAreaProvider } from 'react-native-safe-area-context';
 import { getCalendars } from 'expo-localization';
 import { useFonts, Lato_400Regular, Lato_700Bold } from '@expo-google-fonts/lato';
 import { Montserrat_600SemiBold, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
-import { Tab, TabBar } from './components';
+import { PopMenu, Tab, TabBar } from './components';
 import { applyTheme, colors, CONTROL, fonts, isDark, shadow, spacing } from './theme';
 import { EVERYONE, INBOX, PROFILE } from './data';
 import CalendarScreen from './CalendarScreen';
@@ -49,12 +49,14 @@ export default function App() {
   const [sheet, setSheet] = useState<'inbox' | 'profile' | null>(null); // experiment: Inbox / Profile as sheets
   const [createReq, setCreateReq] = useState<{ kind: CreateKind; n: number }>();
   const unread = INBOX.filter((it) => !it.read).length;
-  const create = () =>
-    ActionSheetIOS.showActionSheetWithOptions({ options: [...CREATE, 'Cancel'], cancelButtonIndex: CREATE.length }, (k) => {
-      if (k === CREATE.length) return;
-      setTab(0); // the create sheets live on the Bubbles screen
-      setCreateReq((r) => ({ kind: CREATE[k], n: (r?.n ?? 0) + 1 }));
-    });
+  const [createOpen, setCreateOpen] = useState(false);
+  const { width, height } = useWindowDimensions();
+  // the + sits centered in the tab bar; its menu opens upward from it
+  const plusAnchor = { x: width / 2 - 20, y: height - Math.max(initialWindowMetrics?.insets.bottom ?? 0, 8) - 46, w: 40, h: 40 };
+  const create = (kind: CreateKind) => {
+    setTab(0); // the create sheets live on the Bubbles screen
+    setCreateReq((r) => ({ kind, n: (r?.n ?? 0) + 1 }));
+  };
   const [themeKey, setThemeKey] = useState(0); // bumped after applyTheme so every screen redraws with new colors
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const retheme = () => {
@@ -127,7 +129,15 @@ export default function App() {
           <TabBar
             tabs={NAV_EXPERIMENT ? EXP_TABS : TABS.map((t) => (t.label === 'Inbox' ? { ...t, badge: unread } : t))}
             active={tab}
-            onPress={(i) => (NAV_EXPERIMENT && i === 1 ? create() : i === 0 && tab === 0 ? setHomeReset(homeReset + 1) : setTab(i))}
+            onPress={(i) => (NAV_EXPERIMENT && i === 1 ? setCreateOpen(true) : i === 0 && tab === 0 ? setHomeReset(homeReset + 1) : setTab(i))}
+          />
+          <PopMenu
+            visible={createOpen}
+            anchor={plusAnchor}
+            options={CREATE}
+            icons={{ 'Drop Pin': 'location-outline', 'New Hotspot': 'radio-outline', 'New Event': 'calendar-outline', 'New Bubble': 'ellipse-outline' }}
+            onSelect={(o) => create(o as CreateKind)}
+            onClose={() => setCreateOpen(false)}
           />
           {NAV_EXPERIMENT && (
             <Modal visible={!!sheet} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSheet(null)}>

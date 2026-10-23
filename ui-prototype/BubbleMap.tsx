@@ -36,7 +36,7 @@ export type BubbleMapProps = {
   radiusMi?: number;
   hideEdges?: boolean; // hide off-screen markers (e.g. while a panel covers the map)
   recenter?: number; // bump to return to the default view (locate button)
-  onLongPress?: (c: { lat: number; lng: number }) => void; // long-press on the map (Drop Pin)
+  onLongPress?: (c: { lat: number; lng: number; x: number; y: number }) => void; // long-press on the map; x/y = touch point on the map view
   onCenterChange?: (c: { lat: number; lng: number }) => void; // after the user pans (Drop Pin) // when set (and nothing is focused), center on you and show this radius
 };
 
@@ -187,7 +187,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       showsPointsOfInterests={false} // Apple's shops and places compete with people; street names stay
       onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
       // ponytail: edge markers update when panning stops; onRegionChange would re-render every frame
-      onLongPress={(e) => onLongPress?.({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude })}
+      onLongPress={(e) => onLongPress?.({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude, x: e.nativeEvent.position.x, y: e.nativeEvent.position.y })}
       onRegionChangeComplete={(r) => {
         if (justFit.current) {
           justFit.current = false;
