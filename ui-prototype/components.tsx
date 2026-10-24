@@ -294,16 +294,28 @@ export function PopMenu({ visible, anchor, title, options, icons, destructive = 
   const { width, height } = useWindowDimensions();
   const v = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(false);
+  // A choice runs once the menu's Modal is gone: iOS drops a sheet presented while it's dismissing.
+  const picked = useRef<string | null>(null);
+  const select = useRef(onSelect);
+  select.current = onSelect;
+  const flush = () => {
+    const o = picked.current;
+    picked.current = null;
+    if (o !== null) select.current(o);
+  };
   useEffect(() => {
     if (visible) {
       setShown(true);
       v.setValue(0);
       Animated.spring(v, { toValue: 1, damping: 18, stiffness: 260, mass: 0.7, useNativeDriver: true }).start();
     } else if (shown) {
-      Animated.timing(v, { toValue: 0, duration: 140, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => setShown(false));
+      Animated.timing(v, { toValue: 0, duration: 140, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => {
+        setShown(false);
+        if (Platform.OS !== 'ios') flush(); // onDismiss is iOS-only
+      });
     }
   }, [visible]);
-  if (!shown || !anchor) return null;
+  if (!anchor) return null;
 
   const groups = [options.filter((o) => !destructive.includes(o)), options.filter((o) => destructive.includes(o))].filter((g) => g.length);
   const checks = multi || selected.length > 0;
@@ -315,7 +327,7 @@ export function PopMenu({ visible, anchor, title, options, icons, destructive = 
   const pos = below ? { top: anchor.y + anchor.h + 8 } : { bottom: height - anchor.y + 8 };
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={shown} transparent animationType="none" onRequestClose={onClose} onDismiss={flush}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
         {dim && <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.18)', opacity: v }]} />}
       </Pressable>
@@ -338,8 +350,9 @@ export function PopMenu({ visible, anchor, title, options, icons, destructive = 
                 <Pressable
                   key={o}
                   onPress={() => {
-                    onSelect(o);
-                    if (!multi) onClose();
+                    if (multi) return onSelect(o);
+                    picked.current = o;
+                    onClose();
                   }}
                   style={({ pressed }) => [s.menuRow, (i > 0 || (gi === 0 && !!title)) && s.menuSep, pressed && { backgroundColor: colors.text + '14' }]}
                 >

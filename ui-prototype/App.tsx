@@ -50,6 +50,7 @@ export default function App() {
   const [createReq, setCreateReq] = useState<{ kind: CreateKind; n: number }>();
   const unread = INBOX.filter((it) => !it.read).length;
   const [createOpen, setCreateOpen] = useState(false);
+  const [allBubbles, setAllBubbles] = useState(false); // HomeScreen is showing All Bubbles: no tab bar
   const { width, height } = useWindowDimensions();
   // the + sits centered in the tab bar; its menu opens upward from it
   const plusAnchor = { x: width / 2 - 20, y: height - Math.max(initialWindowMetrics?.insets.bottom ?? 0, 8) - 46, w: 40, h: 40 };
@@ -118,7 +119,7 @@ export default function App() {
                 eventsOnMap={eventsOnMap}
                 eventDays={eventDays}
                 weekStart={weekStart}
-                nav={NAV_EXPERIMENT ? { unread, avatar: <ProfileAvatar size={CONTROL} />, onInbox: () => setSheet('inbox'), onProfile: () => setSheet('profile') } : undefined}
+                nav={NAV_EXPERIMENT ? { unread, avatar: <ProfileAvatar size={CONTROL} />, onInbox: () => setSheet('inbox'), onProfile: () => setSheet('profile'), onAllBubbles: setAllBubbles } : undefined}
                 createReq={createReq}
               />
             )}
@@ -126,11 +127,11 @@ export default function App() {
             {tab === 2 && <CalendarScreen weekStart={weekStart} reduceMotion={reduceMotion} />}
             {!NAV_EXPERIMENT && tab === 3 && profile}
           </View>
-          <TabBar
+          {!(tab === 0 && allBubbles) && <TabBar
             tabs={NAV_EXPERIMENT ? EXP_TABS : TABS.map((t) => (t.label === 'Inbox' ? { ...t, badge: unread } : t))}
             active={tab}
             onPress={(i) => (NAV_EXPERIMENT && i === 1 ? setCreateOpen(true) : i === 0 && tab === 0 ? setHomeReset(homeReset + 1) : setTab(i))}
-          />
+          />}
           <PopMenu
             visible={createOpen}
             anchor={plusAnchor}

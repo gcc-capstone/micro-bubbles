@@ -124,7 +124,7 @@ export type CreateKind = 'Drop Pin' | 'New Hotspot' | 'New Event' | 'New Bubble'
 // tabs, and creating moves to the tab bar's + (createReq), so the map loses its own + button.
 export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eventsOnMap, eventDays, weekStart, nav, createReq }: {
   resetKey: number; reduceMotion: boolean; everyoneRadius: number; eventsOnMap: boolean; eventDays: number; weekStart: number;
-  nav?: { unread: number; avatar: ReactNode; onInbox: () => void; onProfile: () => void };
+  nav?: { unread: number; avatar: ReactNode; onInbox: () => void; onProfile: () => void; onAllBubbles: (open: boolean) => void };
   createReq?: { kind: CreateKind; n: number };
 }) {
   const insets = useSafeAreaInsets();
@@ -132,6 +132,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   // Start on the map with Everyone selected.
   const [selected, setSelected] = useState<number | null>(0);
   const [mode, setMode] = useState<'field' | 'animating' | 'row'>('row');
+  useEffect(() => nav?.onAllBubbles(mode !== 'row'), [mode]); // All Bubbles has no tab bar
   // Sheet heights: 0 = just the name, 1 = middle (map stays visible), 2 = full
   const [detent, setDetent] = useState<0 | 1 | 2>(0);
   const sheetOpen = detent > 0;
@@ -311,7 +312,7 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
   // Where bubble i sits in the bubble view: center, size, and edge shrink.
   const fieldSpot = (i: number, g: Group | null) => {
     if (!watch) {
-      const room = h - fieldTop - 8;
+      const room = h - fieldTop - Math.max(insets.bottom, 8); // clear of the home indicator (no tab bar here)
       if (onPage === 1) {
         // Second screen: up to 14 bubbles on a loose 3-column grid, nudged so it doesn't look ruled
         const n = pageIdx.length + 1;
