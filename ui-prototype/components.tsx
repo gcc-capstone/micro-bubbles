@@ -224,7 +224,7 @@ export function EdgeMarker({ initials, icon, color, angle, count = 1, style }: {
       <View style={[s.abs, s.center, { width: EDGE_BOX, height: EDGE_BOX, transform: [{ rotate: `${angle}rad` }] }]} pointerEvents="none">
         <View style={[s.edgeArrow, { left: EDGE_BOX / 2 + 22 }]} />
       </View>
-      <View style={[s.cluster, { width: 36, height: 36, borderWidth: 3, backgroundColor: many ? colors.primary : color }]}>
+      <View style={[s.cluster, s.edgeFace, { width: 36, height: 36, borderWidth: 3, backgroundColor: many ? colors.primary : color }]}>
         {many || !icon ? (
           <Text maxFontSizeMultiplier={FIXED_TEXT} style={[s.clusterText, { fontSize: many && count > 9 ? 12 : 13 }]}>{many ? (count > 99 ? '99+' : count) : initials}</Text>
         ) : (
@@ -344,9 +344,10 @@ export function PopMenu({ visible, anchor, title, options, icons, destructive = 
 
   return (
     <Modal visible={shown} transparent animationType="none" onRequestClose={onClose} onDismiss={flush}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+      {/* any touch outside closes it, a pinch or drag on the map included, not just a tap */}
+      <View style={StyleSheet.absoluteFill} onTouchStart={onClose}>
         {dim && <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.18)', opacity: v }]} />}
-      </Pressable>
+      </View>
       <Animated.View
         style={[
           s.popMenu,
@@ -718,6 +719,7 @@ const s = StyleSheet.create({
   edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 6, width: 0, height: 0, borderTopWidth: 6, borderBottomWidth: 6, borderLeftWidth: 6, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: colors.primary, opacity: 0.75 }, // app color, so it reads as ours rather than map ink
   groupPill: { padding: 3, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow, shadowOpacity: 0.18 },
   inPill: { borderColor: colors.surface, shadowOpacity: 0 }, // rings match the pill; the pill carries the shadow
+  edgeFace: { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 3 }, // floats above the map, like it's stacked over what's off screen
   miniPin: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: 'white', alignItems: 'center', justifyContent: 'center', opacity: 0.85 },
   clusterText: { fontFamily: fonts.bodyBold, fontSize: 12, color: 'white' },
   mapButton: { width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
