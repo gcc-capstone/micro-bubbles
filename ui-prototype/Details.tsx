@@ -1,8 +1,9 @@
 // Person and pin views (shown inside the map's bottom sheet) plus event, Bubble profile and
 // drop pin views (shown as page sheets).
-import { ReactNode, useEffect, useState } from 'react';
-import { Alert, Linking, Platform, Pressable, ScrollView, Share, StyleProp, StyleSheet, Switch, Text, TextInput, TextStyle, View } from 'react-native';
+import { ReactNode, useEffect, useRef, useState } from 'react';
+import { Alert, Keyboard, Linking, Platform, Pressable, ScrollView, Share, StyleProp, StyleSheet, Switch, Text, TextInput, TextStyle, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { Avatar, Bubble, Button, IconName, MapPin, MenuButton, PageSheet, Segmented, Separator } from './components';
 import { bubbleColors, colors, FIXED_TEXT, fonts, radius, shadow, spacing, type } from './theme';
 import {
@@ -31,6 +32,12 @@ const directions = (lat: number, lng: number) =>
   );
 
 /* ---------- shared bits ---------- */
+
+// "Lena, Venture and Maya", or "Lena, Venture and 4 others": first names only.
+const namesList = (names: string[]) => {
+  const firsts = names.map((n) => n.split(' ')[0]);
+  return firsts.length <= 3 ? firsts.join(', ').replace(/, ([^,]*)$/, ' and $1') : `${firsts.slice(0, 2).join(', ')} and ${firsts.length - 2} others`;
+};
 
 function Section({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
@@ -133,27 +140,100 @@ function BubblePicker({ groups, value, onChange }: { groups: Group[]; value?: st
   );
 }
 
-// Search field for a place; picking one hands it back and clears the field.
-function PlaceSearch({ onPick }: { onPick: (l: Loc) => void }) {
-  const [search, setSearch] = useState('');
-  const q = search.trim().toLowerCase();
-  const matches = q ? LOCATIONS.filter((l) => l.name.toLowerCase().includes(q)).slice(0, 5) : [];
+// Where something goes: an address field over a map with a fixed marker in the middle. Dragging the
+// map fills in the address; typing one (or picking a known place) moves the map there. name: the
+// known place picked, while the map is still on it.
+export type Spot = { lat: number; lng: number; address: string; name?: string };
+const addressOf = (a: Location.LocationGeocodedAddress) =>
+  [a.streetNumber && a.street ? `${a.streetNumber} ${a.street}` : a.street ?? a.name, a.city].filter(Boolean).join(', ');
+
+function PlacePicker({ at, color, marker, onChange, onPlace }: {
+  at?: { lat: number; lng: number } | null; color: string; marker: ReactNode; onChange: (s: Spot) => void; onPlace?: (l: Loc) => void;
+}) {
+  const [focus, setFocus] = useState<Focus>(() => ({ name: at ? 'Chosen spot' : 'You', ...(at ?? { lat: ME.lat, lng: ME.lng }) }));
+  const [center, setCenter] = useState({ lat: focus.lat, lng: focus.lng });
+  const [address, setAddress] = useState('');
+  const [typing, setTyping] = useState(false);
+  const typingRef = useRef(false); // a lookup finishing mid-typing mustn't replace what's typed
+  const seq = useRef(0); // only the latest lookup counts
+  const picked = useRef<Loc | null>(null);
+  const q = typing ? address.trim().toLowerCase() : '';
+  const matches = q ? LOCATIONS.filter((l) => l.name.toLowerCase().includes(q)).slice(0, 4) : [];
+  const type_ = (on: boolean) => {
+    typingRef.current = on;
+    setTyping(on);
+  };
+
+  // the map stopped moving: report the spot, then its address (the phone's geocoder; no network of ours)
+  const moved = (c: { lat: number; lng: number }) => {
+    setCenter(c);
+    const name = picked.current && meters(picked.current, c) < 50 ? picked.current.name : undefined;
+    onChange({ ...c, address: '', name });
+    const n = ++seq.current;
+    Location.reverseGeocodeAsync({ latitude: c.lat, longitude: c.lng })
+      .then(([a]) => {
+        if (n !== seq.current || !a || typingRef.current) return;
+        setAddress(addressOf(a));
+        onChange({ ...c, address: addressOf(a), name });
+      })
+      .catch(() => {}); // no geocoder (web, offline): the field just stays as typed
+  };
+  const pick = (l: Loc) => {
+    type_(false);
+    ++seq.current; // drop any address lookup still running
+    picked.current = l;
+    setAddress(l.name);
+    setFocus({ name: l.name, lat: l.lat, lng: l.lng });
+    onPlace?.(l);
+    Keyboard.dismiss();
+  };
+  // done typing (return, or leaving the field): a known place, else look the address up
+  const go = () => {
+    if (!typingRef.current) return;
+    type_(false);
+    const text = address.trim();
+    const known = LOCATIONS.find((l) => l.name.toLowerCase() === text.toLowerCase());
+    if (known) return pick(known);
+    if (!text) return;
+    const n = ++seq.current;
+    Location.geocodeAsync(text)
+      .then(([r]) => n === seq.current && r && setFocus({ name: text, lat: r.latitude, lng: r.longitude }))
+      .catch(() => Alert.alert('Address Not Found', `Couldn't find "${text}". Drag the map instead.`));
+  };
+  const nearMe = distanceFromMe(center.lat, center.lng) < 0.05;
+
   return (
     <>
       <View style={[styles.searchRow, { marginHorizontal: spacing.md }]}>
-        <Ionicons name="search" size={16} color={colors.textMuted} />
-        <TextInput value={search} onChangeText={setSearch} placeholder="Search a place" placeholderTextColor={colors.textMuted} style={styles.searchInput} autoCorrect={false} />
+        <Ionicons name="location-outline" size={16} color={colors.textMuted} />
+        <TextInput
+          value={address}
+          onChangeText={setAddress}
+          onFocus={() => type_(true)}
+          onEndEditing={go}
+          placeholder="Address or place"
+          placeholderTextColor={colors.textMuted}
+          style={styles.searchInput}
+          autoCorrect={false}
+          returnKeyType="search"
+          selectTextOnFocus
+        />
       </View>
       {matches.length > 0 && (
         <View style={[styles.group, { marginHorizontal: spacing.md, marginTop: spacing.xs }]}>
           {matches.map((l, i) => (
-            <Pressable key={l.name} onPress={() => { onPick(l); setSearch(''); }}>
+            <Pressable key={l.name} onPress={() => pick(l)}>
               {i > 0 && <Separator inset={48} />}
               <Row icon={l.icon} label={l.name} value={formatMiles(distanceFromMe(l.lat, l.lng))} />
             </Pressable>
           ))}
         </View>
       )}
+      <View style={[styles.mapPreview, { marginTop: spacing.sm }]}>
+        <BubbleMap members={NO_MEMBERS} hotspots={[]} pins={[]} color={color} focus={focus} topInset={0} bottomInset={0} onMemberPress={() => {}} onCenterChange={moved} />
+        {marker}
+      </View>
+      <Text style={[type.caption, { textAlign: 'center' }]}>{nearMe ? 'Your current location · drag the map to move' : `${away(center.lat, center.lng)} · drag the map to adjust`}</Text>
     </>
   );
 }
@@ -174,13 +254,13 @@ function BubbleFields({ draft, onChange, autoFocus }: { draft: BubbleDraft; onCh
       <Section title="Icon and color">
         <View style={[styles.row, { gap: spacing.sm, flexWrap: 'wrap' }]}>
           {BUBBLE_ICONS.map((ic) => (
-            <Pressable key={ic} onPress={() => set({ icon: ic })} style={[styles.category, ic === draft.icon && { backgroundColor: draft.color, borderColor: draft.color }]}>
-              <Ionicons name={ic} size={18} color={ic === draft.icon ? 'white' : colors.text} />
+            <Pressable key={ic} onPress={() => set({ icon: ic })} style={[styles.category, ic === draft.icon && { backgroundColor: draft.color + '26' }]}>
+              <Ionicons name={ic} size={20} color={ic === draft.icon ? draft.color : colors.textMuted} style={ic !== draft.icon && { opacity: 0.7 }} />
             </Pressable>
           ))}
         </View>
         <Separator />
-        <View style={[styles.row, { gap: spacing.md, flexWrap: 'wrap' }]}>
+        <View style={[styles.row, { gap: 10, flexWrap: 'wrap' }]}>
           {bubbleColors.map((c) => (
             <Pressable key={c} onPress={() => set({ color: c })}>
               <Bubble size={40} tint={c}>{c === draft.color && <Ionicons name="checkmark" size={18} color={c} />}</Bubble>
@@ -212,12 +292,14 @@ export function LocationView({ loc }: { loc: Loc }) {
   const spots = GROUPS.flatMap((g) => g.hotspots.map((h) => ({ h, group: g }))).filter(({ h }) => h.name === loc.name);
   return (
     <View>
-      <View style={styles.hero}>
-        <View style={[styles.bigIcon, { backgroundColor: colors.primarySoft }]}>
-          <Ionicons name={loc.icon} size={34} color={colors.primary} />
+      <View style={styles.personRow}>
+        <View style={[styles.bigIcon, { width: 44, height: 44, backgroundColor: colors.primarySoft }]}>
+          <Ionicons name={loc.icon} size={22} color={colors.primary} />
         </View>
-        <Text style={[type.h1, { marginTop: spacing.sm, textAlign: 'center' }]}>{loc.name}</Text>
-        <Text style={type.caption}>{away(loc.lat, loc.lng)}</Text>
+        <View style={{ flex: 1 }}>
+          <Text numberOfLines={2} style={type.h2}>{loc.name}</Text>
+          <Text style={type.caption}>{away(loc.lat, loc.lng)}{people.length ? ` · ${people.length} here now` : ''}</Text>
+        </View>
       </View>
       {/* static preview: scrolling the page shouldn't get stuck panning a map */}
       <View style={[styles.mapPreview, styles.noTouch]}>
@@ -232,19 +314,20 @@ export function LocationView({ loc }: { loc: Loc }) {
         <HotspotAlerts key={group.id} hotspot={h} group={group} />
       ))}
 
-      <Section title={`Here now · ${people.length}`}>
-        {people.length === 0 && <Row icon="people-outline" label="Nobody from your Bubbles" color={colors.textMuted} />}
-        {people.map((m, i) => (
-          <View key={m.name}>
-            {i > 0 && <Separator inset={60} />}
-            <View style={styles.row}>
-              <Avatar size={32} initials={initials(m.name)} color={memberColor(m.name)} />
-              <Text style={[type.body, { flex: 1 }]}>{m.name}</Text>
-              <Text style={type.caption}>{m.updated}</Text>
+      {people.length > 0 && (
+        <Section title="Here now">
+          <View style={styles.row}>
+            <View style={styles.inline}>
+              {people.slice(0, 5).map((m, i) => (
+                <View key={m.name} style={[styles.stacked, i > 0 && { marginLeft: -10 }]}>
+                  <Avatar size={30} initials={initials(m.name)} color={memberColor(m.name)} />
+                </View>
+              ))}
             </View>
+            <Text numberOfLines={2} style={[type.body, { flex: 1 }]}>{namesList(people.map((m) => m.name))}</Text>
           </View>
-        ))}
-      </Section>
+        </Section>
+      )}
 
       {pins.length > 0 && (
         <Section title="Pins nearby">
@@ -382,8 +465,7 @@ export function NewHotspot({ visible, groups, initialGroupId, at, onClose, onCre
   const [name, setName] = useState('');
   const [radius, setRadius] = useState(250);
   const [groupId, setGroupId] = useState(groups[0]?.id);
-  const [start, setStart] = useState<Focus>({ name: 'You', lat: ME.lat, lng: ME.lng });
-  const [center, setCenter] = useState({ lat: ME.lat, lng: ME.lng });
+  const [spot, setSpot] = useState<Spot>({ lat: ME.lat, lng: ME.lng, address: '' });
   const [who, setWho] = useState<string[]>([]);
   const [when, setWhen] = useState('Both');
   useEffect(() => {
@@ -391,26 +473,19 @@ export function NewHotspot({ visible, groups, initialGroupId, at, onClose, onCre
     setName('');
     setRadius(250);
     setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
-    const p = at ?? { lat: ME.lat, lng: ME.lng };
-    setStart({ name: at ? 'Chosen spot' : 'You', ...p });
-    setCenter(p);
+    setSpot({ ...(at ?? { lat: ME.lat, lng: ME.lng }), address: '' });
     setWho([]);
     setWhen('Both');
   }, [visible]);
   const group = groups.find((g) => g.id === groupId);
   const color = groupColor(groupId);
-  const pick = (l: Loc) => {
-    setStart({ name: l.name, lat: l.lat, lng: l.lng });
-    setCenter({ lat: l.lat, lng: l.lng });
-    if (!name.trim()) setName(l.name);
-  };
   const create = () =>
     onCreate(
       {
         name: name.trim(),
         icon: 'radio-outline',
-        lat: center.lat,
-        lng: center.lng,
+        lat: spot.lat,
+        lng: spot.lng,
         radius,
         alerts: Object.fromEntries(who.map((n) => [n, { arrive: when !== 'Leaves', leave: when !== 'Arrives' }])),
       },
@@ -430,13 +505,14 @@ export function NewHotspot({ visible, groups, initialGroupId, at, onClose, onCre
         </Pressable>
       }
     >
-      <PlaceSearch onPick={pick} />
-      <View style={[styles.mapPreview, { marginTop: spacing.sm }]}>
-        <BubbleMap members={NO_MEMBERS} hotspots={[]} pins={[]} color={color} focus={start} topInset={0} bottomInset={0} onMemberPress={() => {}} onCenterChange={setCenter} />
-        {/* ponytail: circle drawn at a fixed screen size, not to the map's scale */}
-        <View style={[styles.areaRing, { borderColor: color, backgroundColor: color + '30' }, styles.noTouch]} />
-      </View>
-      <Text style={[type.caption, { textAlign: 'center' }]}>Drag the map to place the center</Text>
+      <PlacePicker
+        at={at}
+        color={color}
+        // ponytail: circle drawn at a fixed screen size, not to the map's scale
+        marker={<View style={[styles.areaRing, { borderColor: color, backgroundColor: color + '30' }, styles.noTouch]} />}
+        onChange={setSpot}
+        onPlace={(l) => !name.trim() && setName(l.name)}
+      />
 
       <Section title="Name">
         <TextInput value={name} onChangeText={setName} placeholder="e.g. Home, Davis Park, Campus" placeholderTextColor={colors.textMuted} style={styles.input} />
@@ -541,7 +617,7 @@ export function QuickMessages({ member, floating }: { member: Member; floating?:
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.notes, floating && { paddingHorizontal: spacing.md }]}>
       {QUICK_NOTES.map((n) => (
         <Pressable key={n} style={[styles.note, floating && styles.noteFloat]} hitSlop={{ top: 8, bottom: 8 }} onPress={() => textPerson(member, n)}>
-          <Text style={styles.noteText}>{n}</Text>
+          <Text maxFontSizeMultiplier={FIXED_TEXT} style={styles.noteText}>{n}</Text>
         </Pressable>
       ))}
     </ScrollView>
@@ -697,8 +773,7 @@ export function EventView({ event }: { event: BubbleEvent | null }) {
   const group = GROUPS.find((g) => g.id === event.groupId);
   const color = groupColor(event.groupId);
   const going = rsvp === 'Going' ? ['You', ...event.going] : event.going;
-  const firsts = going.map((n) => n.split(' ')[0]);
-  const who = firsts.length <= 3 ? firsts.join(', ').replace(/, ([^,]*)$/, ' and $1') : `${firsts.slice(0, 2).join(', ')} and ${firsts.length - 2} others`;
+  const who = namesList(going);
 
   return (
     <View>
@@ -930,9 +1005,7 @@ export function DropPin({ visible, groups, initialGroupId, at, onClose, onDrop }
   const [rating, setRating] = useState(5);
   const [groupId, setGroupId] = useState(groups[0]?.id);
   const [notify, setNotify] = useState(true);
-  // Where the map is centered (start = where it jumps to; center = where the user dragged it).
-  const [start, setStart] = useState<Focus>({ name: 'You', lat: ME.lat, lng: ME.lng });
-  const [center, setCenter] = useState({ lat: ME.lat, lng: ME.lng });
+  const [spot, setSpot] = useState<Spot>({ lat: ME.lat, lng: ME.lng, address: '' });
   useEffect(() => {
     if (!visible) return;
     setName('');
@@ -941,18 +1014,10 @@ export function DropPin({ visible, groups, initialGroupId, at, onClose, onDrop }
     setRating(5);
     setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
     setNotify(true);
-    const p = at ?? { lat: ME.lat, lng: ME.lng };
-    setStart({ name: at ? 'Dropped pin' : 'You', ...p });
-    setCenter(p);
+    setSpot({ ...(at ?? { lat: ME.lat, lng: ME.lng }), address: '' });
   }, [visible]);
   const color = groupColor(groupId);
   const icon = PIN_CATEGORIES.find((c) => c.name === category)!.icon;
-  const pick = (l: Loc) => {
-    setStart({ name: l.name, lat: l.lat, lng: l.lng });
-    setCenter({ lat: l.lat, lng: l.lng });
-    if (!name.trim()) setName(l.name);
-  };
-  const nearMe = distanceFromMe(center.lat, center.lng) < 0.05;
 
   return (
     <PageSheet
@@ -964,22 +1029,24 @@ export function DropPin({ visible, groups, initialGroupId, at, onClose, onDrop }
       right={
         <Pressable
           disabled={!name.trim()}
-          onPress={() => onDrop({ name: name.trim(), note, by: 'You', rating, icon, category, lat: center.lat, lng: center.lng }, groupId, notify)}
+          onPress={() => onDrop({ name: name.trim(), note, by: 'You', rating, icon, category, lat: spot.lat, lng: spot.lng }, groupId, notify)}
           hitSlop={10}
         >
           <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }, !name.trim() && { color: colors.textMuted }]}>Drop</Text>
         </Pressable>
       }
     >
-      {/* Search for a place, or drag the map under the fixed pin */}
-      <PlaceSearch onPick={pick} />
-      <View style={[styles.mapPreview, { marginTop: spacing.sm }]}>
-        <BubbleMap members={NO_MEMBERS} hotspots={[]} pins={[]} color={color} focus={start} topInset={0} bottomInset={0} onMemberPress={() => {}} onCenterChange={setCenter} />
-        <View style={styles.centerPin} pointerEvents="none">
-          <MapPin color={color} icon={icon} style={{ position: 'relative' }} />
-        </View>
-      </View>
-      <Text style={[type.caption, { textAlign: 'center' }]}>{nearMe ? 'At your current location · drag the map to move the pin' : `${away(center.lat, center.lng)} · drag to adjust`}</Text>
+      <PlacePicker
+        at={at}
+        color={color}
+        marker={
+          <View style={styles.centerPin} pointerEvents="none">
+            <MapPin color={color} icon={icon} style={{ position: 'relative' }} />
+          </View>
+        }
+        onChange={setSpot}
+        onPlace={(l) => !name.trim() && setName(l.name)}
+      />
 
       <Section title="Details">
         <TextInput value={name} onChangeText={setName} placeholder="Name, e.g. Sunken Garden Trail" placeholderTextColor={colors.textMuted} style={styles.input} />
@@ -1131,11 +1198,10 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
   visible: boolean; groups: Group[]; initialGroupId?: string; today: string; initialDate?: string; weekStart?: number; at?: { lat: number; lng: number } | null;
   onClose: () => void; onCreate: (e: BubbleEvent) => void;
 }) {
-  const spot: Loc | null = at ? { name: 'Chosen spot', icon: 'location', ...at } : null;
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(today);
   const [time, setTime] = useState(TIMES[DEFAULT_TIME]);
-  const [place, setPlace] = useState<Loc | null>(null);
+  const [spot, setSpot] = useState<Spot>({ lat: ME.lat, lng: ME.lng, address: '' });
   const [groupId, setGroupId] = useState(groups[0]?.id);
   const [remind, setRemind] = useState(true);
   const [picking, setPicking] = useState<'date' | 'time' | null>(null); // which row is open
@@ -1144,14 +1210,14 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
     setTitle('');
     setDate(initialDate < today ? today : initialDate);
     setTime(TIMES[DEFAULT_TIME]);
-    setPlace(spot);
+    setSpot({ ...(at ?? { lat: ME.lat, lng: ME.lng }), address: '' });
     setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
     setRemind(true);
     setPicking(null);
   }, [visible]);
   const toggle = (k: 'date' | 'time') => setPicking(picking === k ? null : k);
   const chevron = (k: 'date' | 'time') => <Ionicons name={picking === k ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textMuted} />;
-  const where = place ?? { name: 'Current location', lat: ME.lat, lng: ME.lng, icon: 'locate' as IconName };
+  const color = groupColor(groupId);
   const ok = title.trim().length > 0;
 
   return (
@@ -1164,7 +1230,7 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
       right={
         <Pressable
           disabled={!ok}
-          onPress={() => onCreate({ groupId, title: title.trim(), date, time, place: where.name, going: ['Ashlea Morgan'], lat: where.lat, lng: where.lng })}
+          onPress={() => onCreate({ groupId, title: title.trim(), date, time, place: spot.name ?? (spot.address || 'Chosen spot'), going: ['Ashlea Morgan'], lat: spot.lat, lng: spot.lng })}
           hitSlop={10}
         >
           <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }, !ok && { color: colors.textMuted }]}>Add</Text>
@@ -1196,21 +1262,17 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
         )}
       </Section>
 
-      <Section title="Where">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: spacing.sm + 4, gap: spacing.sm }}>
-          {[null, ...(spot ? [spot] : []), ...LOCATIONS.filter((l) => distanceFromMe(l.lat, l.lng) < 15).slice(0, 12)].map((l) => {
-            const on = (l?.name ?? null) === (place?.name ?? null);
-            return (
-              <Pressable key={l?.name ?? 'here'} onPress={() => setPlace(l)} style={[styles.timeChip, on && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
-                <View style={[styles.row, { paddingHorizontal: 0, paddingVertical: 0, gap: 4 }]}>
-                  <Ionicons name={l?.icon ?? 'locate'} size={14} color={on ? colors.primary : colors.textMuted} />
-                  <Text style={[styles.timeText, on && { color: colors.primary }]}>{l?.name ?? 'Current location'}</Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </Section>
+      <Text style={[styles.sectionTitle, { marginTop: spacing.lg, marginLeft: spacing.md, marginBottom: 6 }]}>Where</Text>
+      <PlacePicker
+        at={at}
+        color={color}
+        marker={
+          <View style={styles.centerPin} pointerEvents="none">
+            <MapPin color={color} icon="calendar" style={{ position: 'relative' }} />
+          </View>
+        }
+        onChange={setSpot}
+      />
 
       <Section title="Bubble">
         <BubblePicker groups={groups} value={groupId} onChange={setGroupId} />
@@ -1235,11 +1297,12 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md },
   action: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.sm + 4 },
   actionText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
-  note: { paddingHorizontal: spacing.sm + 6, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
+  // fixed height and line height: an emoji's glyph is taller than text and would make its pill taller
+  note: { height: 30, justifyContent: 'center', paddingHorizontal: spacing.sm + 6, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
   noteFloat: { backgroundColor: colors.surface, ...shadow },
   notes: { gap: spacing.sm, paddingVertical: 6, alignItems: 'center' }, // don't stretch pills to the row height
   personRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  noteText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.primary },
+  noteText: { fontFamily: fonts.bodyBold, fontSize: 14, lineHeight: 18, color: colors.primary },
   bigIcon: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
   photo: { flex: 1, aspectRatio: 1, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   eventHero: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md },
@@ -1259,8 +1322,8 @@ const styles = StyleSheet.create({
   alertChipOn: { backgroundColor: colors.primary },
   alertChipText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
   areaRing: { position: 'absolute', left: '50%', top: '50%', width: 110, height: 110, marginLeft: -55, marginTop: -55, borderRadius: 55, borderWidth: 2 },
-  mapPreview: { height: 180, marginHorizontal: spacing.md, borderRadius: radius.md, overflow: 'hidden' },
-  category: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  mapPreview: { height: 150, marginHorizontal: spacing.md, borderRadius: radius.md, overflow: 'hidden' },
+  category: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }, // selected: a soft tint behind it
   calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   calCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 2 },
   calDow: { ...type.caption, fontFamily: fonts.bodyBold, paddingBottom: 4 },
