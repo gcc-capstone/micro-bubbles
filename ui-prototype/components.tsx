@@ -1,5 +1,5 @@
 // Shared UI building blocks for Bubbles screens. All values come from theme.ts.
-import { ComponentProps, ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { ComponentProps, createContext, ReactNode, useContext, useEffect, useId, useRef, useState } from 'react';
 import {
   Alert, Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, useWindowDimensions, View, ViewStyle, HostInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -213,19 +213,33 @@ export function Cluster({ count, faces = [], style }: { count: number; faces?: {
   );
 }
 
-// Marker on the map's edge for someone off screen: their face, and just outside it a small, quiet
-// isosceles triangle pointing their way.
+// Marker on the map's edge for what's off screen that way, with a small, quiet isosceles triangle
+// pointing there. One thing: its face (initials) or icon. Several: just how many, in the app color,
+// so the number doesn't read as a notification badge.
 const EDGE_BOX = 84;
-export function EdgeMarker({ initials, color, angle, count = 1, style }: { initials: string; color: string; angle: number; count?: number; style?: Style }) {
+export function EdgeMarker({ initials, icon, color, angle, count = 1, style }: { initials?: string; icon?: IconName; color: string; angle: number; count?: number; style?: Style }) {
+  const many = count > 1;
   return (
     <View style={[s.abs, s.center, { width: EDGE_BOX, height: EDGE_BOX }, style]} pointerEvents="box-none">
       <View style={[s.abs, s.center, { width: EDGE_BOX, height: EDGE_BOX, transform: [{ rotate: `${angle}rad` }] }]} pointerEvents="none">
         <View style={[s.edgeArrow, { left: EDGE_BOX / 2 + 22 }]} />
       </View>
-      <View style={[s.cluster, { width: 36, height: 36, borderWidth: 3, backgroundColor: color }]}>
-        <Text maxFontSizeMultiplier={FIXED_TEXT} style={[s.clusterText, { fontSize: 12 }]}>{initials}</Text>
+      <View style={[s.cluster, { width: 36, height: 36, borderWidth: 3, backgroundColor: many ? colors.primary : color }]}>
+        {many || !icon ? (
+          <Text maxFontSizeMultiplier={FIXED_TEXT} style={[s.clusterText, { fontSize: many && count > 9 ? 12 : 13 }]}>{many ? (count > 99 ? '99+' : count) : initials}</Text>
+        ) : (
+          <Ionicons name={icon} size={16} color="white" />
+        )}
       </View>
-      {count > 1 && <Badge count={count} style={{ position: 'absolute', top: EDGE_BOX / 2 - 26, left: EDGE_BOX / 2 - 26, backgroundColor: colors.primary }} />}
+    </View>
+  );
+}
+
+// A pin kept quiet under people (Members tab): a small dot with its icon.
+export function MiniPin({ color, icon, style }: { color: string; icon: IconName; style?: Style }) {
+  return (
+    <View style={[s.miniPin, { backgroundColor: color }, style]}>
+      <Ionicons name={icon} size={9} color="white" />
     </View>
   );
 }
@@ -315,7 +329,9 @@ export function PopMenu({ visible, anchor, title, options, icons, destructive = 
       });
     }
   }, [visible]);
+  const sheetTop = useContext(SheetTop);
   if (!anchor) return null;
+  anchor = { ...anchor, y: anchor.y + sheetTop };
 
   const groups = [options.filter((o) => !destructive.includes(o)), options.filter((o) => destructive.includes(o))].filter((g) => g.length);
   const checks = multi || selected.length > 0;
@@ -413,6 +429,19 @@ export function MenuButton({ icon, label, options, selected = [], onSelect, mult
 // Full-height iOS page sheet (swipe down to close) for details, editing and creating.
 // cancel: a create/edit form, with Cancel at the leading edge (asks first when dirty); otherwise a
 // view-only sheet with Done (trailing, or leading when `right` holds the sheet's own actions).
+// Inside a page sheet, a menu's button measures from the sheet's top, but the menu's own Modal
+// covers the whole screen. The sheet sits at the bottom of the screen, so it starts this far down.
+const SheetTop = createContext(0);
+export function SheetTopProvider({ children }: { children: ReactNode }) {
+  const { height } = useWindowDimensions();
+  const [top, setTop] = useState(0);
+  return (
+    <View style={{ flex: 1 }} onLayout={(e) => setTop(Math.max(0, height - e.nativeEvent.layout.height))}>
+      <SheetTop.Provider value={top}>{children}</SheetTop.Provider>
+    </View>
+  );
+}
+
 export function PageSheet({ visible, title, onClose, right, cancel, dirty, children }: {
   visible: boolean; title: string; onClose: () => void; right?: ReactNode; cancel?: boolean; dirty?: boolean; children: ReactNode;
 }) {
@@ -431,6 +460,7 @@ export function PageSheet({ visible, title, onClose, right, cancel, dirty, child
   );
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
+      <SheetTopProvider>
       <View style={[s.page, { paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
         <View style={s.pageHeader}>
           <View style={{ minWidth: 60 }}>
@@ -449,6 +479,7 @@ export function PageSheet({ visible, title, onClose, right, cancel, dirty, child
           {children}
         </ScrollView>
       </View>
+      </SheetTopProvider>
     </Modal>
   );
 }
@@ -687,6 +718,7 @@ const s = StyleSheet.create({
   edgeArrow: { position: 'absolute', top: EDGE_BOX / 2 - 6, width: 0, height: 0, borderTopWidth: 6, borderBottomWidth: 6, borderLeftWidth: 6, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: colors.primary, opacity: 0.75 }, // app color, so it reads as ours rather than map ink
   groupPill: { padding: 3, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow, shadowOpacity: 0.18 },
   inPill: { borderColor: colors.surface, shadowOpacity: 0 }, // rings match the pill; the pill carries the shadow
+  miniPin: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: 'white', alignItems: 'center', justifyContent: 'center', opacity: 0.85 },
   clusterText: { fontFamily: fonts.bodyBold, fontSize: 12, color: 'white' },
   mapButton: { width: CONTROL, height: CONTROL, borderRadius: CONTROL / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
 

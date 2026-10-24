@@ -3,7 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Circle, Marker, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { Cluster, EdgeMarker, EventPin, MapPin, MemberPin, YouDot } from './components';
+import { Cluster, EdgeMarker, EventPin, IconName, MapPin, MemberPin, MiniPin, YouDot } from './components';
 import { aroundMe, edgeSpot, scaleBar, spread, toScreen, visibleLabels } from './mapFit';
 import { groupNearby } from './cluster';
 import { colors, FIXED_TEXT, fonts, isDark, radius, spacing } from './theme';
@@ -39,9 +39,12 @@ export type BubbleMapProps = {
   dropped?: { lat: number; lng: number } | null; // a long-pressed spot, shown as a pin
   onLongPress?: (c: { lat: number; lng: number; x: number; y: number }) => void; // long-press on the map; x/y = touch point on the map view
   onCenterChange?: (c: { lat: number; lng: number }) => void; // after the user pans (Drop Pin) // when set (and nothing is focused), center on you and show this radius
+  // What the map is about (the sheet's tab). members: people and events, with pins as small dots and
+  // hotspot areas faint; hotspots / pins: only those. Off-screen markers follow it too.
+  layer?: 'members' | 'hotspots' | 'pins';
 };
 
-export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange, hideEdges, recenter, onLongPress, dropped }: BubbleMapProps) {
+export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange, hideEdges, recenter, onLongPress, dropped, layer = 'members' }: BubbleMapProps) {
   const map = useRef<MapView>(null);
   const ready = useRef(false);
   const [region, setRegion] = useState<Region | null>(null);
@@ -53,10 +56,14 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
     ...pins.map((pn) => ({ key: 'p-' + pn.name, lat: pn.lat, lng: pn.lng, kind: 'pin' as const, pin: pn })),
     ...events.map((e) => ({ key: 'e-' + e.key, lat: e.lat, lng: e.lng, kind: 'event' as const, event: e })),
   ];
+  // Every marker stays mounted (see below); ones outside the layer just turn invisible.
+  const shows = (it: Item) => (it.kind === 'pin' ? layer !== 'hotspots' : layer === 'members');
+  const mini = (it: Item) => layer === 'members' && it.kind === 'pin' && it.pin!.name !== focus?.name;
   const grouping = region && region.latitudeDelta > GROUP_UNTIL;
   const toPx = (it: Item) => toScreen(region!, size, { top: topInset, bottom: bottomInset }, it);
-  const multi = grouping ? groupNearby(items.filter((it) => !(it.member && it.member.name === focus?.name)), toPx).filter((g) => g.length >= GROUP_MIN) : [];
-  const hidden = new Set(multi.flat().map((it) => it.key));
+  const groupable = items.filter((it) => shows(it) && !mini(it) && !(it.member && it.member.name === focus?.name));
+  const multi = grouping ? groupNearby(groupable, toPx).filter((g) => g.length >= GROUP_MIN) : [];
+  const hidden = new Set([...multi.flat().map((it) => it.key), ...items.filter((it) => !shows(it)).map((it) => it.key)]);
 
   // Nudge whatever still overlaps on screen (people, pins, events) apart, a short way at most; your
   // dot, group counts and the focused person stay put. Hotspot names then hide where they'd collide.
@@ -67,7 +74,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
   if (region) {
     const solid = [
       ...items
-        .filter((it) => !hidden.has(it.key))
+        .filter((it) => !hidden.has(it.key) && !mini(it)) // small pin dots may sit under people
         .map((it) => {
           const p = toPx(it);
           // anchors differ: pins and events hang above their point, member pins sit slightly below
@@ -92,9 +99,14 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
     const off = hidden.has(it.key);
     if (it.pin) {
       const pin = it.pin;
+      const small = mini(it);
       return (
-        <Marker key={it.key} coordinate={{ latitude: pin.lat, longitude: pin.lng }} centerOffset={nudge.get(it.key)} anchor={{ x: 0.5, y: 1 }} tracksViewChanges onPress={() => !off && onPinPress?.(pin)}>
-          <MapPin color={color} icon={pin.icon} style={{ position: 'relative', opacity: off ? 0 : 1 }} />
+        <Marker key={it.key} coordinate={{ latitude: pin.lat, longitude: pin.lng }} centerOffset={nudge.get(it.key)} anchor={{ x: 0.5, y: small ? 0.5 : 1 }} tracksViewChanges onPress={() => !off && onPinPress?.(pin)} zIndex={small ? 0 : 1}>
+          {small ? (
+            <MiniPin color={color} icon={pin.icon} style={{ opacity: off ? 0 : 0.85 }} />
+          ) : (
+            <MapPin color={color} icon={pin.icon} style={{ position: 'relative', opacity: off ? 0 : 1 }} />
+          )}
         </Marker>
       );
     }
@@ -130,12 +142,17 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
           .slice(0, 2)
           .map((it) => ({ initials: initials(it.member!.name), color: memberColor(it.member!.name) }));
 
-  // Off-screen people, pinned to the nearest edge; ones landing on the same spot share a marker.
-  // Off-screen people: one marker per side of the screen, showing the nearest person that way and
-  // how many there are, so a zoomed-in map doesn't get ringed with faces.
+  // Off-screen people (or hotspots, or pins, by layer): one marker per side of the screen, showing
+  // the nearest one that way, or how many there are, so a zoomed-in map doesn't get ringed with faces.
+  type Off = { name: string; lat: number; lng: number; initials?: string; icon?: IconName; color: string };
+  const offThings: Off[] =
+    layer === 'members'
+      ? members.map((m) => ({ name: m.name, lat: m.lat, lng: m.lng, initials: initials(m.name), color: memberColor(m.name) }))
+      : (layer === 'hotspots' ? hotspots : pins).map((p) => ({ name: p.name, lat: p.lat, lng: p.lng, icon: p.icon, color }));
+  const noun = layer === 'members' ? ['person', 'people'] : layer === 'hotspots' ? ['hotspot', 'hotspots'] : ['pin', 'pins'];
   const edges = region && !hideEdges
     ? Object.values(
-        members.reduce<Record<number, { m: Member; x: number; y: number; angle: number; d: number }[]>>((acc, m) => {
+        offThings.reduce<Record<number, { m: Off; x: number; y: number; angle: number; d: number }[]>>((acc, m) => {
           // markers may sit right up to the top (just under the status bar), not only below the top buttons
           const e = edgeSpot(region, size, { top: topInset, bottom: bottomInset }, m, 30, { top: topInset - 52, bottom: bottomInset });
           if (!e) return acc;
@@ -190,15 +207,15 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
         fit();
       }}>
       {hotspots.map((p) => (
-        // the whole area: a gentle tint with a thin dashed edge
+        // the whole area: a gentle tint with a thin dashed edge; fainter under people, gone on Pins
         <Circle
           key={p.name}
           center={{ latitude: p.lat, longitude: p.lng }}
           radius={p.radius}
-          strokeColor={color + '99'}
+          strokeColor={layer === 'hotspots' ? color + '99' : layer === 'members' ? color + '55' : '#0000'}
           strokeWidth={1.5}
           lineDashPattern={[6, 5]}
-          fillColor={color + '24'}
+          fillColor={layer === 'hotspots' ? color + '24' : layer === 'members' ? color + '10' : '#0000'}
         />
       ))}
       {hotspots.map((p, i) => {
@@ -207,9 +224,10 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
         const rPx = region ? (p.radius / 111000 / region.latitudeDelta) * (size.h - topInset - bottomInset) : 0;
         const big = rPx > 48;
         return (
-          <Marker key={'tag-' + p.name} coordinate={{ latitude: p.lat, longitude: p.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges onPress={() => onPlacePress?.(p)}>
+          <Marker key={'tag-' + p.name} coordinate={{ latitude: p.lat, longitude: p.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges onPress={() => layer === 'hotspots' && onPlacePress?.(p)}>
+            {/* names only on the Hotspots tab; never an empty view, or iOS draws its default red pin */}
             {big ? (
-              <View style={{ width: rPx * 1.6, alignItems: 'center' }}>
+              <View style={{ width: rPx * 1.6, alignItems: 'center', opacity: layer === 'hotspots' ? 1 : 0 }}>
                 <Ionicons name={p.icon} size={Math.min(28, rPx * 0.22)} color={color} style={{ opacity: 0.55 }} />
                 <Text
                   maxFontSizeMultiplier={FIXED_TEXT}
@@ -220,7 +238,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
                 </Text>
               </View>
             ) : (
-              <View style={[styles.placeTag, { backgroundColor: color, opacity: tagShown[i] ? 1 : 0 }]}>
+              <View style={[styles.placeTag, { backgroundColor: color, opacity: tagShown[i] && layer === 'hotspots' ? 1 : 0 }]}>
                 <Ionicons name={p.icon} size={11} color={'white'} />
                 <Text maxFontSizeMultiplier={FIXED_TEXT} style={styles.placeTagText}>{p.name}</Text>
               </View>
@@ -269,18 +287,18 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
         e.y < topInset ? Math.max(76, Math.min(size.w - 120, e.x)) : e.x > size.w - 80 && e.y > size.h - bottomInset - 90 ? size.w - 70 : e.x;
       return (
         <Pressable
-          key={e.m.name}
-          // tap: zoom out just enough to show you and the people that way
+          key={layer + e.m.name}
+          // tap: zoom out just enough to show you and everything that way
           onPress={() =>
             map.current?.fitToCoordinates([...g.map(({ m }) => ({ latitude: m.lat, longitude: m.lng })), { latitude: ME.lat, longitude: ME.lng }], {
               edgePadding: { top: 60, right: 50, bottom: 60, left: 50 },
               animated: true,
             })
           }
-          accessibilityLabel={`${g.length} ${g.length === 1 ? 'person' : 'people'} off screen, nearest ${e.m.name}`}
+          accessibilityLabel={`${g.length} ${noun[g.length === 1 ? 0 : 1]} off screen, nearest ${e.m.name}`}
           style={{ position: 'absolute', left: x - 42, top: e.y - 42, zIndex: 20 }}
         >
-          <EdgeMarker initials={initials(e.m.name)} color={memberColor(e.m.name)} angle={e.angle} count={g.length} style={{ position: 'relative' }} />
+          <EdgeMarker initials={e.m.initials} icon={e.m.icon} color={e.m.color} angle={e.angle} count={g.length} style={{ position: 'relative' }} />
         </Pressable>
       );
     })}

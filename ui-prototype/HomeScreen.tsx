@@ -698,6 +698,8 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
             onPlacePress={(pl) => openPlace({ name: pl.name, lat: pl.lat, lng: pl.lng, icon: pl.icon })}
             onEventPress={openEvent}
             hideEdges={searching || feedOpen} // a panel covers part of the map
+            // the map follows the sheet's tab while the tabs show; collapsed, it's about people
+            layer={detent > 0 && tab === 'Hotspots' ? 'hotspots' : detent > 0 && tab === 'Pins' ? 'pins' : 'members'}
             recenter={recenter}
             dropped={dropped}
             onLongPress={(c) => {

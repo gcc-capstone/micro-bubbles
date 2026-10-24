@@ -47,7 +47,7 @@ function Row({ icon, label, value, onPress, color = colors.primary, children }: 
   return (
     <Pressable onPress={onPress} disabled={!onPress} style={styles.row}>
       <Ionicons name={icon} size={20} color={color} />
-      <Text style={[type.body, { flex: 1, color: color === colors.danger ? color : colors.text }]}>{label}</Text>
+      <Text numberOfLines={1} style={[type.body, { flex: 1, color: color === colors.danger ? color : colors.text }]}>{label}</Text>
       {value && <Text style={type.caption}>{value}</Text>}
       {children}
       {onPress && !children && <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />}

@@ -8,7 +8,7 @@ import { initialWindowMetrics, SafeAreaInsetsContext, SafeAreaProvider } from 'r
 import { getCalendars } from 'expo-localization';
 import { useFonts, Lato_400Regular, Lato_700Bold } from '@expo-google-fonts/lato';
 import { Montserrat_600SemiBold, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
-import { PopMenu, Tab, TabBar } from './components';
+import { PopMenu, SheetTopProvider, Tab, TabBar } from './components';
 import { applyTheme, colors, CONTROL, fonts, isDark, shadow, spacing } from './theme';
 import { EVERYONE, INBOX, PROFILE } from './data';
 import CalendarScreen from './CalendarScreen';
@@ -143,6 +143,7 @@ export default function App() {
           {NAV_EXPERIMENT && (
             <Modal visible={!!sheet} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSheet(null)}>
               <SafeAreaInsetsContext.Provider value={NO_INSETS}>
+                <SheetTopProvider>
                 <View style={styles.screen}>
                   {sheet === 'inbox' && <InboxScreen onChange={() => setInboxTick((t) => t + 1)} />}
                   {sheet === 'profile' && profile}
@@ -150,6 +151,7 @@ export default function App() {
                     <Text style={styles.doneText}>Done</Text>
                   </Pressable>
                 </View>
+                </SheetTopProvider>
               </SafeAreaInsetsContext.Provider>
             </Modal>
           )}
