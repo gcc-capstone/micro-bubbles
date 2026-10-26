@@ -1,11 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 399 120">
-  <g transform="translate(-2.5 -4)">
-    <circle cx="52" cy="58" r="38" fill="#005BAA"/>
-    <path d="M27.6 49.1 A26 26 0 0 1 43.1 33.6" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
-    <circle cx="91" cy="88" r="20" fill="#29AB87" stroke="#FFFFFF" stroke-width="5"/>
-    <circle cx="95" cy="36" r="9" fill="#00BBE0"/>
-  </g>
-  <g fill="#414142" transform="translate(126 82.0) scale(0.06286 -0.06286)">
+  <defs><mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">
+    <rect width="120" height="120" fill="#FFF"/><circle cx="88.5" cy="84" r="22.5" fill="#000"/>
+  </mask></defs>
+  <circle cx="49.5" cy="54" r="38" fill="#005BAA" mask="url(#cut)"/>
+  <path d="M25.07 45.11 A26 26 0 0 1 40.61 29.57" fill="none" stroke="#FFF" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="88.5" cy="84" r="20" fill="#29AB87"/>
+  <circle cx="92.5" cy="32" r="9" fill="#00BBE0"/>
+  <g fill="#414142" transform="translate(126 82) scale(0.06286 -0.06286)">
 <path transform="translate(0 0)" d="M94 0V700H422Q548 700 614.0 650.5Q680 601 680 518Q680 462 654.0 422.5Q628 383 584.5 361.5Q541 340 490 340L508 376Q567 376 614.0 354.5Q661 333 688.5 292.0Q716 251 716 190Q716 100 647.0 50.0Q578 0 442 0ZM224 102H434Q507 102 546.0 126.0Q585 150 585 203Q585 255 546.0 279.5Q507 304 434 304H214V405H408Q476 405 512.5 429.0Q549 453 549 501Q549 550 512.5 574.0Q476 598 408 598H224Z"/>
 <path transform="translate(761 0)" d="M308 -7Q240 -7 188.0 18.5Q136 44 107.0 96.5Q78 149 78 229V534H203V246Q203 174 235.5 138.5Q268 103 328 103Q372 103 404.5 121.0Q437 139 455.5 175.0Q474 211 474 264V534H599V0H480V144L501 100Q474 48 422.0 20.5Q370 -7 308 -7Z"/>
 <path transform="translate(1442 0)" d="M378 -7Q310 -7 257.0 23.0Q204 53 173.5 113.5Q143 174 143 267Q143 361 174.5 421.0Q206 481 259.5 510.5Q313 540 378 540Q457 540 517.5 506.0Q578 472 613.5 411.0Q649 350 649 267Q649 184 613.5 123.0Q578 62 517.5 27.5Q457 -7 378 -7ZM82 0V742H207V410L197 268L201 126V0ZM364 100Q409 100 444.5 120.0Q480 140 501.0 178.0Q522 216 522 267Q522 319 501.0 356.5Q480 394 444.5 414.0Q409 434 364 434Q319 434 283.0 414.0Q247 394 226.0 356.5Q205 319 205 267Q205 216 226.0 178.0Q247 140 283.0 120.0Q319 100 364 100Z"/>
