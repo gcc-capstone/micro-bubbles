@@ -140,83 +140,129 @@ function BubblePicker({ groups, value, onChange }: { groups: Group[]; value?: st
   );
 }
 
-// Where something goes: an address field over a map with a fixed marker in the middle. Dragging the
-// map fills in the address; typing one (or picking a known place) moves the map there. name: the
-// known place picked, while the map is still on it.
-export type Spot = { lat: number; lng: number; address: string; name?: string };
-const addressOf = (a: Location.LocationGeocodedAddress) =>
-  [a.streetNumber && a.street ? `${a.streetNumber} ${a.street}` : a.street ?? a.name, a.city].filter(Boolean).join(', ');
+// Where something goes: a search field, a map with a fixed marker in the middle, and the full address
+// below it. Dragging the map fills in the address (the phone's geocoder, via expo-location); editing
+// the address, or searching, moves the map there. name: the known place picked, while the map is
+// still on it.
+type Address = { line1: string; line2: string; city: string; region: string; postcode: string; country: string };
+export type Spot = { lat: number; lng: number; address: string; name?: string; fields?: Address };
+const NO_ADDRESS: Address = { line1: '', line2: '', city: '', region: '', postcode: '', country: '' };
+const oneLine = (f: Address) => [f.line1, f.city].filter(Boolean).join(', ');
 
 function PlacePicker({ at, color, marker, onChange, onPlace }: {
   at?: { lat: number; lng: number } | null; color: string; marker: ReactNode; onChange: (s: Spot) => void; onPlace?: (l: Loc) => void;
 }) {
   const [focus, setFocus] = useState<Focus>(() => ({ name: at ? 'Chosen spot' : 'You', ...(at ?? { lat: ME.lat, lng: ME.lng }) }));
   const [center, setCenter] = useState({ lat: focus.lat, lng: focus.lng });
-  const [address, setAddress] = useState('');
-  const [typing, setTyping] = useState(false);
-  const typingRef = useRef(false); // a lookup finishing mid-typing mustn't replace what's typed
+  const [search, setSearch] = useState('');
+  const [fields, setFieldsState] = useState(NO_ADDRESS);
+  const fieldsRef = useRef(NO_ADDRESS);
+  const setFields = (f: Address) => {
+    fieldsRef.current = f;
+    setFieldsState(f);
+  };
+  const editing = useRef(0); // address fields focused: a lookup finishing then mustn't replace what's typed
+  const edited = useRef(false);
   const seq = useRef(0); // only the latest lookup counts
   const picked = useRef<Loc | null>(null);
-  const q = typing ? address.trim().toLowerCase() : '';
+  const centerRef = useRef(center);
+  const q = search.trim().toLowerCase();
   const matches = q ? LOCATIONS.filter((l) => l.name.toLowerCase().includes(q)).slice(0, 4) : [];
-  const type_ = (on: boolean) => {
-    typingRef.current = on;
-    setTyping(on);
+  const report = (c: { lat: number; lng: number }, f: Address) => {
+    const name = picked.current && meters(picked.current, c) < 50 ? picked.current.name : undefined;
+    onChange({ ...c, address: oneLine(f), name, fields: f });
   };
 
-  // the map stopped moving: report the spot, then its address (the phone's geocoder; no network of ours)
+  // the map stopped moving: report the spot, then fill in its address
   const moved = (c: { lat: number; lng: number }) => {
     setCenter(c);
-    const name = picked.current && meters(picked.current, c) < 50 ? picked.current.name : undefined;
-    onChange({ ...c, address: '', name });
+    centerRef.current = c;
+    report(c, fieldsRef.current);
     const n = ++seq.current;
     Location.reverseGeocodeAsync({ latitude: c.lat, longitude: c.lng })
       .then(([a]) => {
-        if (n !== seq.current || !a || typingRef.current) return;
-        setAddress(addressOf(a));
-        onChange({ ...c, address: addressOf(a), name });
+        if (n !== seq.current || !a || editing.current > 0) return;
+        const f = {
+          line1: a.streetNumber && a.street ? `${a.streetNumber} ${a.street}` : a.street ?? a.name ?? '',
+          line2: fieldsRef.current.line2, // apartment, floor: only the person knows
+          city: a.city ?? a.subregion ?? '',
+          region: a.region ?? '',
+          postcode: a.postalCode ?? '',
+          country: a.country ?? '',
+        };
+        setFields(f);
+        report(c, f);
       })
-      .catch(() => {}); // no geocoder (web, offline): the field just stays as typed
+      .catch(() => {}); // no geocoder (web, offline): the fields stay as typed
+  };
+  const lookUp = (text: string) => {
+    const n = ++seq.current;
+    Location.geocodeAsync(text)
+      .then((rs) => {
+        // several matches (Mercer, PA and Mercer, ME): the one nearest where the map is
+        const c = centerRef.current;
+        const r = rs.sort((a, b) => meters(c, { lat: a.latitude, lng: a.longitude }) - meters(c, { lat: b.latitude, lng: b.longitude }))[0];
+        if (n === seq.current && r) setFocus({ name: text, lat: r.latitude, lng: r.longitude });
+      })
+      .catch(() => Alert.alert('Address Not Found', `Couldn't find "${text}". Drag the map instead.`));
   };
   const pick = (l: Loc) => {
-    type_(false);
-    ++seq.current; // drop any address lookup still running
     picked.current = l;
-    setAddress(l.name);
+    setSearch('');
     setFocus({ name: l.name, lat: l.lat, lng: l.lng });
     onPlace?.(l);
     Keyboard.dismiss();
   };
-  // done typing (return, or leaving the field): a known place, else look the address up
+  // search submitted: a known place, else an address
   const go = () => {
-    if (!typingRef.current) return;
-    type_(false);
-    const text = address.trim();
+    const text = search.trim();
     const known = LOCATIONS.find((l) => l.name.toLowerCase() === text.toLowerCase());
     if (known) return pick(known);
     if (!text) return;
-    const n = ++seq.current;
-    Location.geocodeAsync(text)
-      .then(([r]) => n === seq.current && r && setFocus({ name: text, lat: r.latitude, lng: r.longitude }))
-      .catch(() => Alert.alert('Address Not Found', `Couldn't find "${text}". Drag the map instead.`));
+    setSearch('');
+    lookUp(text);
   };
+  // left an address field: if anything changed, move the map to the whole address
+  const left = () => {
+    editing.current = Math.max(0, editing.current - 1);
+    if (!edited.current) return;
+    edited.current = false;
+    const f = fieldsRef.current;
+    report(centerRef.current, f);
+    const text = [f.line1, f.city, f.region, f.postcode, f.country].filter(Boolean).join(', ');
+    if (text) lookUp(text);
+  };
+  const field = (k: keyof Address, placeholder: string, extra?: object) => (
+    <TextInput
+      value={fields[k]}
+      onChangeText={(v) => {
+        edited.current = true;
+        setFields({ ...fieldsRef.current, [k]: v });
+      }}
+      onFocus={() => editing.current++}
+      onEndEditing={left}
+      placeholder={placeholder}
+      placeholderTextColor={colors.textMuted}
+      style={[styles.input, extra]}
+      autoCorrect={false}
+      textContentType={k === 'line1' ? 'streetAddressLine1' : k === 'line2' ? 'streetAddressLine2' : k === 'city' ? 'addressCity' : k === 'region' ? 'addressState' : k === 'postcode' ? 'postalCode' : 'countryName'}
+    />
+  );
   const nearMe = distanceFromMe(center.lat, center.lng) < 0.05;
 
   return (
     <>
       <View style={[styles.searchRow, { marginHorizontal: spacing.md }]}>
-        <Ionicons name="location-outline" size={16} color={colors.textMuted} />
+        <Ionicons name="search" size={16} color={colors.textMuted} />
         <TextInput
-          value={address}
-          onChangeText={setAddress}
-          onFocus={() => type_(true)}
-          onEndEditing={go}
-          placeholder="Address or place"
+          value={search}
+          onChangeText={setSearch}
+          onSubmitEditing={go}
+          placeholder="Search a place or address"
           placeholderTextColor={colors.textMuted}
           style={styles.searchInput}
           autoCorrect={false}
           returnKeyType="search"
-          selectTextOnFocus
         />
       </View>
       {matches.length > 0 && (
@@ -234,6 +280,24 @@ function PlacePicker({ at, color, marker, onChange, onPlace }: {
         {marker}
       </View>
       <Text style={[type.caption, { textAlign: 'center' }]}>{nearMe ? 'Your current location · drag the map to move' : `${away(center.lat, center.lng)} · drag the map to adjust`}</Text>
+
+      <Section title="Address">
+        {field('line1', 'Address line 1')}
+        <Separator />
+        {field('line2', 'Apt, suite, floor (optional)')}
+        <Separator />
+        <View style={styles.pair}>
+          {field('city', 'City', { flex: 1 })}
+          <View style={styles.pairLine} />
+          {field('region', 'State / Region', { flex: 1 })}
+        </View>
+        <Separator />
+        <View style={styles.pair}>
+          {field('country', 'Country', { flex: 1 })}
+          <View style={styles.pairLine} />
+          {field('postcode', 'Postcode', { flex: 1 })}
+        </View>
+      </Section>
     </>
   );
 }
@@ -1322,6 +1386,8 @@ const styles = StyleSheet.create({
   alertChipOn: { backgroundColor: colors.primary },
   alertChipText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
   areaRing: { position: 'absolute', left: '50%', top: '50%', width: 110, height: 110, marginLeft: -55, marginTop: -55, borderRadius: 55, borderWidth: 2 },
+  pair: { flexDirection: 'row' },
+  pairLine: { width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: spacing.sm },
   mapPreview: { height: 150, marginHorizontal: spacing.md, borderRadius: radius.md, overflow: 'hidden' },
   category: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }, // selected: a soft tint behind it
   calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
