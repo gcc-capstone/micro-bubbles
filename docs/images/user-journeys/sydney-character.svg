@@ -20,9 +20,8 @@
     <path d="M208 296 L206 336 M232 296 L234 336" stroke="#F1F7F8" stroke-width="3.5" stroke-linecap="round"/>
     <!-- pocket -->
     <path d="M168 490 L176 400 C178 392 184 388 192 388 H248 C256 388 262 392 264 400 L272 490" fill="none" stroke="#4E9FA9" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-    <!-- waving arm: sleeve from the shoulder, bent up at the elbow, cuff at the wrist -->
-    <path d="M300 318 L340 382 L349.4 304" fill="none" stroke="#64BAC4" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M349.4 304 L351.6 286" stroke="#4E9FA9" stroke-width="37" stroke-linecap="butt"/>
+    <!-- arms resting at her sides: sleeve seams on the hoodie -->
+    <path d="M152 330 C142 380 138 430 140 500 M288 330 C298 380 302 430 300 500" fill="none" stroke="#4E9FA9" stroke-width="3" stroke-linecap="round"/>
   </g>
   <!-- face -->
   <path d="M160 154 C160 102 280 102 280 154 C280 200 256 233 220 235 C184 233 160 200 160 154 Z" fill="#F5CFAF"/>
@@ -47,14 +46,5 @@
     <path d="M168 252 C162 277 168 302 160 332"/>
     <path d="M262 118 C270 138 270 163 266 188"/>
     <path d="M272 255 C278 280 270 305 278 335"/>
-  </g>
-  <!-- mitten hand: one rounded palm and a thumb, tilted into the wave -->
-  <g transform="translate(0 -9) rotate(6 352 268)">
-    <rect x="336" y="228" width="34" height="52" rx="16" fill="#F2C7A5"/>
-    <rect x="322" y="258" width="22" height="13" rx="6.5" transform="rotate(-40 333 264)" fill="#F2C7A5"/>
-    <path d="M347 232 V248 M359 232 V248" stroke="#E2AC88" stroke-width="2" stroke-linecap="round"/>
-  </g>
-  <g fill="none" stroke="#64BAC4" stroke-width="4" stroke-linecap="round" transform="translate(0 -22)">
-    <path d="M386 232 Q394 248 386 264"/><path d="M320 230 Q312 242 316 256"/>
   </g>
 </svg>
