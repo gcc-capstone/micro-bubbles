@@ -1326,16 +1326,18 @@ export default function HomeScreen({ resetKey, reduceMotion, everyoneRadius, eve
         initialGroupId={group?.id}
         at={dropAt}
         onClose={() => setDropOpen(false)}
-        onDrop={(pin, groupId, notify) => {
+        onDrop={(pin, groupIds, notify) => {
           if (dropped) closeSub(); // made something at the dropped pin: it's done its job
-          const g = GROUPS.find((x) => x.id === groupId)!;
-          g.pins.unshift(pin);
+          const gs = groupIds.map((id) => GROUPS.find((x) => x.id === id)!);
+          gs.forEach((g) => {
+            g.pins.unshift(pin);
+            g.activity.unshift({ icon: 'pin-outline', text: `You pinned ${pin.name}${notify ? ' and notified members' : ''}`, time: 'Now' });
+          });
           EVERYONE.pins.unshift(pin);
-          g.activity.unshift({ icon: 'pin-outline', text: `You pinned ${pin.name}${notify ? ' and notified members' : ''}`, time: 'Now' });
           setDropOpen(false);
-          setSelected(ALL.indexOf(g));
+          setSelected(ALL.indexOf(gs[0]));
           setFocus(pin);
-          showToast(`Pinned ${pin.name} in ${g.name}`);
+          showToast(`Pinned ${pin.name} in ${gs.length > 1 ? `${gs.length} Bubbles` : gs[0].name}`);
         }}
       />
 

@@ -15,7 +15,7 @@ export type Member = {
 // member arrives or leaves; alerts are keyed by that member's name.
 export type HotspotAlert = { arrive: boolean; leave: boolean };
 export type Hotspot = {
-  name: string; icon: IconName; lat: number; lng: number; radius: number; // radius in meters
+  name: string; icon: IconName; lat: number; lng: number; radius: number; // radius in meters, at least 500 (see RADII_M in Details.tsx)
   alerts?: Record<string, HotspotAlert>;
 };
 
@@ -57,13 +57,13 @@ export type Group = {
 export const ME = { lat: 41.1556, lng: -80.0789 };
 export const TODAY = '2026-10-02';
 
-const DAVIS_PARK: Hotspot = { name: 'Davis Park', icon: 'football', lat: 41.168, lng: -80.095, radius: 300, alerts: { 'Michaela Ross': { arrive: true, leave: false } } };
-const TLC: Hotspot = { name: 'TLC', icon: 'school', lat: 41.1549, lng: -80.0773, radius: 60 };
+const DAVIS_PARK: Hotspot = { name: 'Davis Park', icon: 'football', lat: 41.168, lng: -80.095, radius: 500, alerts: { 'Michaela Ross': { arrive: true, leave: false } } };
+const TLC: Hotspot = { name: 'TLC', icon: 'school', lat: 41.1549, lng: -80.0773, radius: 500 };
 const CAMPUS: Hotspot = { name: 'Grove City College', icon: 'school', lat: 41.1556, lng: -80.0789, radius: 600 };
-const WAFFLE_HOUSE: Hotspot = { name: 'Waffle House', icon: 'restaurant', lat: 40.6965, lng: -80.108, radius: 80 };
-const FINE_ARTS: Hotspot = { name: 'Fine Arts Center', icon: 'musical-notes', lat: 41.1575, lng: -80.0782, radius: 70 };
-const DINING: Hotspot = { name: 'Dining Hall', icon: 'restaurant', lat: 41.1566, lng: -80.081, radius: 60 };
-const STUDIO: Hotspot = { name: 'Krav Maga Studio', icon: 'fitness', lat: 41.158, lng: -80.088, radius: 50 };
+const WAFFLE_HOUSE: Hotspot = { name: 'Waffle House', icon: 'restaurant', lat: 40.6965, lng: -80.108, radius: 500 };
+const FINE_ARTS: Hotspot = { name: 'Fine Arts Center', icon: 'musical-notes', lat: 41.1575, lng: -80.0782, radius: 500 };
+const DINING: Hotspot = { name: 'Dining Hall', icon: 'restaurant', lat: 41.1566, lng: -80.081, radius: 500 };
+const STUDIO: Hotspot = { name: 'Krav Maga Studio', icon: 'fitness', lat: 41.158, lng: -80.088, radius: 500 };
 
 export const GROUPS: Group[] = [
   {
@@ -195,7 +195,7 @@ export const GROUPS: Group[] = [
     name: 'Shin Family',
     unread: 1,
     hotspots: [
-      { name: 'Home', icon: 'home', lat: 41.161, lng: -80.09, radius: 120 },
+      { name: 'Home', icon: 'home', lat: 41.161, lng: -80.09, radius: 500 },
       { name: 'Grove City', icon: 'business', lat: 41.158, lng: -80.088, radius: 3000, alerts: { 'Tim Shin': { arrive: true, leave: false } } },
     ],
     activity: [
@@ -242,7 +242,7 @@ export const GROUPS: Group[] = [
     icon: 'flower',
     name: 'Rochester Nature Lovers',
     unread: 1,
-    hotspots: [{ name: 'Canawaugus Park', icon: 'leaf', lat: 43.0306, lng: -77.7547, radius: 300 }],
+    hotspots: [{ name: 'Canawaugus Park', icon: 'leaf', lat: 43.0306, lng: -77.7547, radius: 500 }],
     activity: [
       { icon: 'pin-outline', text: 'Megan Ross pinned Canawaugus Park', time: '2h' },
       { icon: 'star-outline', text: 'Kyle Bennett rated Canawaugus Park 5 stars', time: '1d' },
@@ -263,7 +263,7 @@ export const GROUPS: Group[] = [
     icon: 'disc',
     name: 'Disc Golf Club',
     unread: 0,
-    hotspots: [{ name: 'Wolf Creek Course', icon: 'disc', lat: 41.17, lng: -80.07, radius: 200 }],
+    hotspots: [{ name: 'Wolf Creek Course', icon: 'disc', lat: 41.17, lng: -80.07, radius: 500 }],
     activity: [
       { icon: 'lock-closed-outline', text: 'Ani Kapoor paused location sharing', time: '1d' },
       { icon: 'enter-outline', text: 'Ben Ortiz arrived at Wolf Creek Course', time: '2d' },
@@ -285,7 +285,7 @@ export const GROUPS: Group[] = [
     isPublic: true,
     about: 'Public Bubble for Grove City College intramural players. Anyone can find it.',
     unread: 0,
-    hotspots: [{ name: 'IM Fields', icon: 'football', lat: 41.153, lng: -80.081, radius: 150 }],
+    hotspots: [{ name: 'IM Fields', icon: 'football', lat: 41.153, lng: -80.081, radius: 500 }],
     activity: [
       { icon: 'person-add-outline', text: 'Lena Ortiz joined GCC IM Sports', time: '3d' },
       { icon: 'calendar-outline', text: 'Flag football finals Saturday at 2:00 PM', time: '4d' },
@@ -307,7 +307,7 @@ export const GROUPS: Group[] = [
     icon: 'bed',
     name: 'Roommates',
     unread: 0,
-    hotspots: [{ name: 'Harker Hall', icon: 'bed', lat: 41.157, lng: -80.0805, radius: 50 }],
+    hotspots: [{ name: 'Harker Hall', icon: 'bed', lat: 41.157, lng: -80.0805, radius: 500 }],
     activity: [{ icon: 'enter-outline', text: 'Kelsey Park arrived at Harker Hall', time: '45m' }],
     members: [
       { name: 'Kelsey Park', place: 'Harker Hall', updated: '45m ago', lat: 41.157, lng: -80.0804 },
@@ -321,7 +321,7 @@ export const GROUPS: Group[] = [
     icon: 'book',
     name: 'Tuesday Bible Study',
     unread: 0,
-    hotspots: [{ name: 'Harbison Chapel', icon: 'book', lat: 41.156, lng: -80.0795, radius: 60 }],
+    hotspots: [{ name: 'Harbison Chapel', icon: 'book', lat: 41.156, lng: -80.0795, radius: 500 }],
     activity: [{ icon: 'calendar-outline', text: 'Study moved to 8:00 PM this week', time: '1d' }],
     members: [
       { name: 'Grace Kim', place: 'Rec Center', updated: '9m ago', lat: 41.1545, lng: -80.0822 },

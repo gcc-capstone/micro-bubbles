@@ -4,12 +4,12 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Circle, Marker, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { Cluster, EdgeMarker, EventPin, IconName, MapPin, MemberPin, MiniPin, YouDot } from './components';
-import { aroundMe, edgeSpot, scaleBar, spread, toScreen, visibleLabels } from './mapFit';
+import { aroundMe, edgeSpot, radiusPt, scaleBar, spread, toScreen, visibleLabels } from './mapFit';
 import { groupNearby } from './cluster';
 import { colors, FIXED_TEXT, fonts, isDark, radius, spacing } from './theme';
 import { initials, Member, memberColor, ME, minutesAgo, Pin, Hotspot } from './data';
 
-export type Focus = { name: string; lat: number; lng: number };
+export type Focus = { name: string; lat: number; lng: number; zoom?: number }; // zoom: degrees of latitude to show
 export type MapEvent = { key: string; title: string; when: string; color: string; lat: number; lng: number };
 
 // Below this zoom (degrees of latitude on screen) nothing is grouped, so people at the same spot stay tappable.
@@ -42,9 +42,10 @@ export type BubbleMapProps = {
   // What the map is about (the sheet's tab). members: people and events, with pins as small dots and
   // hotspot areas faint; hotspots / pins: only those. Off-screen markers follow it too.
   layer?: 'members' | 'hotspots' | 'pins';
+  ring?: { radiusM: number; color: string }; // an area to scale, centered on the map (New Hotspot)
 };
 
-export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange, hideEdges, recenter, onLongPress, dropped, layer = 'members' }: BubbleMapProps) {
+export default function BubbleMap({ members, hotspots, pins, color, focus, topInset, bottomInset, onMemberPress, onPinPress, onPlacePress, events = [], onEventPress, radiusMi, onCenterChange, hideEdges, recenter, onLongPress, dropped, layer = 'members', ring }: BubbleMapProps) {
   const map = useRef<MapView>(null);
   const ready = useRef(false);
   const [region, setRegion] = useState<Region | null>(null);
@@ -164,11 +165,13 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
     : [];
 
   const scale = useRef<{ show: (r: Region) => void; settle: () => void }>(null);
+  const ringRef = useRef<{ show: (r: Region) => void }>(null);
 
   const fit = () => {
     if (!ready.current) return;
     if (focus) {
-      map.current?.animateToRegion({ latitude: focus.lat, longitude: focus.lng, latitudeDelta: 0.004, longitudeDelta: 0.004 }, 500);
+      const d = focus.zoom ?? 0.004;
+      map.current?.animateToRegion({ latitude: focus.lat, longitude: focus.lng, latitudeDelta: d, longitudeDelta: d }, 500);
     } else if (radiusMi) {
       const d = (radiusMi * 2.2) / 69; // degrees of latitude spanning the radius, with a little margin
       map.current?.animateToRegion({ latitude: ME.lat, longitude: ME.lng, latitudeDelta: d, longitudeDelta: d / Math.cos((ME.lat * Math.PI) / 180) }, 500);
@@ -195,9 +198,13 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       // ponytail: edge markers update when panning stops; onRegionChange would re-render every frame
       onLongPress={(e) => onLongPress?.({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude, x: e.nativeEvent.position.x, y: e.nativeEvent.position.y })}
       // scale shows whenever the map moves, zooms or pinches (and when it frames a view), then fades
-      onRegionChange={(r) => scale.current?.show(r)}
+      onRegionChange={(r) => {
+        scale.current?.show(r);
+        ringRef.current?.show(r);
+      }}
       onRegionChangeComplete={(r) => {
         scale.current?.show(r);
+        ringRef.current?.show(r);
         scale.current?.settle();
         setRegion(r);
         onCenterChange?.({ lat: r.latitude, lng: r.longitude });
@@ -221,7 +228,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       {hotspots.map((p, i) => {
         // Big enough on screen: the name is written across the area, large and see-through. Small:
         // a name tag at the center, hidden where it would collide (hidden ones stay mounted).
-        const rPx = region ? (p.radius / 111000 / region.latitudeDelta) * (size.h - topInset - bottomInset) : 0;
+        const rPx = region ? radiusPt(p.radius, region.latitudeDelta, size.h - topInset - bottomInset) : 0;
         const big = rPx > 48;
         return (
           <Marker key={'tag-' + p.name} coordinate={{ latitude: p.lat, longitude: p.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges onPress={() => layer === 'hotspots' && onPlacePress?.(p)}>
@@ -280,6 +287,7 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
       })}
     </MapView>
     <ScaleBar ref={scale} width={size.w} top={topInset - 44} />
+    {ring && <CenterRing ref={ringRef} {...ring} height={size.h - topInset - bottomInset} />}
     {edges.map((g) => {
       const e = g[0];
       // keep clear of the corner buttons at the top and the location arrow at the bottom right
@@ -305,6 +313,20 @@ export default function BubbleMap({ members, hotspots, pins, color, focus, topIn
     </View>
   );
 }
+
+// An area drawn to scale at the map's center. Like the scale bar it lives apart from the map, so it
+// follows every frame of a pinch without re-rendering the markers.
+const CenterRing = forwardRef<{ show: (r: Region) => void }, { radiusM: number; color: string; height: number }>(({ radiusM, color, height }, ref) => {
+  const [latDelta, setLatDelta] = useState<number | null>(null);
+  useImperativeHandle(ref, () => ({ show: (r) => setLatDelta(r.latitudeDelta) }));
+  if (!latDelta) return null;
+  const d = 2 * radiusPt(radiusM, latDelta, height);
+  return (
+    <View pointerEvents="none" style={[styles.ring, { width: d, height: d, marginLeft: -d / 2, marginTop: -d / 2, borderRadius: d / 2, borderColor: color, backgroundColor: color + '30' }]}>
+      <View style={[styles.ringDot, { backgroundColor: color }]} />
+    </View>
+  );
+});
 
 // Map scale in Apple's style: a thin bar of alternating dark and light halves, outlined, with the
 // distance in small gray text with a halo. Lives apart from the map so it can follow every frame
@@ -344,6 +366,8 @@ const ScaleBar = forwardRef<{ show: (r: Region) => void; settle: () => void }, {
 });
 
 const styles = StyleSheet.create({
+  ring: { position: 'absolute', left: '50%', top: '50%', borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  ringDot: { width: 6, height: 6, borderRadius: 3 },
   scale: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 2 }, // top center, between the corner buttons
   scaleText: { fontFamily: fonts.bodyBold, fontSize: 10, textShadowRadius: 2, textShadowOffset: { width: 0, height: 0 } },
   scaleBar: { height: 4, flexDirection: 'row', borderWidth: StyleSheet.hairlineWidth, borderRadius: 1, overflow: 'hidden' },

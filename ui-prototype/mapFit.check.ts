@@ -1,6 +1,6 @@
 // Run: node mapFit.check.ts
 import assert from 'node:assert';
-import { aroundMe, edgeSpot, scaleBar, spread, visibleLabels } from './mapFit.ts';
+import { aroundMe, circleSpan, edgeSpot, radiusPt, scaleBar, spread, visibleLabels } from './mapFit.ts';
 
 const region = { latitude: 0, longitude: 0, latitudeDelta: 1, longitudeDelta: 1 };
 const size = { w: 400, h: 800 };
@@ -45,4 +45,9 @@ assert.strictEqual(aroundMe(me, []).latitudeDelta, 0.008); // alone: street leve
 const bar = scaleBar({ latitude: 0, longitude: 0, latitudeDelta: 1, longitudeDelta: 1 }, 375, 100);
 assert.strictEqual(bar.label, '10 mi');
 assert.ok(bar.pt > 50 && bar.pt <= 100);
+// 1 km on a map showing 111 km over 111 pt is 1 pt; each larger size draws larger, and the largest fits.
+assert.ok(Math.abs(radiusPt(1000, 1, 111) - 1) < 1e-9);
+const drawn = [500, 1000, 2000, 3000].map((m) => 2 * radiusPt(m, circleSpan(m, 150), 150));
+assert.ok(drawn.every((d, i) => i === 0 || d > drawn[i - 1]), 'bigger size, bigger circle');
+assert.ok(Math.abs(drawn[3] - 125) < 1e-6 && drawn[0] > 40);
 console.log('mapFit ok');

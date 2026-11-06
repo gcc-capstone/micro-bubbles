@@ -112,6 +112,14 @@ export function aroundMe(me: LatLng, people: LatLng[], near = 3, minDeg = 0.008,
   return { latitude: me.lat, longitude: me.lng, latitudeDelta: lat, longitudeDelta: lat / Math.cos((me.lat * Math.PI) / 180) };
 }
 
+// How many points a distance on the ground takes up, for a map showing latDelta degrees over heightPt.
+export const radiusPt = (radiusM: number, latDelta: number, heightPt: number) => (radiusM / 111000 / latDelta) * heightPt;
+
+// Latitude span that frames a circle of radiusM in a small map: bigger circles draw bigger (with the
+// square root, so the largest fits and the smallest stays easy to see) and the map zooms out for them.
+export const circleSpan = (radiusM: number, heightPt: number, largestM = 3000, largestPt = 125) =>
+  ((2 * radiusM) / 111000) * (heightPt / (largestPt * Math.sqrt(radiusM / largestM)));
+
 const SCALE_STEPS: [string, number][] = [
   ['100 ft', 0.0189], ['250 ft', 0.0473], ['500 ft', 0.0947], ['0.25 mi', 0.25], ['0.5 mi', 0.5], ['1 mi', 1],
   ['2 mi', 2], ['5 mi', 5], ['10 mi', 10], ['25 mi', 25], ['50 mi', 50], ['100 mi', 100], ['250 mi', 250],

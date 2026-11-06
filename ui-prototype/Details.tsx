@@ -11,6 +11,7 @@ import {
   notifiesFrom, Pin, PIN_CATEGORIES, PinCategory, pinCategory, phoneOf, sharesWith, SETTINGS, ratingCount, Hotspot, HotspotAlert, canInvite, ownerName,
 } from './data';
 import BubbleMap, { Focus } from './BubbleMap';
+import { circleSpan } from './mapFit';
 import { addMonths, dayNum, daysIn, isoOf, leadBlanks, monthStart, parts } from './calendarMath';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -117,8 +118,8 @@ function BubbleCover({ color, icon }: { color: string; icon?: IconName }) {
   );
 }
 
-// Which Bubble something goes to. With only one choice, just names it.
-function BubblePicker({ groups, value, onChange }: { groups: Group[]; value?: string; onChange: (id: string) => void }) {
+// Which Bubble (or Bubbles) something goes to. With only one choice, just names it.
+function BubblePicker({ groups, selected, onPress }: { groups: Group[]; selected: string[]; onPress: (id: string) => void }) {
   if (groups.length === 1)
     return (
       <View style={styles.row}>
@@ -129,11 +130,11 @@ function BubblePicker({ groups, value, onChange }: { groups: Group[]; value?: st
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}>
       {groups.map((g) => (
-        <Pressable key={g.id} onPress={() => onChange(g.id)} style={{ alignItems: 'center', width: 64 }}>
+        <Pressable key={g.id} onPress={() => onPress(g.id)} accessibilityState={{ selected: selected.includes(g.id) }} style={{ alignItems: 'center', width: 64 }}>
           <Bubble size={44} tint={groupColor(g.id)}>
-            {g.id === value && <Ionicons name="checkmark" size={20} color={groupColor(g.id)} />}
+            {selected.includes(g.id) && <Ionicons name="checkmark" size={20} color={groupColor(g.id)} />}
           </Bubble>
-          <Text numberOfLines={1} style={[styles.shareLabel, g.id === value && { color: colors.primary, fontFamily: fonts.bodyBold }]}>{g.name}</Text>
+          <Text numberOfLines={1} style={[styles.shareLabel, selected.includes(g.id) && { color: colors.primary, fontFamily: fonts.bodyBold }]}>{g.name}</Text>
         </Pressable>
       ))}
     </ScrollView>
@@ -149,10 +150,11 @@ export type Spot = { lat: number; lng: number; address: string; name?: string; f
 const NO_ADDRESS: Address = { line1: '', line2: '', city: '', region: '', postcode: '', country: '' };
 const oneLine = (f: Address) => [f.line1, f.city].filter(Boolean).join(', ');
 
-function PlacePicker({ at, color, marker, onChange, onPlace }: {
-  at?: { lat: number; lng: number } | null; color: string; marker: ReactNode; onChange: (s: Spot) => void; onPlace?: (l: Loc) => void;
+function PlacePicker({ at, color, marker, radiusM, onChange, onPlace }: {
+  at?: { lat: number; lng: number } | null; color: string; marker?: ReactNode; radiusM?: number; onChange: (s: Spot) => void; onPlace?: (l: Loc) => void;
 }) {
-  const [focus, setFocus] = useState<Focus>(() => ({ name: at ? 'Chosen spot' : 'You', ...(at ?? { lat: ME.lat, lng: ME.lng }) }));
+  const zoom = radiusM ? circleSpan(radiusM, PREVIEW_H) : undefined; // an area: frame it, and refit when its size changes
+  const [focus, setFocus] = useState<Focus>(() => ({ name: at ? 'Chosen spot' : 'You', zoom, ...(at ?? { lat: ME.lat, lng: ME.lng }) }));
   const [center, setCenter] = useState({ lat: focus.lat, lng: focus.lng });
   const [search, setSearch] = useState('');
   const [fields, setFieldsState] = useState(NO_ADDRESS);
@@ -166,6 +168,7 @@ function PlacePicker({ at, color, marker, onChange, onPlace }: {
   const seq = useRef(0); // only the latest lookup counts
   const picked = useRef<Loc | null>(null);
   const centerRef = useRef(center);
+  useEffect(() => setFocus((f) => ({ name: f.name, zoom, ...centerRef.current })), [radiusM]);
   const q = search.trim().toLowerCase();
   const matches = q ? LOCATIONS.filter((l) => l.name.toLowerCase().includes(q)).slice(0, 4) : [];
   const report = (c: { lat: number; lng: number }, f: Address) => {
@@ -202,14 +205,14 @@ function PlacePicker({ at, color, marker, onChange, onPlace }: {
         // several matches (Mercer, PA and Mercer, ME): the one nearest where the map is
         const c = centerRef.current;
         const r = rs.sort((a, b) => meters(c, { lat: a.latitude, lng: a.longitude }) - meters(c, { lat: b.latitude, lng: b.longitude }))[0];
-        if (n === seq.current && r) setFocus({ name: text, lat: r.latitude, lng: r.longitude });
+        if (n === seq.current && r) setFocus({ name: text, zoom, lat: r.latitude, lng: r.longitude });
       })
       .catch(() => Alert.alert('Address Not Found', `Couldn't find "${text}". Drag the map instead.`));
   };
   const pick = (l: Loc) => {
     picked.current = l;
     setSearch('');
-    setFocus({ name: l.name, lat: l.lat, lng: l.lng });
+    setFocus({ name: l.name, zoom, lat: l.lat, lng: l.lng });
     onPlace?.(l);
     Keyboard.dismiss();
   };
@@ -276,7 +279,7 @@ function PlacePicker({ at, color, marker, onChange, onPlace }: {
         </View>
       )}
       <View style={[styles.mapPreview, { marginTop: spacing.sm }]}>
-        <BubbleMap members={NO_MEMBERS} hotspots={[]} pins={[]} color={color} focus={focus} topInset={0} bottomInset={0} onMemberPress={() => {}} onCenterChange={moved} />
+        <BubbleMap members={NO_MEMBERS} hotspots={[]} pins={[]} color={color} focus={focus} topInset={0} bottomInset={0} onMemberPress={() => {}} onCenterChange={moved} ring={radiusM ? { radiusM, color } : undefined} />
         {marker}
       </View>
       <Text style={[type.caption, { textAlign: 'center' }]}>{nearMe ? 'Your current location · drag the map to move' : `${away(center.lat, center.lng)} · drag the map to adjust`}</Text>
@@ -479,24 +482,32 @@ export function LinkedText({ text, style, numberOfLines }: { text: string; style
 
 const radiusLabel = (m: number) => (m >= 1000 ? `${m / 1000} km` : `${m} m`);
 
-// Arrives / Leaves chips for one person at one hotspot: tap to get notified.
-function AlertChips({ hotspot, name }: { hotspot: Hotspot; name: string }) {
-  const [, setTick] = useState(0);
-  const a = hotspot.alerts?.[name];
-  const flip = (key: keyof HotspotAlert) => {
-    const cur = (hotspot.alerts ??= {})[name] ?? { arrive: false, leave: false };
-    hotspot.alerts[name] = { ...cur, [key]: !cur[key] };
-    setTick((t) => t + 1);
-  };
+// Arrives / Leaves toggles for one person: either, both or neither.
+const flipAlert = (a: HotspotAlert | undefined, key: keyof HotspotAlert): HotspotAlert => ({ arrive: false, leave: false, ...a, [key]: !a?.[key] });
+function AlertToggles({ a, onFlip }: { a?: HotspotAlert; onFlip: (key: keyof HotspotAlert) => void }) {
   return (
     <>
       {(['arrive', 'leave'] as const).map((k) => (
-        <Pressable key={k} onPress={() => flip(k)} style={[styles.alertChip, a?.[k] && styles.alertChipOn]} hitSlop={10}>
+        <Pressable key={k} onPress={() => onFlip(k)} accessibilityRole="switch" accessibilityState={{ checked: !!a?.[k] }} style={[styles.alertChip, a?.[k] && styles.alertChipOn]} hitSlop={10}>
           <Ionicons name={k === 'arrive' ? 'enter-outline' : 'exit-outline'} size={13} color={a?.[k] ? colors.onPrimary : colors.primary} />
           <Text style={[styles.alertChipText, a?.[k] && { color: colors.onPrimary }]}>{k === 'arrive' ? 'Arrives' : 'Leaves'}</Text>
         </Pressable>
       ))}
     </>
+  );
+}
+
+// The same toggles for a hotspot that already exists: they save as you tap.
+function AlertChips({ hotspot, name }: { hotspot: Hotspot; name: string }) {
+  const [, setTick] = useState(0);
+  return (
+    <AlertToggles
+      a={hotspot.alerts?.[name]}
+      onFlip={(k) => {
+        (hotspot.alerts ??= {})[name] = flipAlert(hotspot.alerts[name], k);
+        setTick((t) => t + 1);
+      }}
+    />
   );
 }
 
@@ -519,7 +530,7 @@ export function HotspotAlerts({ hotspot, group }: { hotspot: Hotspot; group: Gro
   );
 }
 
-const RADII_M = [100, 250, 500, 1000, 3000];
+const RADII_M = [500, 1000, 2000, 3000]; // 500 m is the smallest a safety area can be
 
 // Create a hotspot: name, where (search or drag), size, Bubble, and who you want alerts for.
 // at: a long-pressed spot on the map to center on; defaults to your location.
@@ -527,19 +538,17 @@ export function NewHotspot({ visible, groups, initialGroupId, at, onClose, onCre
   visible: boolean; groups: Group[]; initialGroupId?: string; at?: { lat: number; lng: number } | null; onClose: () => void; onCreate: (h: Hotspot, groupId: string) => void;
 }) {
   const [name, setName] = useState('');
-  const [radius, setRadius] = useState(250);
+  const [radius, setRadius] = useState(RADII_M[0]);
   const [groupId, setGroupId] = useState(groups[0]?.id);
   const [spot, setSpot] = useState<Spot>({ lat: ME.lat, lng: ME.lng, address: '' });
-  const [who, setWho] = useState<string[]>([]);
-  const [when, setWhen] = useState('Both');
+  const [alerts, setAlerts] = useState<Record<string, HotspotAlert>>({});
   useEffect(() => {
     if (!visible) return;
     setName('');
-    setRadius(250);
+    setRadius(RADII_M[0]);
     setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
     setSpot({ ...(at ?? { lat: ME.lat, lng: ME.lng }), address: '' });
-    setWho([]);
-    setWhen('Both');
+    setAlerts({});
   }, [visible]);
   const group = groups.find((g) => g.id === groupId);
   const color = groupColor(groupId);
@@ -551,7 +560,7 @@ export function NewHotspot({ visible, groups, initialGroupId, at, onClose, onCre
         lat: spot.lat,
         lng: spot.lng,
         radius,
-        alerts: Object.fromEntries(who.map((n) => [n, { arrive: when !== 'Leaves', leave: when !== 'Arrives' }])),
+        alerts,
       },
       groupId,
     );
@@ -572,8 +581,7 @@ export function NewHotspot({ visible, groups, initialGroupId, at, onClose, onCre
       <PlacePicker
         at={at}
         color={color}
-        // ponytail: circle drawn at a fixed screen size, not to the map's scale
-        marker={<View style={[styles.areaRing, { borderColor: color, backgroundColor: color + '30' }, styles.noTouch]} />}
+        radiusM={radius}
         onChange={setSpot}
         onPlace={(l) => !name.trim() && setName(l.name)}
       />
@@ -593,24 +601,21 @@ export function NewHotspot({ visible, groups, initialGroupId, at, onClose, onCre
       </Section>
 
       <Section title="Bubble">
-        <BubblePicker groups={groups} value={groupId} onChange={(id) => { setGroupId(id); setWho([]); }} />
+        <BubblePicker groups={groups} selected={[groupId]} onPress={(id) => { setGroupId(id); setAlerts({}); }} />
       </Section>
 
       <Section title="Alert me when">
-        <View style={{ padding: spacing.md, gap: spacing.sm }}>
-          <View style={[styles.row, { flexWrap: 'wrap', gap: spacing.sm, paddingHorizontal: 0, paddingVertical: 0 }]}>
-            {group?.members.map((m) => {
-              const on = who.includes(m.name);
-              return (
-                <Pressable key={m.name} onPress={() => setWho(on ? who.filter((x) => x !== m.name) : [...who, m.name])} style={[styles.timeChip, on && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
-                  <Text style={[styles.timeText, on && { color: colors.onPrimary }]}>{m.name.split(' ')[0]}</Text>
-                </Pressable>
-              );
-            })}
+        {group?.members.map((m, i) => (
+          <View key={m.name}>
+            {i > 0 && <Separator inset={60} />}
+            <View style={styles.row}>
+              <Avatar size={32} initials={initials(m.name)} color={memberColor(m.name)} />
+              <Text numberOfLines={1} style={[type.body, { flex: 1 }]}>{m.name.split(' ')[0]}</Text>
+              <AlertToggles a={alerts[m.name]} onFlip={(k) => setAlerts({ ...alerts, [m.name]: flipAlert(alerts[m.name], k) })} />
+            </View>
           </View>
-          <Segmented options={['Arrives', 'Leaves', 'Both']} value={when} onChange={setWhen} />
-          <Text style={type.caption}>{who.length ? `You'll be notified when ${who.length === 1 ? who[0].split(' ')[0] : `any of ${who.length} people`} ${when === 'Arrives' ? 'arrives' : when === 'Leaves' ? 'leaves' : 'arrives or leaves'}.` : 'Pick people to get alerts for.'}</Text>
-        </View>
+        ))}
+        <Text style={[styles.footnote, { paddingTop: spacing.sm }]}>Choose Arrives, Leaves or both for anyone you want alerts about.</Text>
       </Section>
     </PageSheet>
   );
@@ -1061,13 +1066,13 @@ const NO_MEMBERS: Member[] = [];
 
 // at: where to start (a long-pressed spot on the map); defaults to your location.
 export function DropPin({ visible, groups, initialGroupId, at, onClose, onDrop }: {
-  visible: boolean; groups: Group[]; initialGroupId?: string; at?: { lat: number; lng: number } | null; onClose: () => void; onDrop: (pin: Pin, groupId: string, notify: boolean) => void;
+  visible: boolean; groups: Group[]; initialGroupId?: string; at?: { lat: number; lng: number } | null; onClose: () => void; onDrop: (pin: Pin, groupIds: string[], notify: boolean) => void;
 }) {
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
   const [category, setCategory] = useState<PinCategory>('Other');
   const [rating, setRating] = useState(5);
-  const [groupId, setGroupId] = useState(groups[0]?.id);
+  const [groupIds, setGroupIds] = useState([groups[0]?.id]);
   const [notify, setNotify] = useState(true);
   const [spot, setSpot] = useState<Spot>({ lat: ME.lat, lng: ME.lng, address: '' });
   useEffect(() => {
@@ -1076,11 +1081,13 @@ export function DropPin({ visible, groups, initialGroupId, at, onClose, onDrop }
     setNote('');
     setCategory('Other');
     setRating(5);
-    setGroupId(initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id);
+    setGroupIds([initialGroupId && initialGroupId !== 'everyone' ? initialGroupId : groups[0]?.id]);
     setNotify(true);
     setSpot({ ...(at ?? { lat: ME.lat, lng: ME.lng }), address: '' });
   }, [visible]);
-  const color = groupColor(groupId);
+  const color = groupColor(groupIds[0]);
+  // any number of Bubbles, but at least one
+  const toggleGroup = (id: string) => setGroupIds(groupIds.includes(id) ? (groupIds.length > 1 ? groupIds.filter((x) => x !== id) : groupIds) : [...groupIds, id]);
   const icon = PIN_CATEGORIES.find((c) => c.name === category)!.icon;
 
   return (
@@ -1093,7 +1100,7 @@ export function DropPin({ visible, groups, initialGroupId, at, onClose, onDrop }
       right={
         <Pressable
           disabled={!name.trim()}
-          onPress={() => onDrop({ name: name.trim(), note, by: 'You', rating, icon, category, lat: spot.lat, lng: spot.lng }, groupId, notify)}
+          onPress={() => onDrop({ name: name.trim(), note, by: 'You', rating, icon, category, lat: spot.lat, lng: spot.lng }, groupIds, notify)}
           hitSlop={10}
         >
           <Text style={[styles.headerAction, { fontFamily: fonts.bodyBold }, !name.trim() && { color: colors.textMuted }]}>Drop</Text>
@@ -1146,8 +1153,8 @@ export function DropPin({ visible, groups, initialGroupId, at, onClose, onDrop }
         </View>
       </Section>
 
-      <Section title="Share to">
-        <BubblePicker groups={groups} value={groupId} onChange={setGroupId} />
+      <Section title={groupIds.length > 1 ? `Share to · ${groupIds.length} Bubbles` : 'Share to'}>
+        <BubblePicker groups={groups} selected={groupIds} onPress={toggleGroup} />
         <Separator />
         <Row icon="notifications-outline" label="Notify members">
           <Switch value={notify} onValueChange={setNotify} trackColor={{ true: colors.primary }} />
@@ -1339,7 +1346,7 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
       />
 
       <Section title="Bubble">
-        <BubblePicker groups={groups} value={groupId} onChange={setGroupId} />
+        <BubblePicker groups={groups} selected={[groupId]} onPress={setGroupId} />
         <Separator />
         <Row icon="notifications-outline" label="Notify members">
           <Switch value={remind} onValueChange={setRemind} trackColor={{ true: colors.primary }} />
@@ -1349,6 +1356,7 @@ export function NewEvent({ visible, groups, initialGroupId, today, initialDate =
   );
 }
 
+const PREVIEW_H = 150;
 const styles = StyleSheet.create({
   inline: { flexDirection: 'row', alignItems: 'center' },
   link: { color: colors.primary, fontFamily: fonts.bodyBold },
@@ -1385,10 +1393,9 @@ const styles = StyleSheet.create({
   alertChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
   alertChipOn: { backgroundColor: colors.primary },
   alertChipText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.primary },
-  areaRing: { position: 'absolute', left: '50%', top: '50%', width: 110, height: 110, marginLeft: -55, marginTop: -55, borderRadius: 55, borderWidth: 2 },
   pair: { flexDirection: 'row' },
   pairLine: { width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: spacing.sm },
-  mapPreview: { height: 150, marginHorizontal: spacing.md, borderRadius: radius.md, overflow: 'hidden' },
+  mapPreview: { height: PREVIEW_H, marginHorizontal: spacing.md, borderRadius: radius.md, overflow: 'hidden' },
   category: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }, // selected: a soft tint behind it
   calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   calCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 2 },
