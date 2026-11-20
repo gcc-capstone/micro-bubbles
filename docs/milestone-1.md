@@ -14,13 +14,13 @@ We have 4 main areas to complete in order to make that a reality:
 
 1. Ina - Mobile App
 2. Sam - Database Schema
-3. Syd - Web Admin Interface
-4. Tim - Location API
+3. Syd - Web Admin Interface and Users and Bubbles classes in TypeScript
+4. Tim - DevOps and Executable
 
-The mobile app work from Ina will involve bringing our UI mockup to life using React Native. Only the Bubbles mobile app main screen, the QR code scanner, the Bubble-specific homepage, and the leave Bubbles functionality of the UI will need to be created.
+The mobile app (for Android) work from Ina will involve bringing our UI mockup to life using React Native. Only the Bubbles mobile app main screen, the QR code scanner, the Bubble-specific homepage, and the leave Bubbles functionality of the UI will need to be created.
 
 The database schema from Sam will involve taking the current ER diagram and creating working tables in a cloud database provider, and providing endpoints for the team and app to access. Neon is our cloud database provider of choice.
 
-The web admin interface from Sydney will involve creating a webpage for admins to create and delete Bubbles and QR codes for users to scan. This will be built in React, with possible Java usage if we need a backend.
+The web admin interface and TypeScript classes from Sydney will involve creating a webpage for admins to create and delete Bubbles and QR codes for users to scan. This will be built in React, with possible Java usage if we need a backend. The TypeScript classes will be built in tandem with Ina Tang's development of the mobile app.
 
-The Location API work from Tim will involve learning about the API offered by Smith Micro and incorporating some of that code already into our app. This will be mostly preparation work, with documentation and explanations for the team to review being the outputl. This will enable to team to get started working with the Location API quickly, and Tim can be a resource for the rest of the team when working with that code.
+The DevOps and executable work from Tim will involve setting up Cloudflare GitHub actions, general GitHub administration, various DevOps needs, and producing an executable of the mobile app that can be run on an Android phone.
