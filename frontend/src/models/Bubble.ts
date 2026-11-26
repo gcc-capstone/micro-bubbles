@@ -8,7 +8,7 @@ type BubbleUpdates = {
 };
 
 export class Bubble {
-    bubbleId: string;
+    readonly bubbleId: string;
     name: string;
     ownerId: string;
     isPrivate: boolean;

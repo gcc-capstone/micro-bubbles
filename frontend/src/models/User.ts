@@ -1,7 +1,7 @@
 import type { Bubble } from "./Bubble";
 
 export class User {
-    userId: string;
+    readonly userId: string;
     firstName: string;
     lastName: string;
     username: string;
@@ -65,12 +65,24 @@ export class User {
         if (!alreadyFriend) {
             this.friends.push(user);
         }
+
+        const alreadyMutual = user.friends.some(
+            (friend) => friend.userId === this.userId
+        );
+
+        if (!alreadyMutual) {
+            user.friends.push(this);
+        }
     }
 
-    removeFriend(userId: string): void {
+    removeFriend(user: User): void {
         this.friends = this.friends.filter(
-            (friend) => friend.userId !== userId
+            (friend) => friend.userId !== user.userId
         );    
+
+        user.friends = user.friends.filter(
+            (friend) => friend.userId !== this.userId
+        );
     }
 }
 
