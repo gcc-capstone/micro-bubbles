@@ -186,6 +186,53 @@
   font-size: 0.8125rem;
 }
 
+/* Soap Bubble visual */
+.bubble-preview {
+  position: relative;
+  width: 8rem;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bubble-blue) 8%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--bubble-blue) 35%, transparent);
+  box-shadow: 0 0.25rem 0.75rem
+    color-mix(in srgb, var(--bubble-blue) 20%, transparent);
+}
+
+.bubble-preview::before {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.95);
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
+
+.bubble-preview::after {
+  content: "";
+  position: absolute;
+  width: 8%;
+  aspect-ratio: 1;
+  top: 26%;
+  left: 26%;
+  border-radius: 50%;
+  background: white;
+  pointer-events: none;
+}
+
+.bubble-preview span {
+  position: relative;
+  z-index: 1;
+  max-width: 78%;
+  text-align: center;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
 /* Smaller screens */
 @media (max-width: 40rem) {
   .admin-header {

@@ -11,6 +11,13 @@
   --color-background: #F9F9F9;
   --color-surface: #FFFFFF;
   --color-danger: #D64545;
+ /* Bubble colors from mobile UI */
+  --bubble-blue: #3E8ED0;
+  --bubble-teal: #2F9AA6;
+  --bubble-green: #3E9E70;
+  --bubble-purple: #8C6BC8;
+  --bubble-orange: #D9822F;
+  --bubble-pink: #D9638A;
 
   /* Typography */
   --font-heading: 'Montserrat', sans-serif;
