@@ -16,6 +16,13 @@ The main idea of the Bubbles project is to create a social location-sharing app 
 
 Some main features include the ability to create different “Bubbles” for groups such as family, friends, or social clubs and see members’ locations on a map. With geofencing, users can create names loctions using a defined radius. They can turn on notifications for when bubble members enter or leave these circles. Members of a bubble can share messages, photos, and interesting places with pins, either directly or within the group. Users can also utilize features such as location tracking, geofencing, and SOS.
 
+
+> [!IMPORTANT]
+> **INSTRUCTOR COMMENT — ACTION REQUIRED**
+>
+> I think you can leave the above as is --- dont need to add the idea of the ski resort here --- we can keep the focus on the end users.
+
+
 ## Representative Tasks
 
 The following representative tasks describe common situations that Bubbles is designed to support. They show how users would interact with the application in realistic scenarios involving location sharing, Bubble management, communication, privacy, and social features. These tasks are important because they help define the core functionality of the application and provide concrete examples of how the proposed features address the needs of friends, families, clubs, and other social groups.
@@ -26,7 +33,7 @@ Michaela's dad wants to watch her daughter’s soccer game at Davis Park but is 
 
 2. MVP Task 2: Creating Multiple Bubbles
 
-Lena is quite popular and has a few different friend groups that she is a part of. She wants to join the bubble for both her theatre group and her Krav Maga club. She opens the app and checks her inbox to see the invite from Venture, her theatre friend. She accepts the invite to join their bubble. She also accepts the invite in her inbox to join her Krav Maga club’s bubble. When she comes back to the main screen she seamlessly switches from view of everyone she knows to a view of just her theatre’s bubble. She sees that everyone is heading to the dining hall and decides to join them. 
+Lena is quite popular is a member of a few different friend groups. She wants to join the bubble for both her theatre group and her Krav Maga club. She opens the app and checks her inbox to see the invite from Venture, her theatre friend. She accepts the invite to join their bubble. She also accepts the invite in her inbox to join her Krav Maga club’s bubble. When she comes back to the main screen she seamlessly switches from view of everyone she knows to a view of just her theatre’s bubble. She sees that everyone is heading to the dining hall and decides to join them. 
 
 3. MVP Task 3: Joining a Bubble via Code
 
@@ -34,7 +41,7 @@ Lena also wishes to join a public Grove City College bubble for IM sports that h
 
 4. MVP Task 4: Inviting Others to a Bubble
 
-Sam gets invited to the ACM Bubble by it's Bubble owner. He realizes that he might not know everyone in this public Bubble and is wary of sharing his location with these random comp sci nerds. He is concerned that this may be a privacy issue, so he denies the invitation. 
+Sam gets invited to the ACM Bubble by its Bubble owner. He realizes that he might not know everyone in this public Bubble and is wary of sharing his location with these random comp sci nerds. He is concerned that this may be a privacy issue, so he denies the invitation. 
 
 5. MVP Task 5: Leaving a Bubble
 
@@ -56,6 +63,13 @@ Ani wants to disable view permission of family pins and photos for others. She h
 
 Ashlea just downloaded the Bubbles app and hopes to create an accurate profile for her purpose for using the app. She chooses a public profile and adds her profile name, profile picture, bio, and chooses to include a link to her instagram account. She also adds a few other hobbies to her profile such as hiking, running, and golf, hoping that others in her area that like these activities will be sugggested to her. That way she can join bubbles of local hikers, runners, and golfers as she is new to town and would love to know the local favorites for hiking trails, running routes, and golf courses. She adds some hiking pictures from her hometown in Colorado and puts the finishing touches on her profile, satisfied with how it looks.
 
+
+> [!IMPORTANT]
+> **INSTRUCTOR COMMENT — ACTION REQUIRED**
+>
+> I think you can remove this from mvp
+
+
 10. Task 10: SOS Alert
 
 Ina is driving back to campus late at night from Waffle House when her car breaks down on a back road outside Grove City. She triggers SOS, and Sam and Tim instantly get an alert with her exact location. Sam drives straight to her, saving the day. 
@@ -72,6 +86,13 @@ Sydney wants to get Sam to team meeting. Ina, Sam, Sydney, and Tim are on the sa
 
 Ashlea has been trying to get her Grove City friends in her Bubble to go on more hikes with her. She is currently at Moraine State Park, hiking the Sunken Garden Trail. Since it is a beginner trail, she wants to share it with her Bubble by dropping a pin on the location of the newly discovered trail. She opens the app and chooses to drop the pin onto this Bubble's map, naming it “Sunken Garden Trail: Beginner hiking trail with a secret swimming hole.” She selects the option to notify her friends of this new pin drop and exits out of the app to continue her short hike.
 
+
+> [!IMPORTANT]
+> **INSTRUCTOR COMMENT — ACTION REQUIRED**
+>
+> I like this one - does not have to be mvp but prioritize it.
+
+
 14. Task 14: Location Ranking
 
 Sydney recently joined the “Rochester Nature Lovers” bubble that her friends invited her to. She is excited to see the various locations that they have ranked in the app because she wants to go hiking at a new trail tomorrow afternoon. She recently received a notification about a new pin dropped on a park near her by her friends (Task 2). Sydney clicks the app and opens the “Rochester Nature Lovers” bubble to view the top ranked locations and sees that the new pin is Canawaugus Park in Scottsville and has been given 5 stars by many of her friends. She also checks the description and notices there are hiking trails, a bridge over a creek, as well as a rope swing. The next day she arrives and enjoys the bridge jumping so much, that she goes back to the bubble to add another 5-star ranking to Canawaugus Park.
@@ -79,6 +100,13 @@ Sydney recently joined the “Rochester Nature Lovers” bubble that her friends
 15. Task 15: Calendar Sharing
 
 Nia wants to share her events calendar with her fellow hikers. She is the organizer for her hiking club. She invited all the club members to her Hiking bubble on SafePath so everybody can see each other's locations when hiking, and if people are late they know where the crew is. This weekend, Nia is organizing a beginners hike to new people. As group messages are often flooded with hiking memes, Nia decided to put the event on the Calendars page (which will automatically notify people as the event approaches) in addition to sending out a reminder in the bubble's group chat. Nia is happy that people have an easy way to view details of the event, and that she doesn't have to worry about sending out more reminders. 
+
+
+> [!IMPORTANT]
+> **INSTRUCTOR COMMENT — ACTION REQUIRED**
+>
+> Add one more here please - does not have to be mvp- but i'd like an org, like gcc reslife to be able to create configured app downloads with some pins and bubbles/invitations already created.   
+
 
 ## Related Work
 
