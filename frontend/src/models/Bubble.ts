@@ -1,5 +1,12 @@
 import type { User } from "./User";
 
+// for customize method
+type BubbleUpdates = {
+    name: string;
+    isPrivate: boolean;
+    details: string | null;
+};
+
 export class Bubble {
     bubbleId: string;
     name: string;
@@ -40,9 +47,15 @@ export class Bubble {
         );    
     }
 
-    customize(name: string, isPrivate: boolean, details: string) {
-        this.name = name;
-        this.isPrivate = isPrivate;
-        this.details = details;
+    customize(updates: Partial<BubbleUpdates>): void {
+        if (updates.name !== undefined) {
+            this.name = updates.name;
+        }
+        if (updates.isPrivate !== undefined) {
+            this.isPrivate = updates.isPrivate;
+        }
+        if (updates.details !== undefined) {
+            this.details = updates.details;
+        }
     }
 }
