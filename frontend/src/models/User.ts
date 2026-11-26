@@ -11,6 +11,7 @@ export class User {
     snapLink: string | null;
     hobbies: string[];
     location: string | null;
+    friends: User[];
 
     constructor(
         userId: string,
@@ -24,7 +25,8 @@ export class User {
         stravaLink: string | null = null,
         snapLink: string | null = null,
         hobbies: string[] = [],
-        location: string | null = null
+        location: string | null = null,
+        friends: User[] = []
     ) {
         this.userId = userId;
         this.firstName = firstName;
@@ -38,6 +40,7 @@ export class User {
         this.snapLink = snapLink;
         this.hobbies = hobbies;
         this.location = location;
+        this.friends = friends;
     }
 
     get name(): string {
