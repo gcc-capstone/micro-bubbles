@@ -1,3 +1,5 @@
+import type { Bubble } from "./Bubble";
+
 export class User {
     userId: string;
     firstName: string;
@@ -45,6 +47,30 @@ export class User {
 
     get name(): string {
         return `${this.firstName} ${this.lastName}`;
+    }
+
+    join(bubble: Bubble): void {
+        bubble.addMember(this);
+    }
+
+    leave(bubble: Bubble): void {
+        bubble.removeMember(this.userId);
+    }
+
+    addFriend(user: User): void {
+        const alreadyFriend = this.friends.some(
+            (friend) => friend.userId === user.userId
+        );
+
+        if (!alreadyFriend) {
+            this.friends.push(user);
+        }
+    }
+
+    removeFriend(userId: string): void {
+        this.friends = this.friends.filter(
+            (friend) => friend.userId !== userId
+        );    
     }
 }
 

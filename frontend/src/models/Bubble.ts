@@ -1,4 +1,4 @@
-import { User } from "./User";
+import type { User } from "./User";
 
 export class Bubble {
     bubbleId: string;
@@ -40,5 +40,9 @@ export class Bubble {
         );    
     }
 
-    
+    customize(name: string, isPrivate: boolean, details: string) {
+        this.name = name;
+        this.isPrivate = isPrivate;
+        this.details = details;
+    }
 }
